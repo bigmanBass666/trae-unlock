@@ -53,6 +53,7 @@
 ```
 git add .
 git commit -m "[类型] 简要说明"
+git push                              # ⚠️ 每次 commit 后必须立即 push！
 ```
 
 提交信息格式：
@@ -61,6 +62,24 @@ git commit -m "[类型] 简要说明"
 - `[修复] 解决了 xxx 问题`
 - `[文档] 更新了 xxx`
 - `[测试] 验证了 xxx`
+
+## ⚠️⚠️⚠️ 强制 Push 规则
+
+**每次 commit 后必须立即 push 到 GitHub！**
+
+原因：本地 Git 仓库可能在 merge/rebase 操作中损坏（.git 目录消失），导致所有历史丢失。
+已有的血的教训：merge 失败导致 .git 损坏 → 所有 commit 历史丢失。
+
+```
+正确流程:
+  git add .
+  git commit -m "..."
+  git push          ← 立即! 不要等到"最后一起push"
+
+禁止:
+  git add . && git commit -m "..."  ← 没有 push 就做其他操作
+  git merge ...  ← merge 失败可能损坏 .git
+```
 
 ## 目录结构
 
