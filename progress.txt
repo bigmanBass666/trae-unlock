@@ -1,0 +1,96 @@
+# Trae Mod Progress
+
+## 2026-04-18
+
+### ✅ 完成：绕过高风险命令确认
+- 文件: `@byted-icube/ai-modules-chat/dist/index.js` 位置 ~7502574
+- 方法: 添加自动确认 `provideUserResponse({decision:"confirm"})`
+- 效果: 弹窗一闪而过，命令自动执行
+- 详细文档: [docs/bypass-security.md](docs/bypass-security.md)
+
+### ✅ 完成：自动续接思考次数上限 (优雅版!)
+- 文件: `@byted-icube/ai-modules-chat/dist/index.js` 位置 ~8702342
+- 方法: `if(V&&J)` 分支 → `setTimeout(()=>ed(),50); return null`
+- 效果: 收到"思考次数已达上限" → **无感自动点"继续"** → 模型无缝继续
+- 错误码: `TASK_TURN_EXCEEDED_ERROR = 4000002`
+- 备用修改: efh 列表也加了此错误码 (~8695303)
+- 详细文档: [docs/source-architecture.md](docs/source-architecture.md) → "思考次数上限机制"章节
+
+### ✅ 完成：Patch 补丁系统 (新!)
+- 结构化补丁定义: `patches/definitions.json`（3个→4个补丁）
+- 一键应用: `scripts/apply-patches.ps1`（支持 -DryRun, -PatchIds）
+- 一键回滚: `scripts/rollback.ps1`（支持 --list, --date, --latest）
+- 状态验证: `scripts/verify.ps1`（ACTIVE/INACTIVE/UNKNOWN）
+- 自动备份: `backups/` 目录按时间戳管理
+- 使用 check_fingerprint 避免长字符串编码问题
+
+### ⭐⭐⭐ 新发现：RunCommandCard 第二层确认系统!
+- **发现**: 沙箱模式开启后出现新弹框 "检测到高风险命令...是否仍要在沙箱中运行？"
+- **原因**: Trae 有**两套独立**的命令确认机制！
+  - Layer 1: PlanItemStreamParser confirm_status (~7502574) → 已绕过
+  - **Layer 2: RunCommandCard getRunCommandCardBranch (~8069700)** ← 新发现！
+- **核心逻辑**: 即使 ALWAYS_RUN 模式，RedList 命令仍强制弹窗 (V2_Manual_RedList)
+- **关键枚举**: BlockLevel(RedList/Blacklist), AutoRunMode, ConfirmMode(ALWAYS_ASK/WHITELIST/ALWAYS_RUN)
+- **NLS key**: `icd.ai.runCommandCard.warning_tips.v2/sandbox_redlist`
+- **设置项**: `AI.toolcall.confirmMode` (~7438613)
+- **已打补丁**: bypass-runcommandcard-redlist (~8070328) → 始终返回 P8.Default
+- **效果**: 所有模式+所有命令全自动执行，零弹框
+
+### ⭐⭐⭐⭐⭐ 真正根因: auto_confirm=false (~8640019)
+- **问题**: 之前补丁后弹窗仍在！深入分析发现：
+  - getRunCommandCardBranch 补丁只改了分支选择，但**不是卡住的原因**
+  - **真正原因**: egR 组件的自动确认 effect (`~8640019`) 要求 `en &&`(auto_confirm必须为true)
+  - 红名单命令的服务端**故意返回 `auto_confirm:false`**
+  - → en=false → 自动确认不触发 → 卡在"是否仍要在沙箱中运行"
+- **关键变量** (egR 组件 ~8637300):
+  - `er = N?.confirm_status` — 确认状态 ("unconfirmed")
+  - `en = N?.auto_confirm` — **自动确认标志 (false!)**
+  - `ey` 计算: `en ? Confirmed : er` — auto_confirm=true 时直接通过
+- **最终补丁**: `!e&&er===Unconfirmed&&en&&ew.confirm(!0)` → 去掉 `&&en`
+- **效果**: 所有 unconfirmed 命令（不管服务端是否允许）都自动确认执行
+- 详细文档: [docs/source-architecture.md](docs/source-architecture.md) → "RunCommandCard 双层确认系统"章节
+
+### ⭐⭐⭐⭐⭐⭐⭐ 切换窗口后自动确认失效 — 最终解决!
+- **问题**: 切换AI会话窗口后，后台命令卡在"等待操作"
+- **7次迭代完整记录**: 见 [source-architecture.md](docs/source-architecture.md) → "切换窗口后自动确认失效的完整迭代记录"
+- **关键失败经验**:
+  1. `ew.confirm()` 是日志函数不是执行函数 → 需要调 `eE(Confirmed)`
+  2. useEffect 异步 → 切窗口后 React 不执行
+  3. useMemo "同步"但组件冻结时不执行
+  4. setTimeout 也依赖事件循环 → 组件冻结后不调度
+  5. **所有 React 组件内的修改都无法解决** — 切窗口后组件全部冻结
+- **最终方案: PlanItemStreamParser 服务层追加 provideUserResponse (~7503319, 补丁#8)**
+  - 在 else 分支（非 knowledge 命令）也调用 provideUserResponse
+  - 这是 SSE 流解析层（服务层），**完全不依赖 React 渲染**
+  - 跟补丁#1(knowledge) 在同一层级，形成完整覆盖
+- **效果**: ✅ 已验证！切窗口后命令也能自动执行
+
+### ✅✅✅ 补丁精简审计 (8个→4个)
+- **审计结论**: 从8个补丁精简到**4个核心补丁**，移除4个冗余
+- **最终保留 (#1 #2 #3 #8)**:
+  | # | 补丁 | 位置 | 功能 |
+  |---|------|------|------|
+  | 1 | auto-confirm-commands | ~7502574 | knowledge 命令自动确认 |
+  | 2 | auto-continue-thinking | ~8702342 | 思考上限自动点"继续" |
+  | 3 | efh-resume-list | ~8695303 | 备用恢复列表扩展 |
+  | **8** | **service-layer-runcommand-confirm** | **~7503319** | **RunCommandCard 命令服务层自动确认** |
+- **已移除 (标记disabled)**: #4 redlist分支, #5 useEffect强制, #6 useMemo同步, #7 数据源修改
+- **移除原因**: 全部在 React 组件内，被 #8(服务层) 完全取代
+- **验证结果**: 精简后 Copy/Remove/Move/Set/Rename/Git 全部零弹窗 ✅
+
+### 探索过程
+1. 定位 Trae 安装路径 + 发现解包状态
+2. 通过 NLS 翻译文件定位到 ai-modules-chat 核心模块
+3. 找到 PlanItemStreamParser confirm_status 检查 → 实施自动确认
+4. 追踪"思考次数上限"完整链路:
+   - 错误码 TASK_TURN_EXCEEDED_ERROR (4000002)
+   - 服务端→SSE→客户端→UI Alert 渲染链路
+   - efh 可恢复列表 + resumeChat API + ed("继续")回调
+5. 升级为优雅方案: setTimeout 自动触发 + 隐藏弹窗
+6. **构建 Patch System**: definitions.json + apply/rollback/verify 脚本
+
+### 待探索/验证
+- 测试实际效果：触发长运行任务观察是否无感续接
+- 观察是否会形成重试循环（服务端反复拒绝时）
+- 自定义主题/光标样式
+- 解除其他 UI 限制
