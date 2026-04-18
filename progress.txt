@@ -21,6 +21,7 @@
 - **功能**: 模型思考超限时自动续接
 - **涉及补丁**: `auto-continue-thinking`, `efh-resume-list`
 - **详细文档**: [docs/achievements/auto-continue-thinking.md](docs/achievements/auto-continue-thinking.md)
+- **⚠️ 状态**: 补丁已应用，**尚未实际测试**，需要触发长任务验证
 
 ### 架构关键洞察
 
