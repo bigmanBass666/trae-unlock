@@ -115,6 +115,17 @@
                         "check_fingerprint":  "kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP",
                         "enabled":  true,
                         "added_at":  "2026-04-19"
+                    },
+                    {
+                        "id":  "service-layer-confirm-status-update",
+                        "name":  "服务层确认状态同步更新 (修复切窗口沙箱卡住)",
+                        "description":  "修复切换窗口后沙箱命令卡在'等待操作'的问题。根因: service-layer-runcommand-confirm补丁调了provideUserResponse但没更新本地store的planItem状态，React组件仍显示unconfirmed。此补丁在provideUserResponse调用后立即将confirm_info.confirm_status改为confirmed，让本地状态与服务端同步，不依赖React渲染。",
+                        "find_original":  "(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}))",
+                        "replace_with":  "(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
+                        "offset_hint":  "~7503400",
+                        "check_fingerprint":  "e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
+                        "enabled":  true,
+                        "added_at":  "2026-04-19"
                     }
                 ]
 }

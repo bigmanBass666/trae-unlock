@@ -122,3 +122,25 @@
 5. return null 不显示 Alert 弹窗
 6. 模型收到"Continue"消息后无缝继续工作
 
+### 新功能: 服务层确认状态同步更新 (修复切窗口沙箱卡住)
+
+**问题**: 沙箱命令可以自动跑到沙箱外了，但切换到其他会话窗口后又被阻塞，需要重新打开窗口才自动执行
+
+**根因分析**:
+- `service-layer-runcommand-confirm` 补丁在服务层调用了 `provideUserResponse({decision: "confirm"})`
+- 但**没有更新本地 store 中 planItem 的 `confirm_info.confirm_status`**
+- React 组件读取 store 中的状态 → 仍然是 `"unconfirmed"` → 继续显示"等待操作"
+- 切换窗口后 React 冻结 → 即使服务端已执行命令，UI 仍卡住
+
+**补丁方案**: `service-layer-confirm-status-update`
+- 位置: ~7503400 (service-layer-runcommand-confirm 补丁内)
+- 在 `provideUserResponse` 调用后追加: `e.confirm_info&&(e.confirm_info.confirm_status="confirmed")`
+- 效果: 服务层确认后立即将 planItem 的确认状态改为 "confirmed"
+- 后续 SSE 流处理时，planItem 已经是 confirmed 状态 → React 组件不会显示"等待操作"
+
+**关键架构洞察**:
+- 之前以为服务层补丁就够了 → 但忽略了**本地状态同步**
+- `updateRunCommandToolStatusFromUser` 中 Confirmed 分支会更新本地 planItem 状态
+- 我们的服务层补丁只调了 API，没更新本地状态 → 状态不同步
+- 解决方案: 在服务层补丁中也更新 planItem 的 confirm_info
+
