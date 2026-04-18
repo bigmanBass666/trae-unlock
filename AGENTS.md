@@ -88,9 +88,11 @@ git push                              # ⚠️ 每次 commit 后必须立即 pus
 Trae AI 使用 GitHub 时，必须通过 **Trae-Mod-Token** (Fine-grained PAT)：
 
 ```
-Token 名称: github_pat_11A5UBQJA0kCO0PngcaLkx_...
+Token 名称: Trae-Mod-Token
+Token: <从 GitHub Settings > Personal access tokens 获取>
 权限: Contents (Read and write), Metadata (Read-only)
 仓库: 仅 bigmanBass666/trae-unlock
+有效期: 90 天（详见 GitHub token 设置页面）
 删除权限: ❌ 没有
 ```
 
@@ -113,7 +115,8 @@ Token 名称: github_pat_11A5UBQJA0kCO0PngcaLkx_...
 
 ```powershell
 # 设置环境变量（让 GitHub CLI 使用限权 Token）
-$env:GH_TOKEN = "github_pat_11A5UBQJA0kCO0PngcaLkx_..."
+# Token 需要从 GitHub Settings > Personal access tokens 页面获取
+$env:GH_TOKEN = "<your-token-here>"
 ```
 
 ## 目录结构
