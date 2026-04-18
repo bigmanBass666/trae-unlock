@@ -1,4 +1,4 @@
-﻿{
+{
     "meta":  {
                  "name":  "trae-unlock-patches",
                  "version":  "1.0.0",
@@ -93,6 +93,17 @@
                         "check_fingerprint":  "auto-confirm runcommand failed",
                         "enabled":  true,
                         "added_at":  "2026-04-18"
+                    },
+                    {
+                        "id":  "bypass-whitelist-sandbox-blocks",
+                        "name":  "绕过 WHITELIST 模式沙箱确认弹窗",
+                        "description":  "WHITELIST模式下，各种沙箱block_level(SandboxExecuteFailure/SandboxUnavailable等)都会触发确认弹窗。此补丁让WHITELIST模式也直接返回P8.Default，彻底消除沙箱确认弹窗。注意：配合service-layer-runcommand-confirm补丁使用才能真正自动执行。",
+                        "find_original":  "case Cr.AutoRunMode.WHITELIST:switch(i){case Cr.BlockLevel.RedList:return P8.V2_Sandbox_RedList;case Cr.BlockLevel.SandboxNotBlockCommand:return n?P8.V2_Sandbox_NotBlocking_RedList:P8.V2_Sandbox_NotBlocking;case Cr.BlockLevel.SandboxExecuteFailure:return n?P8.V2_Sandbox_Execute_Failure_RedList:P8.V2_Sandbox_Execute_Failure;case Cr.BlockLevel.SandboxToRecovery:return n?P8.V2_Sandbox_To_Recovery_RedList:P8.V2_Sandbox_To_Recovery;case Cr.BlockLevel.SandboxUnavailable:return n?P8.V2_Sandbox_Unavailable_RedList:P8.V2_Sandbox_Unavailable;default:return P8.Default}",
+                        "replace_with":  "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
+                        "offset_hint":  "~8069700",
+                        "check_fingerprint":  "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
+                        "enabled":  true,
+                        "added_at":  "2026-04-19"
                     }
                 ]
 }

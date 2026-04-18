@@ -65,3 +65,33 @@
 - 修复 AGENTS.md 中的文档路径错误
 - 新增"新会话开始前必读"提示
 
+## 2026-04-19
+
+### 新发现: sandbox_execute_failure 弹窗根因
+
+**问题**: AI 执行 python 命令时出现 "命令在沙箱中运行不通过，是否仍然要在沙箱外运行？" 弹窗
+
+**根因分析**:
+- `getRunCommandCardBranch` 方法中 WHITELIST 模式有独立分支逻辑
+- 当 `block_level = "sandbox_execute_failure"` 时触发 `V2_Sandbox_Execute_Failure` 弹窗
+- 原有的 `bypass-runcommandcard-redlist` 补丁只处理了 `ALWAYS_RUN` 和 `default` 模式
+- WHITELIST 模式完全没被处理！
+
+**补丁修复**:
+- 新增 `bypass-whitelist-sandbox-blocks` 补丁
+- 位置: ~8069700
+- 效果: WHITELIST 模式下所有沙箱 block 分支都直接返回 `P8.Default`（自动执行）
+- 修复后: python 等命令在沙箱模式下应该零弹窗自动执行
+
+**指纹检测修复**:
+- 原 `check_fingerprint` 使用了原代码中存在的字符串，导致误判为"已应用"
+- 已修改为替换后的唯一字符串 `case Cr.AutoRunMode.WHITELIST:return P8.Default;`
+
+### 架构新认知
+
+| 确认模式 | 原行为 | 补丁后 |
+|---------|--------|--------|
+| WHITELIST + sandbox blocks | 弹窗确认 | 直接执行 |
+| ALWAYS_RUN + RedList | 弹窗确认 | 直接执行 |
+| default + RedList | 弹窗确认 | 直接执行 |
+
