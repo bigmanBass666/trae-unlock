@@ -161,7 +161,6 @@ Trae 源码 (87MB minified JS)
 
 - [Trae IDE](https://www.trae.com)
 - [Trae Mod GitHub](https://github.com/bigmanBass666/trae-unlock)
-- [原始 Issue #2485](https://github.com/Trae-AI/TRAE/issues/2485) - GUI mode 权限配置缺失
 
 ---
 

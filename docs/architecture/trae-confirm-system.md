@@ -6,8 +6,6 @@
 
 Trae GUI 模式下，即使开启了所有自动运行设置，危险命令（删除/复制/移动文件）仍会被拦截，显示确认框。
 
-**参考 Issue**: [GUI mode lacks permission configuration equivalent to CLI's bypass_permissions mode](https://github.com/Trae-AI/TRAE/issues/2485)
-
 ---
 
 ## 核心发现：双层确认系统

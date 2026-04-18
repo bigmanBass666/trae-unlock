@@ -6,8 +6,6 @@
 
 Trae 默认行为下，AI 执行危险命令（如删除/复制/移动文件）时会弹出确认框，需要用户手动点击"确认"才能执行。这严重影响了 AI 的自动化工作能力。
 
-**参考 Issue**: [GUI mode lacks permission configuration equivalent to CLI's bypass_permissions mode](https://github.com/Trae-AI/TRAE/issues/2485)
-
 ## 解决方案
 
 通过修改 Trae 前端源码中的 `PlanItemStreamParser` 服务层，在检测到命令需要确认时自动调用确认 API，跳过用户手动确认环节。
