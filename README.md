@@ -38,6 +38,8 @@
 
 **效果**: 超长任务无缝续接，用户无感知
 
+⚠️ **状态**: 补丁已应用，**尚未实际测试**
+
 📖 [详细文档](docs/achievements/auto-continue-thinking.md)
 
 ---
