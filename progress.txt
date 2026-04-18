@@ -50,12 +50,3 @@
 - 自定义主题/光标样式
 - 解除其他 UI 限制
 
-## 2026-04-18 下午
-
-### Token 升级为 90 天
-
-- 创建了新的 Fine-grained PAT，有效期 **90 天（2026-07-17）**
-- 替换了旧的 30 天 token
-- 权限：Contents (Read and write), Metadata (Read-only)
-- 仓库：仅 trae-unlock
-- 更新了 AGENTS.md 中的 token 信息

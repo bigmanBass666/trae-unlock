@@ -81,44 +81,6 @@ git push                              # ⚠️ 每次 commit 后必须立即 pus
   git merge ...  ← merge 失败可能损坏 .git
 ```
 
-## 🔒 GitHub Token 安全规则
-
-### 使用限权 Token
-
-Trae AI 使用 GitHub 时，必须通过 **Trae-Mod-Token** (Fine-grained PAT)：
-
-```
-Token 名称: Trae-Mod-Token
-Token: <从 GitHub Settings > Personal access tokens 获取>
-权限: Contents (Read and write), Metadata (Read-only)
-仓库: 仅 bigmanBass666/trae-unlock
-有效期: 90 天（详见 GitHub token 设置页面）
-删除权限: ❌ 没有
-```
-
-### 安全效果
-
-| 操作 | 结果 |
-|------|------|
-| `git push` | ✅ 成功 |
-| `git pull` | ✅ 成功 |
-| `gh repo delete` | ❌ 被拒绝 (403 Forbidden) |
-
-### 为什么这样做？
-
-防止提示词注入攻击：
-- AI 被注入恶意指令 → 执行 `gh repo delete` → GitHub 拒绝
-- 即使 AI 执行 `rm -rf *` → 沙箱保护系统文件
-- 只能操作当前项目目录，无法删除仓库
-
-### 配置方法
-
-```powershell
-# 设置环境变量（让 GitHub CLI 使用限权 Token）
-# Token 需要从 GitHub Settings > Personal access tokens 页面获取
-$env:GH_TOKEN = "<your-token-here>"
-```
-
 ## 目录结构
 
 ```
