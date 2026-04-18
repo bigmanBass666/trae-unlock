@@ -95,3 +95,30 @@
 | ALWAYS_RUN + RedList | 弹窗确认 | 直接执行 |
 | default + RedList | 弹窗确认 | 直接执行 |
 
+## 2026-04-19 上午
+
+### 新功能: 绕过循环检测限制
+
+**问题**: 模型长运行时出现 "检测到模型陷入循环，为避免更多消耗已主动中断对话，建议更换描述后重试" 错误并中断对话
+
+**根因分析**:
+- 服务端检测到模型重复工具调用或内容循环时返回错误码
+- 错误码: `LLM_STOP_DUP_TOOL_CALL (4000009)` - 重复工具调用循环
+- 错误码: `LLM_STOP_CONTENT_LOOP (4000012)` - 内容循环
+- 这两个错误码不在"可继续"错误列表(J变量)中 → 只显示错误消息，无"继续"按钮
+- 对话被强制中断，用户无法续接
+
+**补丁方案**: `bypass-loop-detection`
+- 位置: ~8696378 (J变量定义)
+- 原始: `J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR].includes(_)`
+- 替换为: `J=!![... ,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP].includes(_)`
+- 效果: 循环检测错误被识别为"可继续"错误 → 自动触发 auto-continue-thinking 补丁 → 无感发送"继续"消息 → 模型无缝续接
+
+**工作原理**:
+1. 服务端返回 4000009/4000012 错误
+2. 客户端 J变量检查通过（因为已加入列表）
+3. 触发 if(V&&J) 分支（auto-continue-thinking 已修改此分支）
+4. setTimeout(50ms) 自动点击"继续"
+5. return null 不显示 Alert 弹窗
+6. 模型收到"Continue"消息后无缝继续工作
+

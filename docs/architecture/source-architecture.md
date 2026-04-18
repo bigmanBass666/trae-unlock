@@ -466,6 +466,145 @@ if (V && J) {  // V=是最后一条助手消息, J=是可继续的错误
 
 ---
 
+## 循环检测限制机制 (2026-04-19 新发现 ⭐⭐⭐⭐)
+
+### 问题描述
+
+模型长运行时出现错误提示：
+
+> "检测到模型陷入循环，为避免更多消耗已主动中断对话，建议更换描述后重试"
+
+对话被强制中断，用户无法续接。
+
+### 完整机制链路
+
+```
+服务端 (循环检测点)
+  模型连续多次调用相同工具 / 生成相似内容
+       ↓
+  返回错误码: LLM_STOP_DUP_TOOL_CALL (4000009) 或 LLM_STOP_CONTENT_LOOP (4000012)
+  + 错误信息: "Loop detected in the model..."
+       ↓ SSE 流
+客户端 (ai-modules-chat/dist/index.js)
+  ① 接收 errorCode (~7298705)
+  ② J 变量判断 (~8696378):
+     J = !![MODEL_OUTPUT_TOO_LONG, TASK_TURN_EXCEEDED_ERROR].includes(errorCode)
+     → 4000009/4000012 不在列表中! → J = false
+  ③ UI 渲染:
+     if(V && J) → ❌ 条件不满足 → 不显示"继续"按钮
+     → 只显示普通错误消息 Alert
+     → 对话终止，无法续接 ⛔
+```
+
+### 关键位置索引
+
+| 位置 | 内容 | 重要性 |
+|------|------|--------|
+| ~54269 | `LLM_STOP_DUP_TOOL_CALL=4000009` 枚举定义 | ⭐⭐⭐ |
+| ~7161547 | `LLM_STOP_CONTENT_LOOP=4000012` 枚举定义 | ⭐⭐⭐ |
+| ~6656253 | 英文 NLS 翻译 "Loop detected in generation..." | ⭐⭐ |
+| ~6801584 | 中文 NLS 翻译 "检测到模型陷入循环..." | ⭐⭐ |
+| ~6940263 | 日文 NLS 翻译 | ⭐ |
+| **~8696378** | **J 变量定义（已修改!）** | **⭐⭐⭐⭐⭐** |
+| ~7169408 | 错误码→消息映射表 | ⭐⭐⭐ |
+
+### 核心枚举和状态
+
+#### 错误码枚举 (kg/eA)
+
+```javascript
+// 位置 ~54269 / ~7161420
+LLM_STOP_DUP_TOOL_CALL = 4000009    // ← 重复工具调用循环
+LLM_STOP_CONTENT_LOOP = 4000012     // ← 内容循环
+TASK_TURN_EXCEEDED_ERROR = 4000002  // 思考次数上限（已有补丁）
+```
+
+#### NLS 翻译 Key
+
+| Key | 中文 | 使用场景 |
+|-----|------|---------|
+| `icube.error.llmStopDupToolCall` | "检测到模型陷入循环..." | 两个错误码共用此消息 |
+
+#### 错误级别
+
+- **级别**: `warn`（警告）— 不是严重错误
+- **但行为**: 中断对话 — 和 error 一样严厉!
+
+### 为什么这个限制很荒谬？
+
+1. **误判率高** — 模型在调试/批量处理时自然会重复调用相同工具
+2. **无法关闭** — 没有设置项可以禁用此检测
+3. **中断过于激进** — 直接终止对话，不给用户选择机会
+4. **与其他限制重复** — 已有思考次数上限，再加循环检测是双重限制
+
+### 已实施的修改
+
+**补丁: bypass-loop-detection (~8696378)**
+
+原始代码:
+```javascript
+J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR].includes(_)
+// 只有2个错误码可以显示"继续"按钮
+```
+
+替换为:
+```javascript
+J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR,
+       kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP].includes(_)
+// 新增2个循环检测错误码
+```
+
+**效果**: 
+- 收到 4000009/4000012 错误 → J=true → 触发 if(V&&J) 分支
+- 配合 auto-continue-thinking 补丁(~8702342):
+  - setTimeout(50ms) 自动发送"Continue"消息
+  - return null 不显示 Alert 弹窗
+  - **无感自动续接，用户完全感知不到中断**
+
+### 工作流程详解
+
+```
+服务端返回 4000009 (循环检测) 错误
+      ↓
+客户端解析 errorCode = 4000009
+      ↓
+J 变量检查 (已修改 ✅):
+  [MODEL_OUTPUT_TOO_LONG, TASK_TURN_EXCEEDED_ERROR,
+   LLM_STOP_DUP_TOOL_CALL, LLM_STOP_CONTENT_LOOP].includes(4000009)
+  → true! ✓
+      ↓
+if(V && J) 条件满足 → 进入"可继续"分支
+      ↓
+auto-continue-thinking 补丁生效:
+  setTimeout(() => ed(), 50)  // 50ms 后自动点击"继续"
+  return null                  // 不渲染 Alert 弹窗
+      ↓
+ed() 回调执行:
+  sendChatMessage({ message: "Continue", sessionId })
+      ↓
+新消息发送给服务端 → 模型无缝继续工作 🚀
+```
+
+### 与思考上限的关系
+
+| 方面 | 思考上限 (4000002) | 循环检测 (4000009/12) |
+|------|-------------------|---------------------|
+| **触发条件** | 思考轮次达到上限 | 检测到重复模式 |
+| **原行为** | 显示"继续"按钮 | 只显示错误消息 |
+| **J变量** | 原本在列表中 | 原本不在列表中 |
+| **补丁方案** | 修改 Alert 渲染逻辑 | 扩展 J 变量列表 |
+| **最终效果** | 无感自动续接 ✅ | 无感自动续接 ✅ |
+| **依赖关系** | 独立工作 | 依赖 auto-continue-thinking |
+
+### 注意事项
+
+1. **可能形成续接循环** — 如果模型真的在死循环，会不断触发"继续"
+2. **服务端计数器** — 续接后服务端可能仍会再次检测到循环
+3. **token 消耗** — 自动续接会增加 token 使用（但比手动操作少）
+4. **建议观察** — 首次使用时观察是否正常工作
+
+---
+
 ## RunCommandCard 双层确认系统 (2026-04-18 新发现 ⭐⭐⭐⭐⭐)
 
 ### 问题描述

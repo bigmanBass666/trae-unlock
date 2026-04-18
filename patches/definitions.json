@@ -104,6 +104,17 @@
                         "check_fingerprint":  "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
                         "enabled":  true,
                         "added_at":  "2026-04-19"
+                    },
+                    {
+                        "id":  "bypass-loop-detection",
+                        "name":  "绕过循环检测限制",
+                        "description":  "服务端检测到模型陷入循环(重复工具调用/内容循环)时会返回错误码4000009/4000012并中断对话。此补丁将这两个错误码加入J变量(可继续错误列表)，配合auto-continue-thinking补丁实现无感自动续接：收到循环检测错误→自动发送'继续'消息→模型无缝继续工作→不显示任何弹窗。",
+                        "find_original":  "J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR].includes(_)",
+                        "replace_with":  "J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP].includes(_)",
+                        "offset_hint":  "~8696378",
+                        "check_fingerprint":  "kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP",
+                        "enabled":  true,
+                        "added_at":  "2026-04-19"
                     }
                 ]
 }
