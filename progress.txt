@@ -28,42 +28,15 @@
 - **发现**: 沙箱模式开启后出现新弹框 "检测到高风险命令...是否仍要在沙箱中运行？"
 - **原因**: Trae 有**两套独立**的命令确认机制！
   - Layer 1: PlanItemStreamParser confirm_status (~7502574) → 已绕过
-  - **Layer 2: RunCommandCard getRunCommandCardBranch (~8069700)** ← 新发现！
-- **核心逻辑**: 即使 ALWAYS_RUN 模式，RedList 命令仍强制弹窗 (V2_Manual_RedList)
-- **关键枚举**: BlockLevel(RedList/Blacklist), AutoRunMode, ConfirmMode(ALWAYS_ASK/WHITELIST/ALWAYS_RUN)
-- **NLS key**: `icd.ai.runCommandCard.warning_tips.v2/sandbox_redlist`
-- **设置项**: `AI.toolcall.confirmMode` (~7438613)
-- **已打补丁**: bypass-runcommandcard-redlist (~8070328) → 始终返回 P8.Default
-- **效果**: 所有模式+所有命令全自动执行，零弹框
+  - Layer 2: RunCommandCard getRunCommandCardBranch (~8069700) → 已绕过
+- **详细文档**: [docs/bypass-security.md](docs/bypass-security.md) → "双层确认系统"章节
 
-### ⭐⭐⭐⭐⭐ 真正根因: auto_confirm=false (~8640019)
-- **问题**: 之前补丁后弹窗仍在！深入分析发现：
-  - getRunCommandCardBranch 补丁只改了分支选择，但**不是卡住的原因**
-  - **真正原因**: egR 组件的自动确认 effect (`~8640019`) 要求 `en &&`(auto_confirm必须为true)
-  - 红名单命令的服务端**故意返回 `auto_confirm:false`**
-  - → en=false → 自动确认不触发 → 卡在"是否仍要在沙箱中运行"
-- **关键变量** (egR 组件 ~8637300):
-  - `er = N?.confirm_status` — 确认状态 ("unconfirmed")
-  - `en = N?.auto_confirm` — **自动确认标志 (false!)**
-  - `ey` 计算: `en ? Confirmed : er` — auto_confirm=true 时直接通过
-- **最终补丁**: `!e&&er===Unconfirmed&&en&&ew.confirm(!0)` → 去掉 `&&en`
-- **效果**: 所有 unconfirmed 命令（不管服务端是否允许）都自动确认执行
-- 详细文档: [docs/source-architecture.md](docs/source-architecture.md) → "RunCommandCard 双层确认系统"章节
-
-### ⭐⭐⭐⭐⭐⭐⭐ 切换窗口后自动确认失效 — 最终解决!
-- **问题**: 切换AI会话窗口后，后台命令卡在"等待操作"
-- **7次迭代完整记录**: 见 [source-architecture.md](docs/source-architecture.md) → "切换窗口后自动确认失效的完整迭代记录"
-- **关键失败经验**:
-  1. `ew.confirm()` 是日志函数不是执行函数 → 需要调 `eE(Confirmed)`
-  2. useEffect 异步 → 切窗口后 React 不执行
-  3. useMemo "同步"但组件冻结时不执行
-  4. setTimeout 也依赖事件循环 → 组件冻结后不调度
-  5. **所有 React 组件内的修改都无法解决** — 切窗口后组件全部冻结
-- **最终方案: PlanItemStreamParser 服务层追加 provideUserResponse (~7503319, 补丁#8)**
-  - 在 else 分支（非 knowledge 命令）也调用 provideUserResponse
-  - 这是 SSE 流解析层（服务层），**完全不依赖 React 渲染**
-  - 跟补丁#1(knowledge) 在同一层级，形成完整覆盖
-- **效果**: ✅ 已验证！切窗口后命令也能自动执行
+### 架构关键洞察
+- **所有 React 组件内的修改都无效** — 切窗口后组件全部冻结
+- **服务层补丁才有效** — PlanItemStreamParser 是 SSE 流解析器，不依赖 React 渲染
+- **最终方案**: 在 PlanItemStreamParser 的两处 confirm_status 检查点追加 provideUserResponse
+  - 补丁 #1: knowledge 类命令 (~7502574)
+  - 补丁 #8: RunCommandCard 类命令 (~7503319)
 
 ### ✅✅✅ 补丁精简审计 (8个→4个)
 - **审计结论**: 从8个补丁精简到**4个核心补丁**，移除4个冗余

@@ -670,52 +670,19 @@ egR 组件 (~8635000):
 ## 🔥🔥🔥 切换窗口后自动确认失效的完整迭代记录 (2026-04-18)
 
 ### 问题描述
-AI 会话 A 执行高危命令时，如果用户切换到 AI 会话 B，会话 A 的命令卡在"**等待操作**"状态。
-切回会话 A 后才自动执行。
+AI 会话 A 执行高危命令时，如果用户切换到 AI 会话 B，会话 A 的命令卡在"**等待操作**"状态。切回会话 A 后才自动执行。
 
-### 根因分析（7次迭代）
+### 7次迭代的关键教训
 
-#### 迭代 1: getRunCommandCardBranch 补丁 (~8070328) ❌ 失败
-- **改动**: 让所有模式返回 `P8.Default`
-- **结果**: 弹窗仍在
-- **原因**: 只改了配置分支选择，但实际执行触发不经过这个方法
-
-#### 迭代 2: useEffect 去掉 &&en 门控 (~8640019) — 第一次尝试 ❌ 失败
-- **改动**: `!e&&er===Unconfirmed&&en&&ew.confirm(!0)` → 去掉 `&&en`
-- **结果**: **弹窗仍在！**
-- **原因**: `ew.confirm()` 是**日志/打点函数**，不是执行函数！调用它只是上报事件，不触发命令执行
-
-#### 迭代 3: useEffect 加 eE(Confirmed) (~8640019) — 第二次尝试 ⚠️ 部分成功
-- **改动**: 改为 `(ew.confirm(!0), eE(xc.Confirmed))`
-- **结果**: 窗口可见时 ✅ 自动执行；切走窗口后 ❌ 卡住
-- **原因**: `eE` 是真正通知服务端执行的函数，但它在 **useEffect（异步）** 里
-
-#### 迭代 4: ey 的 useMemo 同步计算 (~8636941) — 第一次尝试 ❌ 失败
-- **改动**: `er===Unconfirmed ? Confirmed : ...`
-- **结果**: 显示状态对了，但仍显示"等待操作"
-- **原因**: useMemo 只改了显示状态 `ey`，没有通知服务端执行
-
-#### 迭代 5: useMemo 内同步调 eE(Confirmed) (~8636941) — 第二次尝试 ❌ 失败
-- **改动**: 在 useMemo 回调里加 `try{eE(Confirmed)}catch{}`
-- **结果**: 切窗口后仍然卡住！
-- **原因**: **React 组件在窗口不可见时不渲染，useMemo 不执行，整个 egR 组件冻结**
-
-#### 迭代 6: setTimeout 包裹 eE 调用 ❌ 失败
-- **改动**: `setTimeout(()=>{try{eE(Confirmed)}catch{}},0)`
-- **结果**: 还是卡住
-- **原因**: setTimeout 也依赖事件循环，组件冻结后不调度
-
-#### 迭代 7 (最终方案!): DG.parse 数据源级修改 (~7318521) ✅✅✅ 成功!
-- **位置**: `DG.parse()` 函数 — 服务端响应解析入口
-- **改动**: 解构出 `confirm_info:o` 后，return 之前：
-  ```javascript
-  o?.confirm_status==="unconfirmed" && (o.auto_confirm = true)
-  ```
-- **原理**: **数据在进入任何 React 组件之前就被修改**
-  - 不管 React 渲染不渲染、窗口可不可见
-  - 所有下游代码看到的都是 `auto_confirm=true`
-  - 配合补丁 #5 (force-auto-confirm) 的 useEffect 和补丁 #6 (sync-force-confirm) 的 useMemo
-  - 形成三层保险：数据源 + 组件渲染 + 异步 effect
+| 迭代 | 方案 | 结果 | 核心教训 |
+|------|------|------|----------|
+| 1 | getRunCommandCardBranch 补丁 | ❌ 失败 | 只改分支选择，不触发执行 |
+| 2 | useEffect 去掉 &&en | ❌ 失败 | `ew.confirm()` 是日志不是执行！ |
+| 3 | useEffect 加 eE(Confirmed) | ⚠️ 窗口可见时成功 | useEffect 异步，切窗口不执行 |
+| 4 | useMemo 同步改 ey | ❌ 失败 | 只改显示，不触发执行 |
+| 5 | useMemo 内调 eE | ❌ 失败 | 组件冻结时 useMemo 不执行 |
+| 6 | setTimeout 包裹 eE | ❌ 失败 | 组件冻结后 setTimeout 不调度 |
+| **7** | **PlanItemStreamParser 服务层** | **✅ 成功** | **服务层不依赖 React 渲染！** |
 
 ### 关键经验总结
 
@@ -725,32 +692,15 @@ AI 会话 A 执行高危命令时，如果用户切换到 AI 会话 B，会话 A
 | **useEffect 是异步的** | 窗口不可见时 React 延迟/跳过 effect 执行 |
 | **useMemo 也是惰性的** | 组件不渲染时不执行，即使它是"同步"计算 |
 | **React 组件会冻结** | 切走 Tab/窗口后，后台组件的 hooks 全部暂停 |
-| **最底层拦截最可靠** | 在数据源(DG.parse)改比在任何 React 组件里改都靠谱 |
-| **多层防御是必要的** | 单一补丁不够，需要数据源+组件+effect 三层配合 |
+| **最底层拦截最可靠** | 在数据源改比在任何 React 组件里改都靠谱 |
 
-### 完整补丁链路（最终方案）
+### 最终方案：服务层双补丁
 
 ```
-服务端 SSE 响应:
-  { confirm_status: "unconfirmed", auto_confirm: false, hit_red_list: [...] }
-      ↓
-① DG.parse() ~7318521 [补丁#7 data-source-auto-confirm]
-   o.auto_confirm = true  ← 数据源头修改
-      ↓
-② PlanItemStreamParser ~7502574 [补丁#1 auto-confirm-commands]
-   confirm_status==="unconfirmed" → provideUserResponse({decision:"confirm"})
-      ↓
-③ egR 组件 ~8636941 [补丁#6 sync-force-confirm]
-   ey = Unconfirmed → Confirmed (useMemo 同步)
-   + try{eE(Confirmed)} (通知服务端)
-      ↓
-④ egR 组件 ~8640019 [补丁#5 force-auto-confirm] (备用)
-   !e && er===Unconfirmed → ew.confirm() + eE(Confirmed) (useEffect)
-      ↓
-⑤ RunCommandCard ~8070328 [补丁#4 bypass-runcommandcard-redlist] (辅助)
-   getRunCommandCardBranch → P8.Default
-      ↓
-结果: 命令立即自动执行，切窗口也不影响 🚀
+服务端 SSE → PlanItemStreamParser (服务层，不依赖 React)
+  ├─ knowledge 命令 → #1 provideUserResponse ✅
+  └─ 其他命令(RunCommandCard) → #8 provideUserResponse ✅
+  （两条路径都在服务层，零依赖 React，切窗口不冻住）
 ```
 
 ### 最终补丁方案（精简后：4个核心补丁）
@@ -776,20 +726,20 @@ AI 会话 A 执行高危命令时，如果用户切换到 AI 会话 B，会话 A
 #### 关键架构洞察
 
 ```
-为什么 #4-#7 都在 React 组件内失败？
+为什么补丁在 React 组件内失败？
   → 切换 AI 会话窗口后，React 冻结后台组件
   → useEffect / useMemo / useCallback 全部暂停
   → 不管"同步"还是"异步"，组件不渲染就不执行
 
-为什么 #1 和 #8 成功？
-  → 它们在 PlanItemStreamParser（SSE 流解析器）中
-  → 这是服务层代码，不属于任何 React 组件
+为什么服务层补丁成功？
+  → PlanItemStreamParser 是 SSE 流解析器（服务层代码）
+  → 不属于任何 React 组件
   → SSE 数据到达时立即执行，不管窗口状态
 
 最终架构:
   服务端 SSE → PlanItemStreamParser
-    ├─ knowledge 命令? → #1 provideUserResponse ✅
-    └─ 其他命令(RunCommandCard)? → #8 provideUserResponse ✅
+    ├─ knowledge 命令 → provideUserResponse ✅
+    └─ RunCommandCard 命令 → provideUserResponse ✅
     （两条路径都在服务层，零依赖 React）
 ```
 

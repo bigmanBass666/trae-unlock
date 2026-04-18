@@ -1,80 +1,153 @@
-# Trae Mod - 魔改 Trae IDE 项目
+# Trae Mod - 让 AI 在项目里自由驰骋
 
-## 项目目标
-
-探索和修改 Trae IDE 源码，解锁被限制的功能，实现更强大的自动化能力。
+让 Trae IDE 的 AI Agent 真正实现"零打扰"工作：危险命令自动确认、思考超限自动续接、切换窗口不卡死。
 
 **参考 Issue**: [GUI mode lacks permission configuration equivalent to CLI's bypass_permissions mode](https://github.com/Trae-AI/TRAE/issues/2485)
 
-## 为什么做这个？
+---
 
-Trae 是一个强大的 AI IDE，但某些功能在 GUI 模式下受到不必要的限制：
+## 解决了什么问题
 
-- ❌ 终端命令需要手动确认（即使开启了所有自动运行设置）
-- ❌ 无法像 CLI 一样使用 `bypass_permissions` 模式
-- ❌ 长时间 Agent 任务会被确认弹窗打断
+Trae 默认行为下，AI 执行危险命令（删除/复制/移动文件）时会弹出确认框，长思考时会卡住等你点"继续"，切换 AI 会话窗口后命令会冻住。
 
-本项目通过修改源码来解除这些限制。
+本项目通过 4 行源码修改，彻底解除这些限制。
 
-## 探索成果
+---
 
-### 已完成
+## 4 个核心补丁
 
-| # | 功能 | 文档 | 状态 |
-|---|------|------|------|
-| 1 | [绕过高风险命令确认](docs/bypass-security.md) | [bypass-security.md](docs/bypass-security.md) | ✅ 完成 |
+| # | 补丁 ID | 位置 | 功能 |
+|---|---------|------|------|
+| **核心 1** | `auto-confirm-commands` | ~7502574 | **knowledge 类命令**自动确认 |
+| **核心 2** | `service-layer-runcommand-confirm` | ~7503319 | **删除/复制/移动等命令**自动确认 |
+| **核心 3** | `auto-continue-thinking` | ~8702342 | **思考次数超限**自动点"继续" |
+| **核心 4** | `efh-resume-list` | ~8695303 | 备用恢复列表（#3 的保险） |
 
-### 待探索
+### 最终效果
 
-- 自定义主题/光标样式
-- 解除其他 UI 限制
-- 插件系统扩展
-- 性能优化
-- 更多...
+- ✅ 所有危险命令零弹窗自动执行
+- ✅ 切换 AI 会话窗口后命令继续自动执行（不冻住）
+- ✅ AI 思考超限后无感自动续接
+- ✅ 沙箱保护仍然生效（项目外文件操作被拦截）
+- ✅ Trae 更新后可用脚本一键重打补丁
 
-## 📚 文档索引
+---
 
-| 文档 | 内容 | 目标读者 |
-|------|------|---------|
-| [source-architecture.md](docs/source-architecture.md) | 完整源码架构、关键位置、搜索技巧 | **所有 AI（必读）** |
-| [bypass-security.md](docs/bypass-security.md) | 安全模式绕过的具体方案和原理 | 想复现此功能的 AI |
-| [progress.txt](progress.txt) | 项目进度简要记录 | 想了解当前状态的 AI |
-| [agent.md](agent.md) | AI 协作规则和提交规范 | 参与本项目的 AI |
+## 快速开始
 
-## 开发指南
+### 1. 验证当前状态
 
-### 修改源码步骤
+```powershell
+.\scripts\verify.ps1
+```
 
-1. **读源码架构**: 先看 `docs/source-architecture.md` 了解结构
-2. **找到文件**: 使用搜索定位关键代码
-3. **备份**: `[System.IO.File]::Copy(原文件, 备份路径, $true)`
-4. **修改**: 直接编辑 JS 文件
-5. **重启**: 关闭并重新打开 Trae 窗口
-6. **测试**: 验证效果
-7. **回滚**: 从备份恢复
+输出应为：
+```
+[ACTIVE]   auto-confirm-commands             ✅ knowledge 命令自动确认
+[ACTIVE]   service-layer-runcommand-confirm ✅ 其他命令自动确认
+[ACTIVE]   auto-continue-thinking          ✅ 思考上限自动续接
+[ACTIVE]   efh-resume-list                ✅ 备用恢复列表
+```
 
-### 注意事项
+### 2. Trae 更新后重新打补丁
 
-- Trae 安装在 `D:\apps\Trae CN\resources\app\`
-- 应用是解包状态（没有 app.asar），直接编辑即可
-- 由于沙箱限制，文件操作需用 `[System.IO.File]::Copy()` 而非 `Copy-Item`
-- 修改后需重启窗口才能生效
-- **每次有新发现必须更新 progress.txt 并 commit**
+```powershell
+.\scripts\apply-patches.ps1
+```
+
+### 3. 出问题了？回滚
+
+```powershell
+.\scripts\rollback.ps1 -List        # 列出所有备份
+.\scripts\rollback.ps1 --date 20260418  # 回滚到指定日期
+.\scripts\rollback.ps1 --latest     # 回滚到最新备份
+```
+
+### 4. 手动打单个补丁
+
+```powershell
+.\scripts\apply-patches.ps1 -PatchIds "service-layer-runcommand-confirm"
+```
+
+---
 
 ## 目录结构
 
 ```
 trae-unlock/
-├── docs/                           # 详细文档
-│   ├── source-architecture.md      # ⭐ 源码架构探索记录（必读！）
-│   └── bypass-security.md          # 安全模式绕过文档
-├── progress.txt                    # 简要进度记录
-├── agent.md                        # AI 协作规则
-├── *.backup                        # 备份文件
+├── docs/
+│   ├── source-architecture.md      # 源码架构探索记录（⭐所有AI必读）
+│   └── bypass-security.md          # 安全模式绕过实现文档
+├── patches/
+│   └── definitions.json             # 4个核心补丁的结构化定义
+├── scripts/
+│   ├── apply-patches.ps1          # 一键打补丁（支持 -DryRun / -PatchIds）
+│   ├── rollback.ps1                # 一键回滚（支持 -List / --date / --latest）
+│   └── verify.ps1                 # 验证补丁状态（ACTIVE / INACTIVE / UNKNOWN）
+├── AGENTS.md                       # AI 协作规则（强制 push 等）
+├── progress.txt                    # 项目进度摘要
 └── README.md                       # 本文件
 ```
+
+---
+
+## 技术原理
+
+### 为什么只需修改源码而不改配置？
+
+Trae 的命令确认机制是这样的：
+
+```
+AI 执行命令 → 服务端返回"需要确认" → 前端弹出确认框 → 用户点"运行" → 命令执行
+```
+
+我们修改的是**数据解析层**（PlanItemStreamParser），在确认数据到达 UI 之前就自动"点"了确认按钮，所以完全不需要改配置、不需要沙箱白名单。
+
+### 切换窗口为什么不冻住？
+
+修改点在 **SSE 流解析器**（服务层代码），不依赖任何 React 组件。React 组件在窗口不可见时会冻结，但服务层代码照常运行。
+
+### 沙箱还在保护吗？
+
+是的。沙箱的文件系统限制（禁止访问项目外文件）仍然生效。4 个补丁只负责"跳过确认弹窗"，不改变沙箱的安全策略。
+
+---
+
+## 已验证可零弹窗的命令
+
+| 命令类型 | 示例 |
+|---------|------|
+| 文件删除 | `Remove-Item`, `rm`, `del` |
+| 文件复制 | `Copy-Item`, `cp`, `copy` |
+| 文件移动 | `Move-Item`, `mv`, `move` |
+| 文件重命名 | `Rename-Item`, `ren` |
+| 文件创建/写入 | `New-Item`, `Set-Content`, `echo >` |
+| Git 操作 | `git add`, `git commit`, `git push` |
+| 包管理 | `npm install`, `pip install` |
+
+---
+
+## 安全建议
+
+1. **只让 AI 在信任的项目里跑** — 沙箱限制它不能碰项目外的文件
+2. **AI 犯错时你可以随时回滚** — `./scripts/rollback.ps1 --latest`
+3. **重要操作前先问 AI** — 虽然零弹窗了，但 AI 还是会把操作结果告诉你
+
+---
 
 ## 相关链接
 
 - [Issue #2485](https://github.com/Trae-AI/TRAE/issues/2485) - GUI mode lacks permission configuration
 - [Trae 官方文档](https://www.volcengine.com/docs/86677/2227872) - CLI bypass_permissions 说明
+- [Trae Mod GitHub](https://github.com/bigmanBass666/trae-unlock)
+
+---
+
+## 给后续 AI 的提示
+
+> ⚠️ **修改源码后必须立即 push 到 GitHub！**
+>
+> 本项目的所有发现都记录在 `docs/source-architecture.md` 里。
+> 开始工作前先读一遍，可以避免重复探索。
+>
+> 每次 commit 后立即 `git push`，本地 Git 仓库在 merge 操作中可能损坏。
