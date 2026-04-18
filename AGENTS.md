@@ -1,5 +1,15 @@
 # Agent Rules for Trae Mod Project
 
+## ⚠️ 新会话开始前必读
+
+**在开始任何工作之前，必须先阅读以下文档：**
+
+1. **[README.md](README.md)** — 了解项目整体情况
+2. **[docs/architecture/source-architecture.md](docs/architecture/source-architecture.md)** — 源码架构和关键代码位置
+3. **[progress.txt](progress.txt)** — 当前进度和待解决问题
+
+**禁止在不了解项目背景的情况下直接开始修改代码！**
+
 ## 核心规则
 
 每次完成以下操作后，**必须**立即更新文档并提交：
@@ -13,7 +23,7 @@
 
 **发现新东西时（代码位置、架构关系、调用链等），第一时间更新以下文档：**
 
-### docs/source-architecture.md — 源码架构探索记录
+### docs/architecture/source-architecture.md — 源码架构探索记录
 这是给**所有后续 AI 看的共享知识库**。任何源码探索发现都要写进去：
 - 新发现的关键位置（文件名 + 偏移量 + 作用）
 - 模块之间的关系和调用链
@@ -85,23 +95,34 @@ git push                              # ⚠️ 每次 commit 后必须立即 pus
 
 ```
 trae-unlock/
-├── docs/                           # 📚 共享文档（最重要！）
-│   ├── source-architecture.md      # ⭐ 源码架构探索记录（必读！）
-│   └── bypass-security.md          # 功能实现文档
-├── progress.txt                    # 进度摘要
-├── agent.md                        # 本文件（协作规则）
-├── *.backup                        # 备份文件
-└── README.md                       # 项目总览
+├── docs/
+│   ├── achievements/              # 定制成果文档
+│   │   ├── auto-command-confirm.md
+│   │   └── auto-continue-thinking.md
+│   ├── architecture/             # 架构文档
+│   │   ├── source-architecture.md
+│   │   └── trae-confirm-system.md
+│   └── guides/                   # 使用指南
+├── patches/                      # 补丁定义
+│   └── definitions.json
+├── scripts/                      # 工具脚本
+│   ├── apply-patches.ps1
+│   ├── rollback.ps1
+│   └── verify.ps1
+├── progress.txt                  # 进度摘要
+├── AGENTS.md                     # AI 协作规则（本文档）
+└── README.md                     # 项目总览
 ```
 
 ## 工作流程
 
 ```
-1. 读 docs/source-architecture.md 了解已有知识
-2. 开始探索/修改
-3. 有新发现 → 立即写进 source-architecture.md
-4. 有代码修改 → 备份 + 记录到对应文档
-5. 更新 progress.txt
-6. git add . && git commit
-7. 继续下一步
+1. 读 README.md 了解项目整体情况
+2. 读 docs/architecture/source-architecture.md 了解已有知识
+3. 读 progress.txt 了解当前进度
+4. 开始探索/修改
+5. 有新发现 → 立即写进对应文档
+6. 有代码修改 → 备份 + 记录到对应文档
+7. git add . && git commit && git push
+8. 继续下一步
 ```
