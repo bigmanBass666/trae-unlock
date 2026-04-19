@@ -1,37 +1,33 @@
-# 修复 AskUserQuestion 被自动确认 Bug Spec
+# 修复 rollback.ps1 参数 Bug + 用户体验优化 Spec
 
 ## Why
 
-AskUserQuestion 提问被自动确认提交（用户收到空回答），黑名单过滤没起作用。根因：`service-layer-confirm-status-update` 补丁的旧版本残留了第二个无过滤的 `provideUserResponse` 调用。
+rollback.ps1 的帮助文档写 `--list`/`--date`，但 PowerShell 参数实际是 `-List`/`-Date`（单横杠），导致用户按文档使用会失败。另外日期参数需要手动输入完整时间戳（如 `20260419-214638`），非常不友好。
 
 ## What Changes
 
-- 删除第二个无过滤的 `provideUserResponse` 调用（~7503802）
-- 确保 `service-layer-confirm-status-update` 补丁的 `find_original` 匹配的是第一个（有过滤的）调用
+- 修复参数名：统一为 PowerShell 标准单横杠 `-List`/`-Date`
+- **新增交互式选择模式**：不带参数运行时，列出可用 backup 让用户选择（而不是默认选最新的）
+- 新增 `-Latest` 快捷参数：恢复到最新 backup
 
 ## Impact
 
-- Affected code: ai-modules-chat/dist/index.js ~7503802
-
-## 根因分析
-
-```
-补丁应用顺序:
-1. service-layer-runcommand-confirm (v4) → 添加了有黑名单过滤的 provideUserResponse ✅
-2. service-layer-confirm-status-update (v3) → 匹配的是旧版 find_original（无过滤版本）
-   → 在旧代码位置又加了一个无过滤的 provideUserResponse ❌
-
-结果: 两个 provideUserResponse 调用:
-  第一个: (e?.toolName!=="response_to_user") && provideUserResponse(...)  ← 有过滤
-  第二个: (e?.toolName||e?.id||e?.toolCallId) && provideUserResponse(...) ← 无过滤！
-
-AskUserQuestion 的 toolName="response_to_user":
-  第一个: "response_to_user" !== "response_to_user" → false → 跳过 ✅
-  第二个: "response_to_user" 存在 → true → 调用 provideUserResponse ❌ ← BUG!
-```
+- Affected files: scripts/rollback.ps1
 
 ## ADDED Requirements
 
-### Requirement: 删除无过滤的 provideUserResponse 调用
+### Requirement: 交互式 Backup 选择
 
-系统 SHALL 只保留一个有黑名单过滤的 `provideUserResponse` 调用，删除第二个无过滤的调用。
+当用户不带 `-Date` 参数运行 rollback.ps1 时，系统 SHALL 列出所有可用 backup 并让用户通过数字选择，而不是默认恢复最新的。
+
+#### Scenario: 无参数运行 → 交互选择
+- **WHEN** 用户运行 `.\rollback.ps1`
+- **THEN** 列出所有 backup（带编号），提示用户输入编号选择
+
+#### Scenario: -Latest 快捷恢复
+- **WHEN** 用户运行 `.\rollback.ps1 -Latest`
+- **THEN** 直接恢复最新 backup（不交互）
+
+#### Scenario: -Date 部分匹配
+- **WHEN** 用户运行 `.\rollback.ps1 -Date 19`
+- **THEN** 匹配包含 "19" 的 backup（模糊匹配，不需要完整时间戳）

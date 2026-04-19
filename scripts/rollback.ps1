@@ -3,15 +3,26 @@
     Rollback Trae Unlock patches by restoring from backup
 .DESCRIPTION
     Restores the target file from a backup in the backups/ directory.
+    Without parameters, shows an interactive backup selection menu.
 .EXAMPLE
     .\rollback.ps1
+    Interactive mode - list backups and choose one
 .EXAMPLE
-    .\rollback.ps1 --list
+    .\rollback.ps1 -Latest
+    Restore the most recent backup directly
 .EXAMPLE
-    .\rollback.ps1 --date 20260418
+    .\rollback.ps1 -List
+    List all available backups
+.EXAMPLE
+    .\rollback.ps1 -Date 19
+    Restore backup matching "19" (fuzzy match, no need for full timestamp)
+.EXAMPLE
+    .\rollback.ps1 -Date 20260419-214638
+    Restore a specific backup by full timestamp
 #>
 param(
     [switch]$List,
+    [switch]$Latest,
     [string]$Date = ""
 )
 
@@ -31,56 +42,105 @@ function Write-ColorOutput {
     Write-Host $Msg -ForegroundColor $Color
 }
 
-# List mode
-if ($List) {
-    Write-ColorOutput "[trae-unlock] Available backups:" "Cyan"
+function Get-Backups {
     if (-not [System.IO.Directory]::Exists($BackupDir)) {
-        Write-ColorOutput "  No backups directory found." "Yellow"
-        exit 0
+        return @()
     }
-    $backups = Get-ChildItem $BackupDir -Filter "*.backup" | Sort-Object LastWriteTime -Descending
-    if ($backups.Count -eq 0) {
-        Write-ColorOutput "  No backup files found." "Yellow"
-        exit 0
-    }
-    foreach ($b in $backups) {
-        $sizeKB = [Math]::Round($b.Length / 1KB, 0)
-        Write-ColorOutput "  [$($b.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss'))] $($b.Name) ($sizeKB KB)" "White"
-    }
-    exit 0
+    return @(Get-ChildItem $BackupDir -Filter "*.backup" | Sort-Object LastWriteTime -Descending)
 }
 
-# Find backup to restore
-$backupFiles = Get-ChildItem $BackupDir -Filter "*.backup" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+function Show-BackupList {
+    param([array]$Backups)
+    Write-ColorOutput "`n[trae-unlock] Available backups:" "Cyan"
+    for ($i = 0; $i -lt $Backups.Count; $i++) {
+        $b = $Backups[$i]
+        $sizeKB = [Math]::Round($b.Length / 1KB, 0)
+        $time = $b.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+        $name = $b.Name -replace '^index\.js\.', '' -replace '\.backup$', ''
+        Write-ColorOutput "  [$($i+1)] $time  ($name)  ${sizeKB}KB" "White"
+    }
+}
 
-if ($backupFiles.Count -eq 0) {
+$backups = Get-Backups
+
+if ($backups.Count -eq 0) {
     Write-ColorOutput "[ERROR] No backups found in: $BackupDir" "Red"
     exit 2
 }
 
-$selectedBackup = $null
-if ($Date) {
-    $selectedBackup = $backupFiles | Where-Object { $_.Name -match $Date } | Select-Object -First 1
-    if (-not $selectedBackup) {
-        Write-ColorOutput "[ERROR] No backup matching date '$Date'" "Red"
-        exit 2
-    }
-} else {
-    $selectedBackup = $backupFiles[0]
+# -List mode: just show and exit
+if ($List) {
+    Show-BackupList $backups
+    exit 0
 }
 
-Write-ColorOutput "[trae-unlock] Rolling back patches..." "Cyan"
-Write-ColorOutput "  Restoring from: $($selectedBackup.Name)" "Yellow"
-Write-ColorOutput "  To: $TargetFile" "Gray"
+# Find backup to restore
+$selectedBackup = $null
 
-# Restore
+if ($Latest) {
+    $selectedBackup = $backups[0]
+    Write-ColorOutput "[trae-unlock] Using latest backup." "Cyan"
+}
+elseif ($Date) {
+    $matched = @($backups | Where-Object { $_.Name -match [regex]::Escape($Date) })
+    if ($matched.Count -eq 0) {
+        Write-ColorOutput "[ERROR] No backup matching '$Date'" "Red"
+        Write-ColorOutput "Tip: Use -List to see available backups, or try a shorter match like -Date 19" "Yellow"
+        exit 2
+    }
+    elseif ($matched.Count -eq 1) {
+        $selectedBackup = $matched[0]
+    }
+    else {
+        Write-ColorOutput "[trae-unlock] Multiple backups match '$Date':" "Yellow"
+        Show-BackupList $matched
+        $choice = Read-Host "Enter number (1-$($matched.Count)), or Enter to cancel"
+        if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $matched.Count) {
+            $selectedBackup = $matched[[int]$choice - 1]
+        }
+        else {
+            Write-ColorOutput "Cancelled." "Yellow"
+            exit 0
+        }
+    }
+}
+else {
+    Show-BackupList $backups
+    Write-ColorOutput "`n  Enter number to restore (1-$($backups.Count)), L for latest, or Enter to cancel:" "Cyan"
+    $choice = Read-Host "Choice"
+    
+    if ($choice -eq "" -or $choice -eq "q") {
+        Write-ColorOutput "Cancelled." "Yellow"
+        exit 0
+    }
+    elseif ($choice -eq "L" -or $choice -eq "l") {
+        $selectedBackup = $backups[0]
+    }
+    elseif ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $backups.Count) {
+        $selectedBackup = $backups[[int]$choice - 1]
+    }
+    else {
+        Write-ColorOutput "[ERROR] Invalid choice: $choice" "Red"
+        exit 2
+    }
+}
+
+if (-not $selectedBackup) {
+    Write-ColorOutput "[ERROR] No backup selected." "Red"
+    exit 2
+}
+
+Write-ColorOutput "`n[trae-unlock] Rolling back patches..." "Cyan"
+$backupName = $selectedBackup.Name -replace '^index\.js\.', '' -replace '\.backup$', ''
+Write-ColorOutput "  From: $backupName" "Yellow"
+Write-ColorOutput "  To:   $TargetFile" "Gray"
+
 [System.IO.File]::Copy($selectedBackup.FullName, $TargetFile, $true)
 
-# Verify
 $content = [System.IO.File]::ReadAllText($TargetFile)
 $patchFound = $false
 foreach ($patch in $def.patches) {
-    if ($content.Contains($patch.replace_with)) {
+    if ($patch.enabled -and $content.Contains($patch.replace_with)) {
         $patchFound = $true
         break
     }
@@ -88,7 +148,8 @@ foreach ($patch in $def.patches) {
 
 if ($patchFound) {
     Write-ColorOutput "[WARNING] File still contains patch content. Partial rollback?" "Yellow"
-} else {
+}
+else {
     Write-ColorOutput "[OK] Rollback verified - no patch content detected." "Green"
 }
 

@@ -1,10 +1,9 @@
 # Tasks
 
-- [x] Task 1-5: 之前已完成 (黑名单模式 + 全面扫描)
-- [x] Task 6: 文档重构
-- [ ] Task 7: 修复 AskUserQuestion 被自动确认 Bug
-  - [ ] SubTask 7.1: 删除第二个无过滤的 provideUserResponse 调用 (~7503802)
-  - [ ] SubTask 7.2: 修改 service-layer-confirm-status-update 补丁的 find_original，使其匹配第一个（有过滤的）调用
-  - [ ] SubTask 7.3: 回滚 + 重新应用所有补丁
-  - [ ] SubTask 7.4: 验证只剩一个有过滤的 provideUserResponse 调用
-  - [ ] SubTask 7.5: Git commit & push
+- [x] Task 1-7: 之前已完成
+- [ ] Task 8: 修复 rollback.ps1 参数 Bug + 用户体验优化
+  - [ ] SubTask 8.1: 修复帮助文档中 `--list`/`--date` → `-List`/`-Date`
+  - [ ] SubTask 8.2: 新增 `-Latest` 快捷参数
+  - [ ] SubTask 8.3: 无参数运行时交互式选择 backup
+  - [ ] SubTask 8.4: `-Date` 支持模糊匹配（部分字符串即可）
+  - [ ] SubTask 8.5: 测试验证
