@@ -85,12 +85,12 @@
                     },
                     {
                         "id":  "service-layer-runcommand-confirm",
-                        "name":  "服务层 RunCommandCard 自动确认 (黑名单v4)",
-                        "description":  "在PlanItemStreamParser的else分支(~7503319)，非knowledge类unconfirmed命令原来只设badge不调确认API。现在追加调用this._taskService.provideUserResponse({decision:confirm})。v4: 黑名单模式-只排除response_to_user(用户问答)，其余所有工具类型默认自动确认。",
+                        "name":  "服务层自动确认+状态同步 (合并v5)",
+                        "description":  "合并原service-layer-runcommand-confirm和service-layer-confirm-status-update。在else分支追加: 1)黑名单过滤(response_to_user排除) 2)provideUserResponse调用 3)confirm_status同步更新。一个补丁完成三件事，避免重复调用bug。",
                         "find_original":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status)",
-                        "replace_with":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(e?.toolName!==\"response_to_user\")\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}))",
+                        "replace_with":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(e?.toolName!==\"response_to_user\")\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
                         "offset_hint":  "~7503319",
-                        "check_fingerprint":  "e?.toolName!==\"response_to_user\"\u0026\u0026(auto-confirm runcommand failed)",
+                        "check_fingerprint":  "e?.toolName!==\"response_to_user\"\u0026\u0026(e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
                         "enabled":  true,
                         "added_at":  "2026-04-19"
                     },
@@ -118,13 +118,13 @@
                     },
                     {
                         "id":  "service-layer-confirm-status-update",
-                        "name":  "服务层确认状态同步更新 (黑名单v3)",
-                        "description":  "修复切换窗口后沙箱命令卡在'等待操作'的问题。根因: service-layer-runcommand-confirm补丁调了provideUserResponse但没更新本地store的planItem状态，React组件仍显示unconfirmed。此补丁在provideUserResponse调用后立即将confirm_info.confirm_status改为confirmed。v3: 黑名单模式-与service-layer-runcommand-confirm v4保持一致。",
-                        "find_original":  "(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}))",
-                        "replace_with":  "(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(e?.toolName!==\"response_to_user\")\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
-                        "offset_hint":  "~7503400",
-                        "check_fingerprint":  "e?.toolName!==\"response_to_user\"\u0026\u0026(e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
-                        "enabled":  true,
+                        "name":  "[已合并] 服务层确认状态同步更新",
+                        "description":  "已合并到service-layer-runcommand-confirm v5中，此补丁不再单独使用。保留定义仅为历史记录。",
+                        "find_original":  "DISABLED_MERGED_INTO_service-layer-runcommand-confirm",
+                        "replace_with":  "DISABLED",
+                        "offset_hint":  "~0",
+                        "check_fingerprint":  "DISABLED",
+                        "enabled":  false,
                         "added_at":  "2026-04-19"
                     }
                 ]

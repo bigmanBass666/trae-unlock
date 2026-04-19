@@ -22,13 +22,28 @@
     .\rules-engine.ps1 --output "output.md"
 #>
 
+[CmdletBinding()]
 param(
-    [switch]$Check,
-    [switch]$List,
-    [string]$Output = ""
+    [Parameter(Mandatory=$false)][switch]$Check,
+    [Parameter(Mandatory=$false)][switch]$List,
+    [Parameter(Mandatory=$false)][string]$Output = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($args.Count -gt 0) {
+    for ($i = 0; $i -lt $args.Count; $i++) {
+        switch ($args[$i]) {
+            '--check' { $Check = $true }
+            '--list'  { $List = $true }
+            '--output' {
+                if ($i + 1 -lt $args.Count -and -not $args[$i + 1].StartsWith('-')) {
+                    $Output = $args[++$i]
+                }
+            }
+        }
+    }
+}
 
 # ============================================================
 # 全局配置

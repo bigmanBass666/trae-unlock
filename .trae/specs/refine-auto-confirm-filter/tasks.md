@@ -1,7 +1,10 @@
 # Tasks
 
 - [x] Task 1-5: 之前已完成 (黑名单模式 + 全面扫描)
-- [ ] Task 6: 文档重构 — 扫描报告独立化
-  - [ ] 新建 `docs/reports/scan-report-2026-04-19.md`，迁移完整扫描报告
-  - [ ] 精简 `progress.txt`，删除详细表格，保留摘要+链接
-  - [ ] Git commit & push
+- [x] Task 6: 文档重构
+- [ ] Task 7: 修复 AskUserQuestion 被自动确认 Bug
+  - [ ] SubTask 7.1: 删除第二个无过滤的 provideUserResponse 调用 (~7503802)
+  - [ ] SubTask 7.2: 修改 service-layer-confirm-status-update 补丁的 find_original，使其匹配第一个（有过滤的）调用
+  - [ ] SubTask 7.3: 回滚 + 重新应用所有补丁
+  - [ ] SubTask 7.4: 验证只剩一个有过滤的 provideUserResponse 调用
+  - [ ] SubTask 7.5: Git commit & push
