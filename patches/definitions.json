@@ -23,8 +23,8 @@
                         "id":  "auto-continue-thinking",
                         "name":  "自动续接思考上限",
                         "description":  "收到\u0027模型思考次数已达上限\u0027错误时，无感自动发送\u0027继续\u0027消息续接，不显示 Alert 弹窗。将 if(V\u0026\u0026J) 分支从渲染 Alert 改为 setTimeout 自动触发 ed 回调 + return null 隐藏弹窗。",
-                        "find_original":  "if(V\u0026\u0026J){let e=M.localize(\"continue\",{},\"Continue\");return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:\"warning\",message:ef,actionText:e,onActionClick:ed})}",
-                        "replace_with":  "if(V\u0026\u0026J){let e=M.localize(\"continue\",{},\"Continue\");setTimeout(function(){ed()},50);return null}",
+                        "find_original":  "if(V\u0026\u0026J){let e=M.localize(\"continue\",{},\"Continue\");setTimeout(function(){ed()},50);return null}",
+                        "replace_with":  "if(V\u0026\u0026J){let e=M.localize(\"continue\",{},\"Continue\");setTimeout(()=>{ed()},50);return null}",
                         "offset_hint":  "~8702342",
                         "enabled":  true,
                         "added_at":  "2026-04-18"
@@ -41,13 +41,13 @@
                     },
                     {
                         "id":  "bypass-runcommandcard-redlist",
-                        "name":  "绕过 RunCommandCard 红名单检查",
-                        "description":  "RunCommandCard 的 getRunCommandCardBranch 方法在检测到 RedList（危险命令）时会强制弹确认框，即使 ALWAYS_RUN 模式也不例外。此补丁让所有模式都返回 P8.Default（自动执行），彻底消除沙箱高风险命令确认弹窗。",
-                        "find_original":  "ALWAYS_RUN:if(i===Cr.BlockLevel.RedList||n)return P8.V2_Manual_RedList;return P8.Default;default:if(i===Cr.BlockLevel.RedList||n)return P8.V2_Manual_RedList;return P8.V2_Manual",
-                        "replace_with":  "ALWAYS_RUN:return P8.Default;default:return P8.Default",
+                        "name":  "绕过 RunCommandCard 全模式弹窗 (v2)",
+                        "description":  "getRunCommandCardBranch 方法在所有模式下都可能弹窗。v2: 让所有模式(WHITELIST+ALWAYS_RUN+default)都返回P8.Default，彻底消除UI层弹窗竞态。配合服务层补丁使用。",
+                        "find_original":  "case Cr.AutoRunMode.WHITELIST:switch(i){case Cr.BlockLevel.RedList:return P8.V2_Sandbox_RedList;case Cr.BlockLevel.SandboxNotBlockCommand:return n?P8.V2_Sandbox_NotBlocking_RedList:P8.V2_Sandbox_NotBlocking;case Cr.BlockLevel.SandboxExecuteFailure:return n?P8.V2_Sandbox_Execute_Failure_RedList:P8.V2_Sandbox_Execute_Failure;case Cr.BlockLevel.SandboxToRecovery:return n?P8.V2_Sandbox_To_Recovery_RedList:P8.V2_Sandbox_To_Recovery;case Cr.BlockLevel.SandboxUnavailable:return n?P8.V2_Sandbox_Unavailable_RedList:P8.V2_Sandbox_Unavailable;default:return P8.Default}case Cr.AutoRunMode.ALWAYS_RUN:if(i===Cr.BlockLevel.RedList||n)return P8.V2_Manual_RedList;return P8.Default;default:if(i===Cr.BlockLevel.RedList||n)return P8.V2_Manual_RedList;return P8.V2_Manual",
+                        "replace_with":  "case Cr.AutoRunMode.WHITELIST:return P8.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P8.Default;default:return P8.Default",
                         "offset_hint":  "~8069700",
-                        "check_fingerprint":  "ALWAYS_RUN:return P8.Default;default:return P8.Default",
-                        "enabled":  false,
+                        "check_fingerprint":  "case Cr.AutoRunMode.WHITELIST:return P8.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P8.Default;default:return P8.Default",
+                        "enabled":  true,
                         "added_at":  "2026-04-18"
                     },
                     {
@@ -102,7 +102,7 @@
                         "replace_with":  "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
                         "offset_hint":  "~8069700",
                         "check_fingerprint":  "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
-                        "enabled":  true,
+                        "enabled":  false,
                         "added_at":  "2026-04-19"
                     },
                     {
