@@ -1,0 +1,43 @@
+rules:
+  - id: "rule-005"
+    name: "标准工作流程八步循环"
+    category: workflow
+    priority: high
+    enabled: true
+    description: "遵循标准化的 8 步工作循环，确保每次会话都基于最新状态且知识持续积累"
+    actions:
+      - "步骤1：读 README.md 了解项目整体情况"
+      - "步骤2：读 docs/architecture/source-architecture.md 了解已有知识"
+      - "步骤3：读 progress.txt 了解当前进度"
+      - "步骤4：开始探索/修改"
+      - "步骤5：有新发现 → 立即写进对应文档"
+      - "步骤6：有代码修改 → 备份 + 记录到对应文档"
+      - "步骤7：git add . && git commit && git push"
+      - "步骤8：继续下一步（回到步骤4形成循环）"
+    enforcement: mandatory
+
+  - id: "rule-006"
+    name: "文档更新时机控制"
+    category: workflow
+    priority: medium
+    enabled: true
+    description: "在工作流程中识别关键节点，确保在正确的时机进行文档更新和版本控制"
+    actions:
+      - "探索阶段：每有新发现立即记录到 source-architecture.md 或 bypass-security.md"
+      - "修改阶段：代码修改后立即备份并记录修改内容、位置和原因"
+      - "测试阶段：记录测试结果（成功/失败）、测试方法和结论"
+      - "提交阶段：确保所有相关文档已更新后再执行 git commit"
+    enforcement: recommended
+
+  - id: "rule-007"
+    name: "循环迭代原则"
+    category: workflow
+    priority: medium
+    enabled: true
+    description: "工作流程是迭代循环的，每个周期都要基于上一周期的成果继续推进"
+    actions:
+      - "每个工作周期完成后返回步骤4继续下一轮工作"
+      - "新周期开始前重新读取 progress.txt 确认当前状态"
+      - "利用 source-architecture.md 中已有的知识避免重复探索"
+      - "将本轮未完成的工作记录到 progress.txt 方便下个会话接续"
+    enforcement: recommended
