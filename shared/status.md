@@ -33,7 +33,7 @@ format: registry
 | ID | 位置 | 版本 | 说明 |
 |----|------|------|------|
 | auto-confirm-commands | ~7502574 | v3 | knowledge 命令自动确认（黑名单+无return+状态同步） |
-| service-layer-runcommand-confirm | ~7503319 | v6 | else 分支确认（箭头函数+confirm_status守卫+状态同步） |
+| service-layer-runcommand-confirm | ~7503319 | v7 | else 分支确认（箭头函数+confirm_status守卫+AskUserQuestion黑名单） |
 | auto-continue-thinking | ~8702342 | v1 | 思考上限自动点"继续"（箭头函数） |
 | efh-resume-list | ~8695303 | v1 | TASK_TURN_EXCEEDED_ERROR 加入可恢复列表 |
 | bypass-loop-detection | ~8696378 | v1 | 4000009/4000012 加入 J 变量列表 |
@@ -75,6 +75,13 @@ format: registry
 ## 会话日志
 
 每个会话结束前在此追加日志，下一个会话通过读取此区域了解发生了什么。
+
+### [2026-04-20 19:50] 会话 #10 — 深度排查 AskUserQuestion 自动确认
+
+**操作**: service-layer-runcommand-confirm v6→v7，黑名单从 `response_to_user` 扩展为 `response_to_user+AskUserQuestion`
+**根因**: v6 的 else 分支只过滤了 `response_to_user`，但 AskUserQuestion 的 toolName 是 `"AskUserQuestion"` 不是 `"response_to_user"`，所以被自动确认
+**验证**: 6个补丁指纹全部通过，AskUserQuestion 过滤器已添加
+**启示**: 黑名单不能只过滤 `response_to_user`，还需要过滤所有需要用户交互的工具（如 AskUserQuestion）
 
 ### [2026-04-20 19:30] 会话 #9 — 修复 AskUserQuestion 自动确认 Bug
 
