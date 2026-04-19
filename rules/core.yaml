@@ -24,6 +24,7 @@ rules:
       - "做出技术决策 → 写入 shared/decisions.md"
       - "完成工作后 → 更新 shared/status.md"
       - "项目重大变更 → 更新 shared/context.md"
+      - "会话结束前 → 在 status.md 会话日志区域追加本次会话日志（操作/观察/问题/建议）"
     enforcement: mandatory
 
   - id: "rule-003"

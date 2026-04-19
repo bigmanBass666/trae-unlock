@@ -47,3 +47,16 @@ rules:
       - "不要修改 shared/*.md（已去品牌化）"
       - "不要修改历史文件（保持原名）"
     enforcement: mandatory
+
+  - id: "rule-020"
+    name: "追加而非重写 shared/ 模块"
+    category: anchor
+    priority: high
+    enabled: true
+    description: "向 shared/*.md 写入时必须追加新条目，不得重写整个文件。重写会导致其他会话写入的条目丢失"
+    actions:
+      - "在文件末尾追加新条目，使用 ### [时间] 标题 格式"
+      - "不得删除或覆盖已有条目"
+      - "status.md 允许更新表格行，但不得删除其他会话的条目"
+      - "如果条目已过时，在原条目后追加更新注释，而非删除"
+    enforcement: mandatory

@@ -211,3 +211,22 @@ confirm_info = {
 | 17 | ~8709130 | TOOL_CALL_RETRY_LIMIT | error | ❌ |
 
 **推荐解锁**: 将错误码加入 J 变量使其成为可继续错误（低难度），或加入 efh 列表使其可自动恢复
+
+---
+
+### [2026-04-20 17:20] ew.confirm() 是日志打点而非执行函数
+
+**位置**: ~8635000+ (egR 组件内)
+**发现**: RunCommandCard 组件中，用户点击"确认"按钮时调用了 `ew.confirm(true)`，直觉上以为这是触发命令执行的函数。实际上 `ew.confirm()` **只是 telemetry/日志打点函数**，不触发任何业务逻辑。
+
+**真正的执行函数**: `eE(Ck.Confirmed)` — 这才是触发状态更新和命令执行的核心函数。
+
+**自动确认 effect** (~8640019) 中也调用了 `ew.confirm(!0)`：
+```javascript
+useEffect(() => {
+  !e && er === Ck.Unconfirmed && en && ew.confirm(!0)
+}, [e, en, ew.confirm])
+```
+这里 `ew.confirm(true)` 也只是打点，真正让命令执行的是 React 状态更新触发的 re-render（ey 变为 Confirmed → 组件不再显示弹窗 → 后续流程继续）。
+
+**启示**: 在压缩代码中，函数名被混淆后无法从名字判断功能。必须追踪调用链才能确定函数的真实作用。这个发现让我们在 v1-v4 版本的补丁中走了弯路——试图在 React 层修改 ew.confirm 的行为，而真正需要修改的是服务层的 provideUserResponse 调用。
