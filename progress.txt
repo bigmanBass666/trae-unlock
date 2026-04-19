@@ -172,3 +172,69 @@
 - ✅ AskUserQuestionCard → 显示 UI 让用户选择（被排除）
 - ⚠️ 其他工具类型 → 默认不自动确认（保守策略）
 
+### v2 策略调整: 黑名单模式
+
+**用户反馈**: 白名单太保守，其他工具也需要手动确认
+**变更**: `e?.toolName==="run_command"` → `e?.toolName!=="response_to_user"`
+**效果**: 只排除 response_to_user，其余所有工具类型默认自动确认
+
+### 主动性全面扫描结果 (2026-04-19)
+
+#### 发现1: 30 个 Alert 弹窗渲染点 (位置 ~8700000-8730000)
+| # | 位置 | 错误码/条件 | 类型 | 已有补丁? |
+|---|------|------------|------|----------|
+| 1 | ~8700219 | ENTERPRISE_QUOTA_CONFIG_INVALID | warning | ❌ |
+| 2 | ~8701000 | MODEL_PREMIUM_EXHAUSTED (usage limit) | warning | ❌ |
+| 3 | ~8701454 | PAYMENT_METHOD_INVALID | warning | ❌ |
+| 4 | ~8701681 | INTERNAL_USAGE_LIMIT | warning | ❌ |
+| 5 | ~8701968 | usage_limit (internal user) | warning | ❌ |
+| 6 | ~8702410 | RISK_REQUEST_V2 | error/warning | ❌ |
+| 7 | ~8703141 | CONTENT_SECURITY_BLOCKED | warning | ❌ |
+| 8 | ~8703913 | FREE_ACTIVITY_QUOTA_EXHAUSTED | warning | ❌ |
+| 9 | ~8704548 | CAN_NOT_USE_SOLO_AGENT | warning | ❌ |
+| 10 | ~8705020 | CLAUDE_MODEL_FORBIDDEN | **error** | ❌ |
+| 11 | ~8705534 | REPO_LEVEL_MODEL_UNAVAILABLE | warning | ❌ |
+| 12 | ~8705889 | FIREWALL_BLOCKED | **error** | ❌ |
+| 13 | ~8706125 | bQ.Warning (general) | warning | ❌ |
+| 14 | ~8706147 | bQ.Error (general) | **error** | ❌ |
+| 15 | ~8706304 | PPE config error | **error** | ❌ |
+| 16 | ~8706759 | EXTERNAL_LLM_REQUEST_FAILED | **error** | ⚠️ 有 Retry 按钮 |
+| 17 | ~8706979 | Diagnose error | **error** | ⚠️ 有 Diagnose 按钮 |
+| 18 | ~8707238 | Continue+Diagnose | **error** | ⚠️ 有 Continue 按钮 |
+| 19 | ~8707685 | PREMIUM_USAGE_LIMIT | **error** | ❌ |
+| 20 | ~8708073 | STANDARD_MODE_USAGE_LIMIT | **error** | ❌ |
+| 21 | ~8708463 | INVALID_TOOL_CALL | **error** | ❌ |
+| 22 | ~8708817 | INVALID_TOOL_CALL (schema) | **error** | ❌ |
+| 23 | ~8709130 | TOOL_CALL_RETRY_LIMIT | **error** | ⚠️ 有 New Task 按钮 |
+| 24 | ~8709536 | Feedback mail | **error** | ❌ |
+| 25 | ~8925891 | Usage quota info | info | ❌ |
+| 26 | ~8926810 | Commercial exhaust | warning | ❌ |
+| 27 | ~8929022 | Info message | info | ❌ |
+
+#### 发现2: 错误码枚举 (位置 ~54000, ~7161400)
+| 错误码 | 名称 | 类型 | 已处理? |
+|--------|------|------|---------|
+| 4000002 | TASK_TURN_EXCEEDED_ERROR | 思考上限 | ✅ auto-continue-thinking |
+| 4000003 | LLM_INVALID_JSON | JSON 解析失败 | ❌ |
+| 4000004 | LLM_INVALID_JSON_START | JSON 起始无效 | ❌ |
+| 4000005 | LLM_QUEUING | 排队中 | ❌ |
+| 4000009 | LLM_STOP_DUP_TOOL_CALL | 工具循环 | ✅ bypass-loop-detection |
+| 4000010 | LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT | Token 超限 | ❌ |
+| 4000012 | LLM_STOP_CONTENT_LOOP | 内容循环 | ✅ bypass-loop-detection |
+
+#### 发现3: BlockLevel 枚举
+| 值 | 含义 | 已处理? |
+|----|------|---------|
+| RedList | 红名单命令 | ✅ bypass-whitelist + bypass-runcommandcard-redlist |
+| SandboxNotBlockCommand | 沙箱非阻塞命令 | ✅ bypass-whitelist-sandbox-blocks |
+| SandboxExecuteFailure | 沙箱执行失败 | ✅ bypass-whitelist-sandbox-blocks |
+| SandboxToRecovery | 沙箱恢复中 | ✅ bypass-whitelist-sandbox-blocks |
+| SandboxUnavailable | 沙箱不可用 | ✅ bypass-whitelist-sandbox-blocks |
+
+#### 待处理的潜在问题点 (优先级排序)
+1. **🔴 MODEL_OUTPUT_TOO_LONG Alert (~8701000)** — 高级模型额度用完，可能中断对话
+2. **🔴 CLAUDE_MODEL_FORBIDDEN (~8705020)** — Claude 模型被禁用
+3. **🟡 INVALID_TOOL_CALL (~8708463)** — 工具调用参数错误
+4. **🟡 TOOL_CALL_RETRY_LIMIT (~8709130)** — 重试次数超限
+5. **🟢 FIREWALL_BLOCKED (~8705889)** — 网络防火墙拦截
+

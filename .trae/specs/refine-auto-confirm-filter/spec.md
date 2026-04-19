@@ -1,69 +1,66 @@
-# 精准化自动确认过滤 Spec
+# 精准化自动确认过滤 Spec (v2 - 黑名单模式)
 
 ## Why
 
-当前 `auto-confirm-commands` 和 `service-layer-runcommand-confirm` 两个补丁会自动确认**所有** `confirm_status === "unconfirmed"` 的 planItem，包括 AI 向用户提问的 AskUserQuestionCard 类型。这导致用户无法看到或回答 AI 的问题，所有选项都被自动"确认"了。
-
-需要让自动化更精准：只自动确认**命令执行类**工具调用（RunCommandCard），跳过**用户问答类**（AskUserQuestionCard）。
+当前使用白名单模式（只允许 run\_command 自动确认）太保守，导致大量正常工具操作也需要手动确认。用户明确要求：**只排除 AskUserQuestionCard，其他全部默认确认**。
 
 ## What Changes
 
-- **修改 `service-layer-runcommand-confirm` 补丁**: 增加 `toolName` 过滤条件，只确认命令执行类工具
-- **修改 `auto-confirm-commands` 补丁**: 增加相同的过滤条件
-- **新增白名单/黑名单机制**: 可配置哪些 toolName 需要自动确认，哪些需要跳过
+* **策略变更**: 白名单 → 黑名单模式
+
+  * 旧: `(e?.toolName==="run_command")` → 只允许 run\_command
+
+  * 新: `(e?.toolName!=="response_to_user")` → 排除 response\_to\_user，其余全过
+
+* **影响补丁**: service-layer-runcommand-confirm, service-layer-confirm-status-update, auto-confirm-commands
 
 ## Impact
 
-- Affected specs: 无（独立功能）
-- Affected code:
-  - `ai-modules-chat/dist/index.js` ~7503400 (service-layer 补丁)
-  - `ai-modules-chat/dist/index.js` ~7502900 (knowledges 补丁)
-
-## ADDED Requirements
-
-### Requirement: 精准化自动确认过滤
-
-系统 SHALL 只对**命令执行类**工具调用进行自动确认，**不跳过用户问答类**交互。
-
-#### Scenario: RunCommandCard 自动确认成功
-- **WHEN** 服务端返回 `confirm_info.confirm_status === "unconfirmed"` 且 `toolName` 为命令执行类（如 `run_command`, `shell_exec` 等）
-- **THEN** 系统自动调用 `provideUserResponse({decision: "confirm"})`
-
-#### Scenario: AskUserQuestionCard 不被自动确认
-- **WHEN** 服务端返回 `confirm_info.confirm_status === "unconfirmed"` 且 `toolName` 为用户问答类（如 `ask_user_question` 等）
-- **THEN** 系统不调用 `provideUserResponse`，保留 UI 让用户手动选择
-
-#### Scenario: 未知 toolName 的安全处理
-- **WHEN** `toolName` 无法识别或为空
-- **THEN** 默认不自动确认（保守策略），显示 UI 等待用户操作
+* Affected code: ai-modules-chat/dist/index.js \~7502574, \~7503319, \~7503400
 
 ## MODIFIED Requirements
 
-### Requirement: service-layer-runcommand-confirm 补丁
+### Requirement: 自动确认过滤策略 (v2: 黑名单模式)
 
-修改后的补丁 SHALL 在调用 `provideUserResponse` 前**检查 `e?.toolName` 是否在允许列表中**：
+系统 SHALL 使用**黑名单模式**进行自动确认过滤：
 
 ```javascript
-// 原始逻辑 (过于宽泛):
-(e?.toolName||e?.id||e?.toolCallId) && provideUserResponse(...)
-
-// 新逻辑 (精准过滤):
+// v2 黑名单模式: 只排除明确的用户交互类，其余全部默认确认
 (e?.toolName||e?.id||e?.toolCallId) && 
-isAutoConfirmTool(e?.toolName) && 
+(e?.toolName !== "response_to_user") &&   // ← 唯一排除项
 provideUserResponse(...)
 ```
 
-其中 `isAutoConfirmTool(toolName)` 函数判断：
-- ✅ 允许: `run_command`, `shell_exec`, `execute_command` 等命令执行类
-- ❌ 跳过: `ask_user_question`, `user_input` 等用户交互类
-- ⚠️ 默认: 不确定时**不自动确认**
+#### Scenario: RunCommandCard → 自动确认 ✅
 
-### Requirement: auto-confirm-commands 补丁
+* **WHEN** toolName = "run\_command"
 
-同理，knowledges 背景任务补丁也需增加相同的 `toolName` 过滤。
+* **THEN** `"run_command" !== "response_to_user"` → true → 自动确认
 
-## 技术调研待确认项
+#### Scenario: AskUserQuestionCard → 不自动确认 ❌
 
-1. **AskUserQuestion 的 `toolName` 具体值是什么？** — 需要在运行时日志确认
-2. **RunCommandCard 的 `toolName` 具体值是什么？** — 可能是 `run_command` 或 `shell_exec`
-3. **是否存在其他需要自动确认/跳过的工具类型？** — 需要完整枚举
+* **WHEN** toolName = "response\_to\_user"
+
+* **THEN** `"response_to_user" !== "response_to_user"` → false → 跳过，显示 UI
+
+#### Scenario: 其他工具 (create\_file, web\_search 等) → 默认确认 ✅
+
+* **WHEN** toolName = 其他任意值
+
+* **THEN** 不在黑名单中 → 自动确认
+
+## ADDED: 主动性扫描计划
+
+### 目标
+
+不再被动等用户报 bug，而是系统性找出 Trae 中**所有可能触发确认弹窗/中断对话的限制点**。
+
+### 扫描范围
+
+1. 所有 `confirm_status === "unconfirmed"` 的处理路径
+2. 所有 `Alert` / 弹窗渲染逻辑
+3. 所有 `block_level` 相关的分支判断
+4. 所有 `auto_confirm === false` 的场景
+5. SSE 流中可能导致 UI 卡住的状态更新遗漏
+6. 错误码处理中缺少"可恢复"标记的情况
+
