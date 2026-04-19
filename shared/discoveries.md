@@ -1,0 +1,213 @@
+---
+module: discoveries
+description: 重要发现和代码定位
+read_priority: P2
+read_when: 需要相关知识时
+write_when: 发现关键信息时
+format: registry
+---
+
+# 重要发现
+
+> 关键代码位置、架构关系、枚举值等
+
+> 📝 写入格式遵循 `shared/_registry.md` 中的约定
+
+### [2026-04-18 10:00] PlanItemStreamParser SSE 流解析器
+
+**位置**: ~7502500
+**层级**: 服务层（不依赖 React）
+**作用**: 解析服务端 SSE 流返回的 planItem，是命令确认流程的核心入口。`_handlePlanItem()` 方法检测 `confirm_status==="unconfirmed"` 后可调用 `provideUserResponse` 自动确认。切窗口不冻住，是最可靠的补丁注入点。
+
+---
+
+### [2026-04-19 15:00] 30 个 Alert 弹窗渲染点
+
+**位置**: ~8700000-8930000
+**组件**: ErrorMessageWithActions
+**发现**: 扫描发现 30 个 Alert 弹窗渲染点，其中只有 1 个被补丁覆盖（if(V&&J) 可继续错误分支）。其余 29 个尚未处理，是未来扩展的潜在目标。
+
+---
+
+### [2026-04-19 12:00] 错误码枚举
+
+**位置**: ~54000（第一处）/ ~7161400（第二处）
+**关键值**:
+- `TASK_TURN_EXCEEDED_ERROR = 4000002` — 思考次数上限
+- `LLM_STOP_DUP_TOOL_CALL = 4000009` — 重复工具调用循环
+- `LLM_STOP_CONTENT_LOOP = 4000012` — 内容循环
+- `MODEL_OUTPUT_TOO_LONG` — 输出过长
+- 待处理: MODEL_PREMIUM_EXHAUSTED、CLAUDE_MODEL_FORBIDDEN、INVALID_TOOL_CALL
+
+---
+
+### [2026-04-18 15:00] BlockLevel 枚举
+
+**位置**: ~8069382
+**枚举值**:
+- `RedList = "redlist"` — 危险命令（Remove-Item 等）
+- `Blacklist = "blacklist"` — 企业策略禁止
+- `SandboxExecuteFailure = "sandbox_execute_failure"` — 沙箱执行失败
+- `SandboxToRecovery = "sandbox_to_recovery"` — 沙箱恢复
+- `SandboxUnavailable = "sandbox_unavailable"` — 沙箱不可用
+
+---
+
+### [2026-04-19 10:00] ToolCallName 枚举
+
+**位置**: ~41400
+**关键值**:
+- `RunCommand = "run_command"` — 命令执行（需自动确认）
+- `ResponseToUser = "response_to_user"` — 用户问答（不应自动确认）
+- 其他 30+ 种工具类型（文件操作/搜索/MCP 等）
+
+---
+
+### [2026-04-18 18:00] 确认系统双层架构
+
+**Layer 1**: PlanItemStreamParser（服务层，~7502574）— 检测 `confirm_status==="unconfirmed"` → `provideUserResponse`
+**Layer 2**: RunCommandCard（UI 层，~8069620）— `getRunCommandCardBranch()` 根据 BlockLevel + AutoRunMode 决定 UI 分支
+**关键**: 两层完全独立，只补一层另一层仍会弹窗。服务层补丁不受 React 冻结影响，UI 层补丁切窗口后失效。
+
+---
+
+### [2026-04-20 15:00] 闭环是分形的
+
+**发现者**: 用户洞察
+**性质**: 元认知发现
+**内容**: "闭环"这一概念本身没有范围边界。我们解决了项目级闭环（同一项目跨会话通信），但无意中硬编码了闭环的边界——默认闭环只在项目内。实际上闭环是分形的：
+- 会话级闭环（AI 自身记忆）
+- 项目级闭环（Anchor shared/ 系统）
+- 跨项目级闭环（项目 A 的 AI 学习项目 B 的模式）
+- 更高级别闭环（？）
+
+**启示**: 不要硬编码闭环的范围和边界。今天解决项目级，明天可能需要跨项目级。设计时应保持闭环机制的可扩展性，而非假设闭环只在当前层级。
+
+---
+
+### [2026-04-20 16:00] getRunCommandCardBranch 完整分支逻辑
+
+**位置**: ~8069620
+**函数签名**: `getRunCommandCardBranch({ run_mode_version, autoRunMode, blockLevel, hasBlacklist })`
+**核心逻辑**: v2 模式下，根据 AutoRunMode + BlockLevel + hasBlacklist 三元组决定返回值
+
+**交互矩阵**:
+| AutoRunMode | BlockLevel | hasBlacklist | 返回值 | 行为 |
+|-------------|-----------|-------------|--------|------|
+| WHITELIST | RedList | - | V2_Sandbox_RedList | 弹窗 |
+| WHITELIST | Sandbox* | false | V2_Sandbox_* | 弹窗 |
+| WHITELIST | Sandbox* | true | V2_Sandbox_*_RedList | 弹窗 |
+| WHITELIST | default | - | **Default** | **自动执行** |
+| ALWAYS_RUN | RedList | - | V2_Manual_RedList | 弹窗 |
+| ALWAYS_RUN | (任何) | true | V2_Manual_RedList | 弹窗 |
+| ALWAYS_RUN | (其他) | false | **Default** | **自动执行** |
+| default(Ask) | RedList | - | V2_Manual_RedList | 弹窗 |
+| default(Ask) | (任何) | true | V2_Manual_RedList | 弹窗 |
+| default(Ask) | (其他) | false | V2_Manual | 弹窗 |
+
+**关键**: 只有 `P8.Default` 才是真正的自动执行。即使 ALWAYS_RUN + RedList 仍然弹窗。
+
+---
+
+### [2026-04-20 16:10] provideUserResponse 完整调用链
+
+**API 签名**: `this._taskService.provideUserResponse({task_id, type:"tool_confirm", toolcall_id, tool_name, decision:"confirm"|"reject"})`
+**所属服务**: _taskService (TaskService)
+
+**4 个调用点**:
+1. ~7502574: PlanItemStreamParser knowledge 分支 — `confirm_status==="unconfirmed" && toolName!=="response_to_user"`
+2. ~7503319: PlanItemStreamParser else 分支 — `toolName!=="response_to_user" && confirm_status!=="confirmed"`
+3. ~8635000+: egR 组件用户手动点击确认 — decision="confirm"
+4. ~8635000+: egR 组件用户手动点击拒绝 — decision="reject"
+
+**成功后处理链**: provideUserResponse → 服务端执行命令 → 本地同步 confirm_status="confirmed" → Zustand Store 更新 → React re-render
+**失败后处理链**: .catch(e=>{this._logService.warn(...)}) → confirm_status 保持 "unconfirmed" → UI 继续显示"等待操作"
+
+**关键**: 没有单独的 SSE 事件确认服务端收到响应。调用后必须手动同步本地 confirm_info.confirm_status。
+
+---
+
+### [2026-04-20 16:20] J 变量和 efh 列表 — 错误恢复的两条路径
+
+**J 变量** (~8696378): 控制是否显示"继续"按钮
+- `J=!![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR, kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP].includes(_)`
+- J=true → Alert + "继续"按钮 → 可自动续接
+- J=false → 只显示错误消息 → 对话终止
+
+**efh 列表** (~8695303): 控制是否可自动恢复（resumeChat）
+- 包含 14 个网络/服务错误码（SERVER_CRASH, CONNECTION_ERROR, MODEL_FAIL 等）
+- 补丁后新增: TASK_TURN_EXCEEDED_ERROR
+- ec 回调: `if("v3"===p && e.includes(_)) D.resumeChat()` — v3 进程 + 错误在 efh 中 → 自动恢复
+
+**两条恢复路径**:
+1. **resumeChat 路径** (ec 回调): 错误在 efh 列表中 + agentProcess==="v3" → 自动调用 D.resumeChat()
+2. **sendChatMessage 路径** (ed 回调): 发送 "Continue" 文本作为新消息 → 开始新一轮对话
+
+---
+
+### [2026-04-20 16:30] AutoRunMode 和 ConfirmMode 枚举
+
+**AutoRunMode** (ee, ~8069382):
+- Auto="auto", Manual="manual", Allowlist="allowlist", InSandbox="in_sandbox", OutSandbox="out_sandbox"
+
+**ConfirmMode** (ei, ~8069382) — 用户设置:
+- ALWAYS_ASK="alwaysAsk" — 每次都问
+- WHITELIST="whitelist" — 白名单内自动
+- BLACKLIST="blacklist" — 黑名单外自动
+- ALWAYS_RUN="alwaysRun" — 全自动
+
+**设置 Key**: `AI.toolcall.confirmMode` (~7438613)
+
+**关系**: ConfirmMode 是用户可见的设置选项，AutoRunMode 是服务端返回的运行模式。getRunCommandCardBranch 根据 AutoRunMode 分发，而 ConfirmMode 决定用户选择哪种 AutoRunMode。
+
+---
+
+### [2026-04-20 16:40] confirm_info 完整数据结构
+
+**位置**: 服务端 SSE 流返回，嵌套在 planItem 中
+
+```javascript
+confirm_info = {
+  confirm_status: "unconfirmed" | "confirmed" | "canceled" | "skipped",
+  auto_confirm: true | false,          // knowledge 背景任务为 true
+  hit_red_list: ["Remove-Item", ...],  // 命中的危险命令列表
+  hit_blacklist: [...],                // 命中的企业黑名单
+  block_level: "redlist" | "blacklist" | "sandbox_not_block_command" |
+               "sandbox_execute_failure" | "sandbox_to_recovery" | "sandbox_unavailable",
+  run_mode: "auto" | "manual" | "allowlist" | "in_sandbox" | "out_sandbox",
+  now_run_mode: "in_sandbox" | "out_sandbox" | ...
+}
+```
+
+**生命周期**: 服务端 SSE → DG.parse(~7318521) → PlanItemStreamParser(~7502500) → Zustand Store(~3211326) → React 组件(~8635000)
+
+**状态转换**: unconfirmed → confirmed (用户/自动确认) | canceled (用户取消) | skipped (跳过)
+
+---
+
+### [2026-04-20 16:50] 17 个 Alert 渲染点完整列表
+
+**位置**: ~8700000-8930000 (ErrorMessageWithActions 组件)
+**已覆盖**: 仅 #5 (if(V&&J) 可继续错误分支) — auto-continue-thinking 补丁
+
+| # | 位置 | 错误码/名称 | 类型 | 补丁覆盖 |
+|---|------|------------|------|---------|
+| 1 | ~8700219 | ENTERPRISE_QUOTA_CONFIG_INVALID | warning | ❌ |
+| 2 | ~8701000 | MODEL_PREMIUM_EXHAUSTED | warning | ❌ |
+| 3 | ~8701454 | PAYMENT_METHOD_INVALID | warning | ❌ |
+| 4 | ~8701681 | INTERNAL_USAGE_LIMIT | warning | ❌ |
+| 5 | ~8702300 | if(V&&J) 可继续错误 | warning | ✅ |
+| 6 | ~8702410 | RISK_REQUEST_V2 | error/warning | ❌ |
+| 7 | ~8703141 | CONTENT_SECURITY_BLOCKED | warning | ❌ |
+| 8 | ~8703913 | FREE_ACTIVITY_QUOTA_EXHAUSTED | warning | ❌ |
+| 9 | ~8704548 | CAN_NOT_USE_SOLO_AGENT | warning | ❌ |
+| 10 | ~8705020 | CLAUDE_MODEL_FORBIDDEN | error | ❌ |
+| 11 | ~8705534 | REPO_LEVEL_MODEL_UNAVAILABLE | warning | ❌ |
+| 12 | ~8705889 | FIREWALL_BLOCKED | error | ❌ |
+| 13 | ~8706759 | EXTERNAL_LLM_REQUEST_FAILED | error | ❌ |
+| 14 | ~8707685 | PREMIUM_USAGE_LIMIT | error | ❌ |
+| 15 | ~8708073 | STANDARD_MODE_USAGE_LIMIT | error | ❌ |
+| 16 | ~8708463 | INVALID_TOOL_CALL | error | ❌ |
+| 17 | ~8709130 | TOOL_CALL_RETRY_LIMIT | error | ❌ |
+
+**推荐解锁**: 将错误码加入 J 变量使其成为可继续错误（低难度），或加入 efh 列表使其可自动恢复

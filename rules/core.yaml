@@ -1,53 +1,53 @@
 rules:
   - id: "rule-001"
-    name: "新会话开始前必读文档"
+    name: "新会话开始前必读 Anchor 共享知识库"
     category: core
     priority: high
     enabled: true
-    description: "在开始任何工作之前，必须先阅读项目核心文档以了解背景和当前状态"
+    description: "在开始任何工作之前，必须先通过 Anchor 系统获取项目上下文和当前状态"
     actions:
-      - "阅读 README.md 了解项目整体情况"
-      - "阅读 docs/architecture/source-architecture.md 了解源码架构和关键代码位置"
-      - "阅读 progress.txt 了解当前进度和待解决问题"
+      - "读取 shared/_registry.md 了解所有可用模块"
+      - "按 P0 → P1 → P2 优先级读取所需模块"
+      - "P0 必读: shared/context.md（项目核心上下文）"
+      - "P1 推荐: shared/status.md（当前状态和待办）"
       - "禁止在不了解项目背景的情况下直接开始修改代码"
     enforcement: mandatory
 
   - id: "rule-002"
-    name: "操作后文档强制更新规则"
+    name: "操作后写入 Anchor 共享模块"
     category: core
     priority: high
     enabled: true
-    description: "每次完成关键操作后，必须立即更新文档并提交，确保知识共享和可追溯性"
+    description: "每次完成关键操作后，必须将信息持久化到 Anchor shared/ 对应模块"
     actions:
-      - "完成新发现（找到关键代码、拦截点、修改位置、架构信息）后立即更新文档"
-      - "修改代码（任何对 Trae 源码的修改）后立即记录到对应文档"
-      - "测试结果（验证修改是否成功）后立即记录测试结论"
-      - "问题排查（发现问题原因或解决方案）后立即记录排查过程"
+      - "发现关键代码/架构 → 写入 shared/discoveries.md"
+      - "做出技术决策 → 写入 shared/decisions.md"
+      - "完成工作后 → 更新 shared/status.md"
+      - "项目重大变更 → 更新 shared/context.md"
     enforcement: mandatory
 
   - id: "rule-003"
-    name: "新发现必须写入共享文档"
+    name: "新发现必须写入 discoveries 模块"
     category: core
     priority: high
     enabled: true
-    description: "发现新东西时第一时间更新共享文档，避免后续 AI 重复探索工作"
+    description: "发现新东西时第一时间写入 shared/discoveries.md，避免后续 AI 重复探索"
     actions:
-      - "将新发现的关键位置（文件名 + 偏移量 + 作用）写入 source-architecture.md"
+      - "记录关键位置（文件名 + 偏移量 + 作用）"
       - "记录模块之间的关系和调用链"
-      - "记录枚举值、设置 ID、NLS key 等元数据"
+      - "记录枚举值、设置 ID 等元数据"
       - "记录排除的错误方向（哪些路走不通）"
-      - "将与功能相关的有效/无效修改方案写入 docs/bypass-security.md"
-      - "简要记录进度到 progress.txt 方便快速了解项目状态"
     enforcement: mandatory
 
   - id: "rule-004"
-    name: "文档更新规范要求"
+    name: "写入格式遵循注册表约定"
     category: core
     priority: high
     enabled: true
-    description: "不同类型文档有特定的更新格式和内容要求，确保信息结构化且易于检索"
+    description: "向 shared/ 模块追加条目时，使用 shared/_registry.md 中定义的统一格式"
     actions:
-      - "progress.txt：写一行简短进度描述，包含修改文件、关键位置、测试结果，示例：[位置] 修改 ai-modules-chat:7502574 - 自动确认 provideUserResponse"
-      - "docs/source-architecture.md：记录发现的文件/模块功能、关键代码位置（带偏移量）、与其他模块的关系、搜索过程和排除方向"
-      - "README.md：新增完成的探索成果、更新文档索引表"
+      - "格式: ### [YYYY-MM-DD HH:mm] 简短标题"
+      - "使用 **关键字**: 值 的结构化内容"
+      - "条目之间用 --- 分隔"
+      - "详见 shared/_registry.md 的'写入格式约定'章节"
     enforcement: mandatory

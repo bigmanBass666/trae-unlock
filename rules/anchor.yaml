@@ -1,0 +1,49 @@
+rules:
+  - id: "rule-016"
+    name: "不要在 shared/*.md 中硬编码系统品牌名"
+    category: anchor
+    priority: high
+    enabled: true
+    description: "shared/*.md 只描述功能，不含系统品牌名。品牌名只在 AGENTS.md 和 _registry.md 中定义"
+    actions:
+      - "shared/*.md 的描述行只写功能，不写品牌名前缀"
+      - "例如写'每个新会话 AI 必读的项目核心信息'而非'Anchor 共享知识库 — 每个新会话 AI 必读的项目核心信息'"
+      - "如果需要引用系统名，使用'本系统'或指向 _registry.md"
+    enforcement: mandatory
+
+  - id: "rule-017"
+    name: "不要在 AGENTS.md 中硬编码文件列表"
+    category: anchor
+    priority: high
+    enabled: true
+    description: "AGENTS.md 只做路由，指向 _registry.md。不硬编码 shared/ 文件列表"
+    actions:
+      - "AGENTS.md 中不列出具体的 shared/*.md 文件名（除 _registry.md 外）"
+      - "新增模块时只改 _registry.md + 创建文件，不改 AGENTS.md"
+      - "删除模块时只改 _registry.md + 删除文件，不改 AGENTS.md"
+    enforcement: mandatory
+
+  - id: "rule-018"
+    name: "不要修改历史文件中的系统名"
+    category: anchor
+    priority: medium
+    enabled: true
+    description: "历史文件（progress.txt, .trae/specs/）保持创建时的原始名称，改名等于篡改历史"
+    actions:
+      - "progress.txt 中的历史条目保持原名不改"
+      - ".trae/specs/ 下的文件保持原名不改"
+      - "如需标注当前名称，可在条目末尾追加注释（现称 XXX）"
+    enforcement: mandatory
+
+  - id: "rule-019"
+    name: "系统改名只改 AGENTS.md 和 _registry.md"
+    category: anchor
+    priority: medium
+    enabled: true
+    description: "系统名集中定义在 AGENTS.md 和 _registry.md，改名只需修改这 2 个文件"
+    actions:
+      - "AGENTS.md: 修改'Anchor 声明'和'Anchor 共享知识库'（2 处）"
+      - "_registry.md: 修改标题行和'系统名称:'行（2 处）"
+      - "不要修改 shared/*.md（已去品牌化）"
+      - "不要修改历史文件（保持原名）"
+    enforcement: mandatory

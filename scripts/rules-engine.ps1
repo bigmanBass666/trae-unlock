@@ -366,10 +366,10 @@ function Generate-MarkdownOutput {
         "workflow" = "🔄 工作流程 (Workflow)"
         "git"      = "📦 Git 规范 (Git)"
         "safety"   = "🛡️ 安全原则 (Safety)"
+        "anchor"   = "⚓ Anchor 系统维护 (Anchor)"
     }
 
-    # 按固定顺序输出类别
-    $categoryOrder = @("core", "workflow", "git", "safety")
+    $categoryOrder = @("core", "anchor", "workflow", "git", "safety")
     foreach ($cat in $categoryOrder) {
         if (-not $grouped.ContainsKey($cat)) { continue }
         $catRules = $grouped[$cat]
