@@ -286,3 +286,20 @@
 - `-Date` 支持模糊匹配（部分字符串即可）
 - 验证逻辑改进（只检查已启用补丁）
 
+### 源码架构深度解读
+
+**动机**: 补丁开发一直"盲人摸象"，需要系统性架构文档
+
+**产出** (4份架构文档):
+- `docs/architecture/sse-stream-parser.md` — SSE 流解析系统完整生命周期
+- `docs/architecture/command-confirm-system.md` — 命令确认系统双层架构
+- `docs/architecture/limitation-map.md` — 限制点地图（17个Alert点、7个错误码、6个BlockLevel）
+- `docs/architecture/module-boundaries.md` — 模块边界与依赖关系图
+
+**关键发现**:
+- 双层确认系统：服务层(PlanItemStreamParser) + UI层(RunCommandCard) 完全独立
+- `ew.confirm()` 只是日志打点，真正执行是 `eE(Confirmed)`
+- ALWAYS_RUN + RedList 仍然弹窗（未覆盖）
+- 17个 Alert 渲染点中只有1个被补丁覆盖（可继续错误）
+- source-architecture.md 关键位置索引从7个扩展到38个
+

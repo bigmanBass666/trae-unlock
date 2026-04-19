@@ -15,10 +15,10 @@
   - [x] SubTask 3.2: 再应用 service-layer-runcommand-confirm (v6)，验证聊天窗口正常
   - [x] SubTask 3.3: 运行 verify-patches.ps1 确认所有补丁状态
 
-- [ ] Task 4: 更新文档和提交
-  - [ ] SubTask 4.1: 更新 progress.txt 记录修复过程
-  - [ ] SubTask 4.2: 更新 source-architecture.md 记录崩溃根因
-  - [ ] SubTask 4.3: git commit + push
+- [x] Task 4: 更新文档和提交
+  - [x] SubTask 4.1: 更新 progress.txt 记录修复过程
+  - [x] SubTask 4.2: 更新 source-architecture.md 记录崩溃根因
+  - [x] SubTask 4.3: git commit + push
 
 # Task Dependencies
 - [Task 2] depends on [Task 1] (需要先确认两个补丁定义不冲突)

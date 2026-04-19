@@ -49,6 +49,17 @@ D:\apps\Trae CN\resources\app\
 
 ## 核心文件详解
 
+### 架构文档索引 (2026-04-20 新增)
+
+以下子系统文档包含更详细的分析：
+
+| 文档 | 内容 | 关键发现 |
+|------|------|---------|
+| [sse-stream-parser.md](sse-stream-parser.md) | SSE 流解析系统 | PlanItemStreamParser 完整生命周期、事件分发、状态管理 |
+| [command-confirm-system.md](command-confirm-system.md) | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
+| [limitation-map.md](limitation-map.md) | 限制点地图 | 所有错误码、Alert 渲染点、BlockLevel、ToolCallName |
+| [module-boundaries.md](module-boundaries.md) | 模块边界与依赖 | 服务注入、事件系统、模块依赖关系图 |
+
 ### 1. ai-modules-chat/dist/index.js
 
 **角色**: Trae AI 聊天系统的核心前端组件
@@ -65,13 +76,44 @@ D:\apps\Trae CN\resources\app\
 
 | 位置 | 内容 | 重要性 |
 |------|------|--------|
-| ~2665348 | `AI.NEED_CONFIRM="unconfirmed"` 枚举定义 | ⭐⭐⭐ |
+| ~41400 | ToolCallName 枚举定义 (RunCommand, ResponseToUser 等) | ⭐⭐⭐ |
 | ~44403 | `Ck.Unconfirmed="unconfirmed"` 枚举定义 | ⭐⭐⭐ |
-| ~7502574 | `confirm_status==="unconfirmed"` 检查 + 自动确认 | ⭐⭐⭐⭐⭐ |
-| ~8629200 | UI 确认状态判断 `g===Ck.Unconfirmed&&!f` | ⭐⭐⭐ |
+| ~46856 | RunningStatus 枚举 (Io) | ⭐⭐ |
+| ~47202 | ChatTurnStatus 枚举 (bQ) | ⭐⭐ |
+| ~54000 | 错误码枚举 (kg) 第一处定义 | ⭐⭐⭐ |
+| ~54269 | `LLM_STOP_DUP_TOOL_CALL=4000009` | ⭐⭐⭐ |
+| ~54415 | `TASK_TURN_EXCEEDED_ERROR=4000002` | ⭐⭐⭐ |
+| ~2665348 | `AI.NEED_CONFIRM="unconfirmed"` 枚举定义 | ⭐⭐⭐ |
 | ~3211326 | `needConfirm` zustand store 状态 | ⭐⭐⭐ |
+| ~7161400 | 错误码枚举 (kg) 第二处定义 | ⭐⭐⭐ |
+| ~7161547 | `LLM_STOP_CONTENT_LOOP=4000012` | ⭐⭐⭐ |
+| ~7169408 | 错误码→消息映射表 | ⭐⭐ |
+| ~7298705 | stopReason 字段接收 | ⭐⭐ |
+| ~7318521 | DG.parse 服务端响应解析 | ⭐⭐⭐ |
 | ~7438600 | `command.mode` / `command.allowList` / `command.denyList` 设置 | ⭐⭐ |
+| ~7479332 | StreamStopType 枚举 (j9) | ⭐⭐ |
+| ~7502500 | PlanItemStreamParser._handlePlanItem() 方法入口 | ⭐⭐⭐⭐⭐ |
+| ~7502574 | `confirm_status==="unconfirmed"` 检查 + 自动确认 | ⭐⭐⭐⭐⭐ |
+| ~7503319 | storeService.setBadgesBySessionId + 服务层确认 | ⭐⭐⭐⭐⭐ |
+| ~7533176 | _onStreamingStop → WaitingInput | ⭐⭐⭐ |
+| ~7614717 | ResumeChat 服务端方法调用 | ⭐⭐ |
+| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举定义 | ⭐⭐⭐⭐ |
+| ~8069620 | getRunCommandCardBranch 核心判定方法 | ⭐⭐⭐⭐ |
+| ~8069700 | WHITELIST 模式沙箱确认弹窗逻辑 | ⭐⭐⭐⭐ |
+| ~8629200 | UI 确认状态判断 `g===Ck.Unconfirmed&&!f` | ⭐⭐⭐ |
 | ~8630204 | 终端工具卡片确认状态 useMemo | ⭐⭐⭐ |
+| ~8635000 | egR (RunCommandCard) React 组件 | ⭐⭐⭐⭐ |
+| ~8636941 | ey useMemo 有效确认状态计算 | ⭐⭐⭐ |
+| ~8640019 | 自动确认 useEffect | ⭐⭐⭐ |
+| ~8695303 | efh 可恢复错误列表 | ⭐⭐⭐⭐⭐ |
+| ~8696378 | J 变量定义（可继续错误判断） | ⭐⭐⭐⭐⭐ |
+| ~8697580 | ec 回调（重试/恢复处理） | ⭐⭐⭐ |
+| ~8697620 | ed 回调（"继续"按钮处理） | ⭐⭐⭐ |
+| ~8697781 | D.resumeChat() 自动恢复 API | ⭐⭐⭐ |
+| ~8700000 | ErrorMessageWithActions 组件起始 | ⭐⭐⭐ |
+| ~8702300 | if(V&&J) Alert 渲染分支 | ⭐⭐⭐⭐⭐ |
+| ~8702342 | auto-continue-thinking 补丁位置 | ⭐⭐⭐⭐⭐ |
+| ~8930000 | ErrorMessageWithActions 组件结束 | ⭐⭐ |
 
 #### 命令确认流程（完整调用链）
 
