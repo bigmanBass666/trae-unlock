@@ -1,0 +1,6 @@
+backups/
+node_modules/
+*.backup
+*.clean-backup
+test.md
+scripts/search-code.ps1
