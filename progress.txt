@@ -144,3 +144,31 @@
 - 我们的服务层补丁只调了 API，没更新本地状态 → 状态不同步
 - 解决方案: 在服务层补丁中也更新 planItem 的 confirm_info
 
+### 新功能: 精准化自动确认过滤 (修复误判用户问答)
+
+**问题**: 自动确认太激进 — AI 向用户提问的选项也被自动"确认"了，用户无法手动选择
+
+**根因分析**:
+- `auto-confirm-commands` 和 `service-layer-runcommand-confirm` 两个补丁会自动确认**所有** `confirm_status === "unconfirmed"` 的项目
+- 包括 AskUserQuestionCard（`toolName = "response_to_user"`）— 用户问答类型
+- 导致 AI 列出的选项全部被自动点击"下一步"/"提交"，用户无法参与选择
+
+**技术发现**: ToolCallName 完整枚举 (位置 ~41400)
+| 枚举值 | 字符串值 | 类型 |
+|--------|---------|------|
+| `RunCommand` | `"run_command"` | 命令执行 ✅ 需要自动确认 |
+| `ResponseToUser` | `"response_to_user"` | 用户问答 ❌ 不应自动确认 |
+| 其他 30+ 种 | ... | 文件操作/搜索/MCP 等 |
+
+**补丁方案**: v3 精准过滤
+- **`service-layer-runcommand-confirm` (v3)**: 增加白名单 `(e?.toolName==="run_command")`
+  - 只允许 `run_command` 类型自动确认
+  - `response_to_user` 被排除 → AskUserQuestion 正常显示 UI
+- **`service-layer-confirm-status-update` (v2)**: 同步增加白名单过滤
+- **`auto-confirm-commands` (v2)**: 增加黑名单 `(e?.toolName==="response_to_user")`
+
+**效果**:
+- ✅ RunCommandCard → 自动确认（白名单通过）
+- ✅ AskUserQuestionCard → 显示 UI 让用户选择（被排除）
+- ⚠️ 其他工具类型 → 默认不自动确认（保守策略）
+

@@ -10,14 +10,14 @@
     "patches":  [
                     {
                         "id":  "auto-confirm-commands",
-                        "name":  "命令自动确认",
-                        "description":  "自动确认高风险命令，无需手动点击确认弹窗。修改 PlanItemStreamParser 中的 confirm_status 检查逻辑，在检测到 unconfirmed 时立即调用 provideUserResponse 自动确认。",
+                        "name":  "命令自动确认 (精准过滤v2)",
+                        "description":  "自动确认高风险命令，无需手动点击确认弹窗。修改 PlanItemStreamParser 中的 confirm_status 检查逻辑，在检测到 unconfirmed 时立即调用 provideUserResponse 自动确认。v2: 增加toolName黑名单过滤，跳过response_to_user(用户问答)，避免误判。",
                         "find_original":  "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\")}}",
-                        "replace_with":  "e?.confirm_info?.confirm_status===\"unconfirmed\"){let r=e.planItemId||e.id||e.toolCallId||\"\";if(!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName});return}this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=\u003e{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)})if(s){let r=e.planItemId||e.id||e.toolCallId||\"",
+                        "replace_with":  "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(e?.toolName===\"response_to_user\"){}else{let r=e.planItemId||e.id||e.toolCallId||\"\";if(!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName});return}this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=\u003e{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)})}if(s){let r=e.planItemId||e.id||e.toolCallId||\"",
                         "offset_hint":  "~7502574",
-                        "check_fingerprint":  "auto-confirm failed",
+                        "check_fingerprint":  "e?.toolName===\"response_to_user\"){}",
                         "enabled":  true,
-                        "added_at":  "2026-04-18"
+                        "added_at":  "2026-04-19"
                     },
                     {
                         "id":  "auto-continue-thinking",
@@ -85,14 +85,14 @@
                     },
                     {
                         "id":  "service-layer-runcommand-confirm",
-                        "name":  "服务层 RunCommandCard 自动确认 (终极方案v2)",
-                        "description":  "在PlanItemStreamParser的else分支(~7503319)，非knowledge类unconfirmed命令原来只设badge不调确认API。现在追加调用this._taskService.provideUserResponse({decision:confirm})。这是SSE流解析层(服务层)，不依赖React渲染，切窗口后仍能执行。配合补丁#1(knowledge)+本补丁(RunCommandCard)=所有命令类型全覆盖。",
+                        "name":  "服务层 RunCommandCard 自动确认 (精准过滤v3)",
+                        "description":  "在PlanItemStreamParser的else分支(~7503319)，非knowledge类unconfirmed命令原来只设badge不调确认API。现在追加调用this._taskService.provideUserResponse({decision:confirm})。这是SSE流解析层(服务层)，不依赖React渲染，切窗口后仍能执行。v3: 增加toolName白名单过滤，只自动确认run_command类型，跳过response_to_user(用户问答)，避免误判。",
                         "find_original":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status)",
-                        "replace_with":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}))",
+                        "replace_with":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(e?.toolName===\"run_command\")\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}))",
                         "offset_hint":  "~7503319",
-                        "check_fingerprint":  "auto-confirm runcommand failed",
+                        "check_fingerprint":  "e?.toolName===\"run_command\"\u0026\u0026(auto-confirm runcommand failed)",
                         "enabled":  true,
-                        "added_at":  "2026-04-18"
+                        "added_at":  "2026-04-19"
                     },
                     {
                         "id":  "bypass-whitelist-sandbox-blocks",
@@ -118,12 +118,12 @@
                     },
                     {
                         "id":  "service-layer-confirm-status-update",
-                        "name":  "服务层确认状态同步更新 (修复切窗口沙箱卡住)",
-                        "description":  "修复切换窗口后沙箱命令卡在'等待操作'的问题。根因: service-layer-runcommand-confirm补丁调了provideUserResponse但没更新本地store的planItem状态，React组件仍显示unconfirmed。此补丁在provideUserResponse调用后立即将confirm_info.confirm_status改为confirmed，让本地状态与服务端同步，不依赖React渲染。",
+                        "name":  "服务层确认状态同步更新 (精准过滤v2)",
+                        "description":  "修复切换窗口后沙箱命令卡在'等待操作'的问题。根因: service-layer-runcommand-confirm补丁调了provideUserResponse但没更新本地store的planItem状态，React组件仍显示unconfirmed。此补丁在provideUserResponse调用后立即将confirm_info.confirm_status改为confirmed，让本地状态与服务端同步，不依赖React渲染。v2: 增加toolName白名单过滤，与service-layer-runcommand-confirm保持一致。",
                         "find_original":  "(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}))",
-                        "replace_with":  "(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
+                        "replace_with":  "(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(e?.toolName===\"run_command\")\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
                         "offset_hint":  "~7503400",
-                        "check_fingerprint":  "e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
+                        "check_fingerprint":  "e?.toolName===\"run_command\"\u0026\u0026(e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
                         "enabled":  true,
                         "added_at":  "2026-04-19"
                     }
