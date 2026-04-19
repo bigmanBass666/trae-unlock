@@ -248,3 +248,41 @@
 - ✅ 错误码: **3/7 已处理** (4000002/4000009/4000012)
 - ❌ 待处理: MODEL_PREMIUM_EXHAUSTED、CLAUDE_MODEL_FORBIDDEN、INVALID_TOOL_CALL 等
 
+## 2026-04-20
+
+### 🔥 紧急修复: 补丁崩溃导致聊天窗口消失
+
+**问题**: 应用 `auto-confirm-commands` v2 + `service-layer-runcommand-confirm` v5 后，整个 AI 聊天窗口消失（React 组件树崩溃）
+
+**根因分析** (3个问题):
+
+1. **`this` 绑定错误** (高概率主因): `service-layer-runcommand-confirm` v5 的 `.catch()` 使用了普通函数 `.catch(function(e){this._logService...})`，严格模式下 `this` 为 `undefined`，Promise reject 时抛出未捕获 TypeError → 组件树崩溃
+2. **`return` 改变控制流** (中概率): `auto-confirm-commands` v2 在 `if(!r)` 块中添加了 `return` 语句，提前退出整个方法
+3. **双重调用风险** (中概率): 两个补丁可能对同一 toolcall 都调用 `provideUserResponse`
+
+**修复方案**:
+
+- `service-layer-runcommand-confirm` v5→v6:
+  - `.catch(function(e){...})` → `.catch(e=>{...})` (箭头函数修复 this 绑定)
+  - 新增 `e?.confirm_info?.confirm_status!=="confirmed"` 守卫防双重调用
+
+- `auto-confirm-commands` v2→v3:
+  - 移除 `return` 语句，改为 `if(r){provideUserResponse;confirm_status_sync}else{warn}` 结构
+  - 新增 `e.confirm_info&&(e.confirm_info.confirm_status="confirmed")` 同步更新
+
+**额外修复**:
+
+- `check_fingerprint` 缺少 `)` 导致指纹检测失败 → 补丁被重复应用
+- 修复后 apply-patches.ps1 正确检测已应用补丁并跳过
+
+### rollback.ps1 参数 Bug 修复 + UX 优化
+
+**问题**: 帮助文档写 `--list`/`--date` 但实际参数是 `-List`/`-Date`
+
+**修复**:
+- 修正帮助文档
+- 新增 `-Latest` 快捷参数（回滚到最新备份）
+- 无参数运行时交互式选择 backup
+- `-Date` 支持模糊匹配（部分字符串即可）
+- 验证逻辑改进（只检查已启用补丁）
+

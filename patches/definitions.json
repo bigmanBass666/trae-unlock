@@ -10,12 +10,12 @@
     "patches":  [
                     {
                         "id":  "auto-confirm-commands",
-                        "name":  "命令自动确认 (精准过滤v2)",
-                        "description":  "自动确认高风险命令，无需手动点击确认弹窗。修改 PlanItemStreamParser 中的 confirm_status 检查逻辑，在检测到 unconfirmed 时立即调用 provideUserResponse 自动确认。v2: 增加toolName黑名单过滤，跳过response_to_user(用户问答)，避免误判。",
-                        "find_original":  "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\")}}",
-                        "replace_with":  "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(e?.toolName===\"response_to_user\"){}else{let r=e.planItemId||e.id||e.toolCallId||\"\";if(!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName});return}this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=\u003e{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)})}if(s){let r=e.planItemId||e.id||e.toolCallId||\"",
+                        "name":  "命令自动确认 (精准过滤v3)",
+                        "description":  "自动确认高风险命令，无需手动点击确认弹窗。修改 PlanItemStreamParser 中的 confirm_status 检查逻辑，在检测到 unconfirmed 时立即调用 provideUserResponse 自动确认。v3: 黑名单过滤+无return+confirm_status同步更新，避免控制流改变和双重调用。",
+                        "find_original":  "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName});return}this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)})}",
+                        "replace_with":  "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName})}else if(e?.toolName!==\"response_to_user\"){this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=\u003e{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\")}}",
                         "offset_hint":  "~7502574",
-                        "check_fingerprint":  "e?.toolName===\"response_to_user\"){}",
+                        "check_fingerprint":  "e?.toolName!==\"response_to_user\"){this._taskService.provideUserResponse",
                         "enabled":  true,
                         "added_at":  "2026-04-19"
                     },
@@ -85,12 +85,12 @@
                     },
                     {
                         "id":  "service-layer-runcommand-confirm",
-                        "name":  "服务层自动确认+状态同步 (合并v5)",
-                        "description":  "合并原service-layer-runcommand-confirm和service-layer-confirm-status-update。在else分支追加: 1)黑名单过滤(response_to_user排除) 2)provideUserResponse调用 3)confirm_status同步更新。一个补丁完成三件事，避免重复调用bug。",
+                        "name":  "服务层自动确认+状态同步 (合并v6)",
+                        "description":  "合并原service-layer-runcommand-confirm和service-layer-confirm-status-update。在else分支追加: 1)黑名单过滤(response_to_user排除) 2)confirm_status防重复守卫 3)provideUserResponse调用(箭头函数) 4)confirm_status同步更新。v6修复: .catch改箭头函数修复this绑定崩溃，增加confirm_status守卫防双重调用。",
                         "find_original":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status)",
-                        "replace_with":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(e?.toolName!==\"response_to_user\")\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(function(e){this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
+                        "replace_with":  "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)\u0026\u0026(e?.toolName!==\"response_to_user\")\u0026\u0026(e?.confirm_info?.confirm_status!==\"confirmed\")\u0026\u0026(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(e=\u003e{this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
                         "offset_hint":  "~7503319",
-                        "check_fingerprint":  "e?.toolName!==\"response_to_user\"\u0026\u0026(e.confirm_info\u0026\u0026(e.confirm_info.confirm_status=\"confirmed\"))",
+                        "check_fingerprint":  "e?.confirm_info?.confirm_status!==\"confirmed\")\u0026\u0026(this._taskService.provideUserResponse",
                         "enabled":  true,
                         "added_at":  "2026-04-19"
                     },

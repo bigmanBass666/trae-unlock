@@ -975,3 +975,56 @@ trae-unlock/
 1. 在 `patches/definitions.json` 的 `patches` 数组中追加新对象
 2. 运行 `.\scripts\apply-patches.ps1` 测试
 3. 运行 `.\scripts\verify.ps1` 确认生效
+
+## 补丁安全规范 (2026-04-20 血的教训)
+
+### ⚠️ 箭头函数规则
+
+补丁中所有涉及 `this` 引用的回调函数 **必须** 使用箭头函数：
+
+```javascript
+// ❌ 错误：普通函数中 this 为 undefined（严格模式）
+.catch(function(e){this._logService.warn("...",e)})
+
+// ✅ 正确：箭头函数继承外层 this
+.catch(e=>{this._logService.warn("...",e)})
+```
+
+**教训**: `service-layer-runcommand-confirm` v5 使用了普通函数 `.catch(function(e){...})`，当 Promise 被 reject 时，`this._logService` 抛出 `TypeError: Cannot read property 'warn' of undefined`，未捕获异常导致整个 React 组件树崩溃 → AI 聊天窗口消失。
+
+### ⚠️ 不改变原始控制流
+
+补丁 **不得** 引入 `return`、`break`、`continue` 等改变原始控制流的语句：
+
+```javascript
+// ❌ 错误：return 提前退出整个方法
+if(!r){this._logService.warn("...");return}
+
+// ✅ 正确：用 if/else 结构避免 return
+if(r){provideUserResponse(...)}else{this._logService.warn("...")}
+```
+
+### ⚠️ check_fingerprint 必须精确匹配
+
+`check_fingerprint` 字符串必须与 `replace_with` 生成的实际代码**完全一致**，包括括号：
+
+```javascript
+// ❌ 错误：缺少 ) 导致指纹不匹配，补丁被重复应用
+"check_fingerprint": "confirm_status!==\"confirmed\"&&(this._taskService..."
+
+// ✅ 正确：包含 ) 匹配实际代码
+"check_fingerprint": "confirm_status!==\"confirmed\")&&(this._taskService..."
+```
+
+### ⚠️ find_original 不得是 replace_with 的子串
+
+如果 `find_original` 是 `replace_with` 的前缀/子串，每次运行 `apply-patches.ps1` 都会重复应用补丁。必须确保 `find_original` 在 `replace_with` 中**不存在**（被替换后不应残留）。
+
+### ⚠️ 双重调用防护
+
+当多个补丁可能对同一数据调用同一 API 时，必须增加守卫条件：
+
+```javascript
+// 在 service-layer 补丁中检查 confirm_status 防止 knowledge 分支已处理
+(e?.confirm_info?.confirm_status!=="confirmed")&&(this._taskService.provideUserResponse(...))
+```
