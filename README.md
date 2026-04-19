@@ -108,6 +108,65 @@ trae-unlock/
 
 ---
 
+## 🔄 动态规则系统 (2026-04-19 新增)
+
+本项目采用**三层架构的动态规则系统**，解决跨会话 AI 协作中的规则遵守问题。
+
+### 核心优势
+- **动态化**: 规则从 YAML 配置文件加载，支持启用/禁用，无需手动编辑 AGENTS.md
+- **可维护**: 修改规则只需编辑 `rules/*.yaml`，牵一发不动全身
+- **可移植**: 可在 30 分钟内迁移到任意项目使用
+- **强执行**: 利用 AGENTS.md "AI 每次必读"特性，强制新会话加载最新规则
+
+### 快速使用
+```powershell
+# 查看当前所有有效规则
+powershell scripts/rules-engine.ps1
+
+# 验证规则语法
+powershell scripts/rules-engine.ps1 --check
+
+# 列出规则状态摘要
+powershell scripts/rules-engine.ps1 --list
+```
+
+### 架构概览
+```
+AGENTS.md (路由器, ~43行)
+    ↓ 强制引导 AI 执行
+rules-engine.ps1 (引擎, ~470行)
+    ↓ 解析 + 过滤 + 排序 + 格式化
+rules/*.yaml (仓库, 15条规则)
+    ↓ 结构化定义
+core.yaml / workflow.yaml / git.yaml / safety.yaml
+```
+
+📖 [完整使用文档](docs/dynamic-rules-system.md)
+
+### 新增文件
+```
+rules/                           # 规则仓库（新增）
+├── core.yaml                    # 核心必读规则（4条）
+├── workflow.yaml                # 工作流程规则（3条）
+├── git.yaml                     # Git 提交规范（4条）
+└── safety.yaml                  # 安全规则（4条）
+scripts/
+└── rules-engine.ps1             # 规则引擎脚本（新增）
+docs/
+└── dynamic-rules-system.md      # 使用指南（新增）
+```
+
+### 与传统方式的对比
+| 维度 | 传统方式 (旧) | 动态规则系统 (新) |
+|------|--------------|------------------|
+| 规则存储 | 硬编码在 AGENTS.md (~128行) | 外置到 rules/*.yaml |
+| 维护成本 | 改规则要编辑 AGENTS.md 多处 | 只改对应 YAML 文件 |
+| 灵活性 | 静态，无法按条件加载 | 支持 enabled/priority/conditions |
+| 可移植性 | 低（依赖特定项目结构） | 高（30分钟迁移到新项目） |
+| 可观测性 | 无（不知道规则是否被遵守） | 有 (--check/--list/--output) |
+
+---
+
 ## 技术原理
 
 ### 为什么修改源码而不是写插件？
