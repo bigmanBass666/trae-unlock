@@ -74,13 +74,13 @@
                     },
                     {
                         "id":  "data-source-auto-confirm",
-                        "name":  "数据源强制auto_confirm (终极方案)",
-                        "description":  "在DG.parse服务端响应解析阶段(~7318521)，当confirm_status为unconfirmed时直接设置auto_confirm=true。这是最底层的拦截点：数据在进入任何React组件之前就已经被修改。配合sync-force-confirm补丁实现切窗口后也能立即自动执行（不再显示等待操作）。",
+                        "name":  "数据源强制auto_confirm (已启用)",
+                        "description":  "在DG.parse服务端响应解析阶段(~7318521)，当confirm_status为unconfirmed时直接设置auto_confirm=true。这是最底层的拦截点：数据在进入任何React组件之前就已经被修改。配合黑名单机制（response_to_user+AskUserQuestion+NotifyUser+ExitPlanMode）确保需要用户交互的工具不被自动确认。根因: Trae更新后ey useMemo逻辑改变，Unconfirmed不再直接返回Confirmed，必须auto_confirm=true才能自动确认。",
                         "find_original":  "_.information_request\u0026\u0026(_.query=_.information_request),i.name!==CS.ViewFiles||\"object\"!=typeof _||Array.isArray(_)||(_.files=_.files\u0026\u0026Array.isArray(_.files)?_.files.map(e=\u003e(e.start_line_one_indexed\u0026\u0026e.start_line_one_indexed\u003e0\u0026\u0026(e.start_line=e.start_line_one_indexed",
                         "replace_with":  "_.information_request\u0026\u0026(_.query=_.information_request),i.name!==CS.ViewFiles||\"object\"!=typeof _||Array.isArray(_)||(_.files=_.files\u0026\u0026Array.isArray(_.files)?_.files.map(e=\u003e(e.start_line_one_indexed\u0026\u0026e.start_line_one_indexed\u003e0\u0026\u0026(e.start_line=e.start_line_one_indexed,o?.confirm_status===\"unconfirmed\"\u0026\u0026(o.auto_confirm=!0)",
                         "offset_hint":  "~7318521",
                         "check_fingerprint":  "o?.confirm_status===\"unconfirmed\"\u0026\u0026(o.auto_confirm=!0)",
-                        "enabled":  false,
+                        "enabled":  true,
                         "added_at":  "2026-04-18"
                     },
                     {

@@ -243,6 +243,16 @@ useEffect(() => {
 
 ---
 
+### [2026-04-20 20:30] Trae 更新导致 ey useMemo 逻辑变化
+
+**位置**: ~8636971 (RunCommandCard 组件)
+**发现**: Trae 更新后 `ey` useMemo 的逻辑从 `er===Unconfirmed?Confirmed:en?Confirmed:...` 变为 `en?Confirmed:e&&er===Unconfirmed?Canceled:er`。旧版 Unconfirmed 直接返回 Confirmed（自动确认），新版必须 auto_confirm=true 才能确认
+**相关发现**: 所有 P8 枚举值（Default, V1_*, V2_*）都有 buttons 定义，没有"无弹窗"值。bypass-runcommandcard-redlist 改变 P8 返回值只影响按钮样式，不影响是否显示弹窗
+**根因修复**: data-source-auto-confirm 在数据解析层（~7318521）设置 auto_confirm=true，让 ey 的 en=true → 直接返回 Confirmed
+**启示**: 控制弹窗的是 auto_confirm 标志 + confirm_status 状态，不是 P8 值。数据源层修改是最可靠的方案——不受 React 组件渲染时序影响
+
+---
+
 ### [2026-04-20 20:10] 完整 toolName 枚举与分类
 
 **位置**: `ee` 枚举（偏移 ~7076154-7079682）

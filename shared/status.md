@@ -34,6 +34,7 @@ format: registry
 |----|------|------|------|
 | auto-confirm-commands | ~7502574 | v3+ | knowledge 命令自动确认（完整黑名单: response_to_user+AskUserQuestion+NotifyUser+ExitPlanMode） |
 | service-layer-runcommand-confirm | ~7503319 | v7+ | else 分支确认（完整黑名单+confirm_status守卫） |
+| **data-source-auto-confirm** | ~**7318521** | **v1 (已启用)** | **数据源层设置auto_confirm=true，修复Trae更新后ey逻辑变化导致的弹窗回归** |
 | auto-continue-thinking | ~8702342 | v1 | 思考上限自动点"继续"（箭头函数） |
 | efh-resume-list | ~8695303 | v1 | TASK_TURN_EXCEEDED_ERROR 加入可恢复列表 |
 | bypass-loop-detection | ~8696378 | v1 | 4000009/4000012 加入 J 变量列表 |
@@ -75,6 +76,14 @@ format: registry
 ## 会话日志
 
 每个会话结束前在此追加日志，下一个会话通过读取此区域了解发生了什么。
+
+### [2026-04-20 20:30] 会话 #12 — 修复 spec 模式命令确认弹窗回归
+
+**操作**: 启用 data-source-auto-confirm 补丁（数据源层 ~7318521 设置 auto_confirm=true）
+**根因**: Trae 更新后 ey useMemo 逻辑改变：旧版 `er===Unconfirmed→Confirmed`（自动确认），新版 `en?Confirmed:...`（需auto_confirm=true）
+**发现**: bypass-runcommandcard-redlist v2 把所有模式改成 P8.Default 无效——所有 P8 值都有 buttons 定义，没有"无弹窗"值
+**验证**: 7/7 补丁指纹全部通过
+**启示**: UI 层的 P8 值只影响按钮样式，真正控制是否弹窗的是 auto_confirm + confirm_status
 
 ### [2026-04-20 20:10] 会话 #11 — 黑名单扩展为完整版
 
