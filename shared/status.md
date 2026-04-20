@@ -81,8 +81,7 @@ format: registry
 **操作**: 两个自动确认补丁的黑名单从 `response_to_user` 扩展为 `response_to_user+AskUserQuestion+NotifyUser+ExitPlanMode`
 **根因**: 黑名单不完整是系统性问题，不只是遗漏了 AskUserQuestion，还遗漏了 NotifyUser 和 ExitPlanMode
 **方法**: 基于源码 `ee` 枚举（偏移 ~7076154-7079682）完整分类了所有 80+ 个 toolName，确定只有 4 个需要用户交互
-**验证**: 6个补丁指纹全部通过
-**启示**: 黑名单必须基于完整的工具枚举来设计，不能只凭经验添加
+**验证**: 6个补丁指纹全部通过，AskUserQuestion 实测成功！✅
 
 ### [2026-04-20 19:50] 会话 #10 — 深度排查 AskUserQuestion 自动确认
 
