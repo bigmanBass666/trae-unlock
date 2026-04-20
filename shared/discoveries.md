@@ -230,3 +230,40 @@ useEffect(() => {
 这里 `ew.confirm(true)` 也只是打点，真正让命令执行的是 React 状态更新触发的 re-render（ey 变为 Confirmed → 组件不再显示弹窗 → 后续流程继续）。
 
 **启示**: 在压缩代码中，函数名被混淆后无法从名字判断功能。必须追踪调用链才能确定函数的真实作用。这个发现让我们在 v1-v4 版本的补丁中走了弯路——试图在 React 层修改 ew.confirm 的行为，而真正需要修改的是服务层的 provideUserResponse 调用。
+
+---
+
+### [2026-04-20 19:30] 脏备份残留代码导致 AskUserQuestion 被自动确认
+
+**位置**: ~7503942 (service-layer-runcommand-confirm 补丁区域)
+**发现**: 回滚到脏备份(20260419-003102)后，apply-patches 只**追加**了 v6 代码，没有删除旧版 service-layer-confirm-status-update 的残留代码。导致 3 个 provideUserResponse 调用（2个有过滤+1个无过滤），无过滤的调用使 AskUserQuestion 被自动确认，返回 null。
+**特征**: 残留代码使用 `.catch(function(e){this._logService...})`（非箭头函数），而非 v6 的箭头函数格式
+**修复**: 删除 313 字符残留代码，创建干净备份(20260420-072436)
+**启示**: 回滚到包含旧版补丁的备份后，重新 apply-patches 不会清理旧代码——它只做追加。未来回滚应使用干净备份
+
+---
+
+### [2026-04-20 20:10] 完整 toolName 枚举与分类
+
+**位置**: `ee` 枚举（偏移 ~7076154-7079682）
+**发现**: 源码中定义了 80+ 个 toolName，通过 `ee.XXX="toolName"` 形式定义。完整分类如下：
+- **需要用户交互（禁止自动确认）**: `response_to_user`, `AskUserQuestion`, `NotifyUser`, `ExitPlanMode`
+- **命令执行类**: `RunCommand`, `run_mcp`, `check_command_status`
+- **文件操作类**: `Read`, `Write`, `Edit`, `MultiEdit`, `Glob`, `Grep`, `LS`, `SearchReplace`, `SearchCodebase`, `view_file`, `view_files`, `view_folder`, `write_to_file`, `edit_file_search_replace`, `create_file`, `delete_file`, `file_search`, `show_diff`, `show_diff_fc`
+- **浏览器操作类**: `browser_*`（20+个）
+- **搜索/索引类**: `search_by_*`, `TodoWrite`, `todo_write`, `web_search`, `WebSearch`
+- **任务/代理类**: `Task*`, `Team*`, `agent_finish`, `finish`, `Skill`, `CompactFake`
+- **预览/环境类**: `OpenPreview*`, `open_folder`, `init_env`, `image_ocr`, `get_preview_console_logs`, `get_llm_config`
+- **外部服务类**: `deploy_to_remote`, `stripe_*`, `supabase_*`, `edit_product_document_*`, `write_to_product_document`
+- **记忆/内部类**: `manage_core_memory`, `*_shallow_memento*`, `create_requirement`
+**启示**: 黑名单必须基于完整枚举设计，不能只凭经验添加。`SendMessage` 暂不加入黑名单（走不同确认流程）
+
+---
+
+### [2026-04-20 19:50] 黑名单不完整导致 AskUserQuestion 被自动确认
+
+**位置**: ~7503319 (service-layer-runcommand-confirm else 分支)
+**发现**: service-layer-runcommand-confirm v6 的 else 分支只过滤了 `response_to_user`，但 AskUserQuestion 的 toolName 是 `"AskUserQuestion"` 不是 `"response_to_user"`，所以 else 分支会自动确认 AskUserQuestion，导致 AskUserQuestion 返回 null
+**根因**: 黑名单设计时只考虑了 response_to_user 一种需要排除的工具，没有考虑其他需要用户交互的工具（如 AskUserQuestion）
+**修复**: v7 将黑名单从 `e?.toolName!=="response_to_user"` 扩展为 `e?.toolName!=="response_to_user"&&e?.toolName!=="AskUserQuestion"`
+**启示**: 黑名单不能只过滤已知的排除项，需要考虑所有需要用户交互的工具类型

@@ -32,8 +32,8 @@ format: registry
 
 | ID | 位置 | 版本 | 说明 |
 |----|------|------|------|
-| auto-confirm-commands | ~7502574 | v3 | knowledge 命令自动确认（黑名单+无return+状态同步） |
-| service-layer-runcommand-confirm | ~7503319 | v7 | else 分支确认（箭头函数+confirm_status守卫+AskUserQuestion黑名单） |
+| auto-confirm-commands | ~7502574 | v3+ | knowledge 命令自动确认（完整黑名单: response_to_user+AskUserQuestion+NotifyUser+ExitPlanMode） |
+| service-layer-runcommand-confirm | ~7503319 | v7+ | else 分支确认（完整黑名单+confirm_status守卫） |
 | auto-continue-thinking | ~8702342 | v1 | 思考上限自动点"继续"（箭头函数） |
 | efh-resume-list | ~8695303 | v1 | TASK_TURN_EXCEEDED_ERROR 加入可恢复列表 |
 | bypass-loop-detection | ~8696378 | v1 | 4000009/4000012 加入 J 变量列表 |
@@ -75,6 +75,14 @@ format: registry
 ## 会话日志
 
 每个会话结束前在此追加日志，下一个会话通过读取此区域了解发生了什么。
+
+### [2026-04-20 20:10] 会话 #11 — 黑名单扩展为完整版
+
+**操作**: 两个自动确认补丁的黑名单从 `response_to_user` 扩展为 `response_to_user+AskUserQuestion+NotifyUser+ExitPlanMode`
+**根因**: 黑名单不完整是系统性问题，不只是遗漏了 AskUserQuestion，还遗漏了 NotifyUser 和 ExitPlanMode
+**方法**: 基于源码 `ee` 枚举（偏移 ~7076154-7079682）完整分类了所有 80+ 个 toolName，确定只有 4 个需要用户交互
+**验证**: 6个补丁指纹全部通过
+**启示**: 黑名单必须基于完整的工具枚举来设计，不能只凭经验添加
 
 ### [2026-04-20 19:50] 会话 #10 — 深度排查 AskUserQuestion 自动确认
 
