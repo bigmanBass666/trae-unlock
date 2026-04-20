@@ -82,7 +82,7 @@ format: registry
 **操作**: 启用 data-source-auto-confirm 补丁（数据源层 ~7318521 设置 auto_confirm=true）
 **根因**: Trae 更新后 ey useMemo 逻辑改变：旧版 `er===Unconfirmed→Confirmed`（自动确认），新版 `en?Confirmed:...`（需auto_confirm=true）
 **发现**: bypass-runcommandcard-redlist v2 把所有模式改成 P8.Default 无效——所有 P8 值都有 buttons 定义，没有"无弹窗"值
-**验证**: 7/7 补丁指纹全部通过
+**验证**: 7/7 补丁指纹全部通过，**实测两项测试全部通过 ✅**（spec 模式无弹窗 + AskUserQuestion 正常显示选项）
 **启示**: UI 层的 P8 值只影响按钮样式，真正控制是否弹窗的是 auto_confirm + confirm_status
 
 ### [2026-04-20 20:10] 会话 #11 — 黑名单扩展为完整版
