@@ -87,3 +87,53 @@ format: registry
 **选择**: `(e?.confirm_info?.confirm_status!=="confirmed")&&(this._taskService.provideUserResponse(...))`
 **否决**: 两个补丁独立调用 provideUserResponse 不加守卫
 **原因**: auto-confirm-commands (knowledge 分支, ~7502574) 和 service-layer-runcommand-confirm (else 分支, ~7503319) 可能对同一个 toolcall 都调用 provideUserResponse。knowledge 分支先处理，将 confirm_status 设为 "confirmed"；else 分支检查 confirm_status!=="confirmed" 后跳过，避免重复调用。没有这个守卫，同一 toolcall 会被确认两次，导致服务端状态混乱。
+
+---
+
+### [2026-04-20 19:30] 回滚应使用干净备份而非脏备份
+
+**选择**: 使用 20260420-072436 干净备份进行回滚
+**否决**: 使用 20260419-003102 等包含旧版补丁的脏备份
+**原因**: 脏备份中包含旧版 service-layer-confirm-status-update 的残留代码。apply-patches 只做追加不做清理，回滚到脏备份后重新应用补丁会导致旧代码残留，产生未过滤的 provideUserResponse 调用，使 AskUserQuestion 被自动确认
+
+---
+
+### [2026-04-20 19:50] 黑名单应扩展为过滤所有需要用户交互的工具
+
+**选择**: 将黑名单从 `response_to_user` 扩展为 `response_to_user+AskUserQuestion`
+**否决**: 仅过滤 response_to_user（v6 的做法）
+**原因**: AskUserQuestion 是需要用户交互的工具，其 toolName 不是 "response_to_user"，v6 的黑名单无法拦截。自动确认 AskUserQuestion 会导致工具返回 null，用户无法看到选项弹窗
+**扩展性**: 未来如果发现其他需要用户交互的工具，应继续扩展黑名单，而非改用白名单
+
+---
+
+### [2026-04-20 20:10] 选择完整黑名单而非白名单
+
+**选择**: 扩展黑名单为 `response_to_user+AskUserQuestion+NotifyUser+ExitPlanMode`（4 项完整列表）
+**否决**: 改为白名单模式（80+ 项 toolName 列表）
+**原因**: 白名单包含 80+ 个 toolName，在压缩 JS 中嵌入过长字符串不现实。黑名单只需 4 项，维护成本低。关键区别不是"黑名单 vs 白名单"，而是"黑名单是否完整"——基于源码 `ee` 枚举完整分类后，黑名单已覆盖所有需要用户交互的工具
+**方法论**: 从"凭经验添加"升级为"基于源码枚举完整分类"，确保不遗漏
+
+---
+
+### [2026-04-20 20:30] 选择 data-source-auto-confirm 修复弹窗回归
+
+**选择**: 启用 data-source-auto-confirm（数据解析层 ~7318521 设置 auto_confirm=true）
+**否决 A**: sync-force-confirm（修改 ey useMemo）— find_original 可能不匹配新版代码，Trae 再更新可能又失效
+**否决 C**: 新写适配新版 ey 的补丁 — 同样受 Trae 更新影响
+**原因**: 数据源层是最底层拦截，所有组件都能看到 auto_confirm=true。不受 React 组件渲染时序影响，不受 ey 逻辑变化影响。配合已有黑名单（4 项），不会影响需要用户交互的工具
+**风险**: auto_confirm=true 在全局生效，必须确保黑名单完整——已在会话 #11 中验证
+
+---
+
+### [2026-04-20 20:40] 三层架构分层法则 — 补丁修改必须遵循的分层原则
+
+**选择**: 补丁修改优先级 L3数据层 > L2服务层 > L1 UI层
+**否决**: 在L1 UI层尝试根本性修复（如改变弹窗行为、自动确认逻辑）
+**原因**: 经过4个UI层补丁的实际验证（bypass-runcommandcard-redlist/force-auto-confirm/sync-force-confirm全部失效或效果有限），确认：
+1. P8枚举只控制按钮样式，不控制是否弹窗
+2. ey/useEffect依赖auto_confirm标志，改逻辑不如直接设置标志
+3. React组件逻辑随Trae更新频繁变化，find_original容易失效
+4. L2的provideUserResponse直接和服务端通信，是真正的"确认"动作
+5. L3的auto_confirm标志是最稳定的数据源，所有下游组件都依赖它
+**方法论**: 遇到新限制时，先定位属于哪一层，从最底层开始设计补丁方案

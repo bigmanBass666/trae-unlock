@@ -277,3 +277,45 @@ useEffect(() => {
 **根因**: 黑名单设计时只考虑了 response_to_user 一种需要排除的工具，没有考虑其他需要用户交互的工具（如 AskUserQuestion）
 **修复**: v7 将黑名单从 `e?.toolName!=="response_to_user"` 扩展为 `e?.toolName!=="response_to_user"&&e?.toolName!=="AskUserQuestion"`
 **启示**: 黑名单不能只过滤已知的排除项，需要考虑所有需要用户交互的工具类型
+
+---
+
+### [2026-04-20 20:40] 三层架构分层法则 — 补丁修改的黄金规则
+
+**位置**: 全局架构（跨多个偏移区域）
+**发现**: Trae 的命令确认系统分为三层，每层的能力和限制完全不同：
+
+```
+┌─────────────────────────────────────────┐
+│  L1 UI 层 (React 组件)  ~8640000        │  改这里 = 治标不治本
+│  - RunCommandCard: ey useMemo, useEffect │
+│  - P8 枚举: 只控制按钮样式，不控制弹窗   │
+│  - 所有15个P8值都有buttons定义，无"无弹窗"值
+├─────────────────────────────────────────┤
+│  L2 服务层 (PlanItemStreamParser) ~750万 │  改这里 = 直接告诉服务端已确认
+│  - provideUserResponse: 主动确认调用     │
+│  - confirm_status: 状态管理              │
+│  - 黑名单过滤: 控制哪些工具不被自动确认    │
+├─────────────────────────────────────────┤
+│  L3 数据层 (DG.parse)     ~7318521       │  改这里 = 从源头改变数据流
+│  - auto_confirm 标志: 让UI层以为用户同意了│
+│  - 最底层拦截，所有下游组件都能看到       │
+│  - 不受React渲染时序影响，不受ey逻辑变化影响
+└─────────────────────────────────────────┘
+```
+
+**各层补丁效果验证**:
+| 补丁 | 所在层 | 预期 | 实际 |
+|------|--------|------|------|
+| bypass-runcommandcard-redlist v2 | L1 UI | 不弹窗 | ❌ 只改按钮样式 |
+| force-auto-confirm | L1 UI | 自动确认 | ❌ 条件依赖auto_confirm |
+| sync-force-confirm | L1 UI | 同步确认 | ❌ Trae更新后失效 |
+| auto-confirm-commands / service-layer-runcommand-confirm | L2 服务 | 自动确认 | ✅ 有效 |
+| data-source-auto-confirm | L3 数据 | 全局auto_confirm=true | ✅✅ 最可靠 |
+
+**黄金规则**:
+1. **能从L3解决的，绝不从L1改** — UI层是"症状"，数据层是"病因"
+2. **L2是安全区** — provideUserResponse直接和服务端通信，不受UI渲染时序影响
+3. **L1只适合做辅助修改** — 如bypass-loop-detection改J变量、efh-resume-list改恢复列表
+4. **黑名单必须在L2维护** — L3设置auto_confirm后，L2的黑名单是唯一能阻止不需要的工具被确认的防线
+5. **Trae更新主要影响L1** — React组件逻辑经常变，数据解析层相对稳定
