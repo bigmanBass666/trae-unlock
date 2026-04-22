@@ -145,3 +145,19 @@ rules:
       - "   □ status.md 会话日志是否已追加？"
       - "**历史教训**: 会话 #14/#15 未复盘、会话 #16 用户要求才复盘、会话 #17 又未复盘——三次违规证明需要更强制的机制"
     enforcement: mandatory
+
+  - id: "rule-014"
+    name: "诊断前强制检索已有发现（弯路预防）"
+    category: workflow
+    priority: critical
+    enabled: true
+    description: "遇到任何补丁/崩溃/异常问题时，在开始新调查之前，必须先检索 shared/discoveries.md 中是否已有相关知识。这是从会话 #23 的教训中提炼的硬性规则——AI 重复了前序会话已完成的 ec() 分析、暂停按钮追踪、错误码分类等调查。"
+    actions:
+      - "收到问题/日志/错误报告时，第一步不是创建 spec 或派子代理调查"
+      - "第一步：用 Grep/SearchCodebase 搜索 shared/discoveries.md 中的关键词"
+      - "关键词包括但不限于：错误信息中的关键字、涉及的函数名(如 resumeChat/ec/D.resumeChat)、组件名(如 Alert/if(V&&J))、现象描述词(如 崩溃/消失/暂停/重复)"
+      - "将搜索到的已有发现整理成清单，逐条标注与当前问题的关联性"
+      - "只有确认 shared/discoveries.md 中没有相关知识后，才能开始新的调查"
+      - "如果发现有相关知识但仍然需要深入 → 直接基于已知发现构建假设（遵循 rule-011），而不是从零开始"
+      - "违规示例（会话 #23）: 日志显示 'repeated tool call RunCommand 5 times' → 这是 LLM_STOP_DUP_TOOL_CALL → 已在 J 数组和 efg 列表中 → 但 AI 重新分析了 ec() 条件链和按钮状态机，浪费 ~25 分钟"
+    enforcement: mandatory
