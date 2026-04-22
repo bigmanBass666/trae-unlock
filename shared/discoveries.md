@@ -729,6 +729,64 @@ e.code 返回数字，不是字符串
 
 **教训**: 之前 spec 中写的 `["MODEL_PREMIUM_EXHAUSTED","CLAUDE_MODEL_FORBIDDEN",...]` 字符串白名单完全错误！`MODEL_PREMIUM_EXHAUSTED` 在源码中根本不存在。必须用数字值。
 
+### [2026-04-23 04:00] v10 测试失败根因 — SSE 事件的两条路径 ⭐⭐⭐
+
+**这是本项目最重要的架构发现之一！**
+
+```
+SSE 流数据到达后，有两条完全不同的处理路径:
+
+路径1: 正常消息事件 (onMessage) ← 思考上限走这里！
+  SSE data → onMessage(e, t) → Br.register(Ot.Error, zF)
+  → ErrorStreamParser(zU).parse(e, t)  ← e.code = 业务错误码(4000002等)
+  → handleSteamingResult(e, t)
+  → handleSideChat(e, t) → storeService.updateMessage()
+  → React re-render → if(V&&J) → L1 续接
+
+路径2: 连接断开 (_onError) ← v10补丁错误地放在这里！
+  SSE connection error → _onError(e, t, i)
+  → e.code = 1006 (CONNECTION_ERROR)
+  → 不含业务错误码！
+  → 只是日志记录 + 流停止处理
+```
+
+**实测证据**（日志 vscode-app-1776888145215.log）:
+- 行3336: `_onError @ index.js:3861` — 确认被调用
+- 但 `[ChatStreamService] _onError sessionId` 日志没出现 → `1006!==e.code` 为 false → **e.code = 1006**
+- `[v10-bg]` 日志也没出现 → 补丁代码在 `1006!==e.code` 之后，被跳过
+
+**关键教训**:
+1. **`_onError` 只处理 SSE 连接级别的错误**（网络断开、超时等），不处理业务错误码
+2. **业务错误码（思考上限、循环检测等）通过 SSE 正常消息流传递**，走 `onMessage → Ot.Error → parse` 路径
+3. **L2 补丁必须放在 `parse` 方法中**，不是 `_onError` 中
+4. **`check_fingerprint` 冲突**: 旧补丁和新补丁共用 `[v10-bg]` 指纹，导致 apply-patches 误判为已应用
+
+**修正**: v10 L2 补丁从 `_onError`(Bs类@7528742) 移到 `parse`(zU类@7513080)
+
+### ErrorStreamParser (zU) 类完整结构
+
+```
+位置: @7513080 (parse方法)
+DI token: zF = Symbol.for("IErrorStreamParser")
+继承: zU extends DV
+
+方法:
+  parse(e, t) — 解析错误事件，e.code=业务错误码
+  handleSteamingResult(e, t) — 分发到 Inline/Side 处理
+  handleSideChat(e, t) — 更新 Store 消息
+  handleInlineError(e, t) — Inline 聊天错误处理
+
+DI 注入:
+  this._aiChatRequestErrorService (uX(D5))
+  this._logService (uX(bY))
+  this.chatStreamFrontResponseReporter
+  this.storeService
+  this._inlineChatStore
+
+注意: zU 类没有 this._aiAgentChatService!
+需要通过 uj.getInstance().resolve(Di) 获取
+```
+
 ### 发现 2：`class Bs` = ChatStreamService（不是 PlanItemStreamParser！）
 
 ```
