@@ -54,138 +54,19 @@ $Script:PriorityOrder = @{ "high" = 0; "medium" = 1; "low" = 2 }
 $Script:PriorityIcons = @{ "high" = "🔴"; "medium" = "🟡"; "low" = "🟢" }
 $Script:EnforcementIcons = @{ "mandatory" = "⚠️"; "recommended" = "💡"; "optional" = "📌" }
 
-# ============================================================
-# 工具函数：纯 PowerShell YAML 解析器
-# ============================================================
+$Script:PowerShellYamlModulePath = "C:\Users\86150\OneDrive\文档\WindowsPowerShell\Modules\powershell-yaml\0.4.12\powershell-yaml.psd1"
 
-function ConvertFrom-YamlSimple {
-    <#
-    .SYNOPSIS
-        将简单 YAML 内容解析为 PowerShell 对象（支持数组和基本键值对）
-        专门针对本项目 rules/*.yaml 格式优化
-    .PARAMETER YamlContent
-        原始 YAML 字符串内容
-    #>
-    param([string]$YamlContent)
-
-    $lines = $YamlContent -split "`n"
-    $result = [System.Collections.ArrayList]::new()
-    $currentRule = $null
-    $pendingKey = $null
-    $collectingArray = $false
-    $arrayValues = [System.Collections.ArrayList]::new()
-
-    foreach ($line in $lines) {
-        $trimmedLine = $line.Trim()
-
-        if ([string]::IsNullOrWhiteSpace($trimmedLine)) { continue }
-        if ($trimmedLine.StartsWith("#")) { continue }
-
-        $indent = $line.Length - $line.TrimStart().Length
-
-        # 顶层 "rules:" 键 — 跳过
-        if ($trimmedLine -match '^rules\s*:') {
-            continue
-        }
-
-        # === 规则级别（indent 2）："- fieldName: value" 开始新规则 ===
-        if ($indent -le 2 -and $trimmedLine -match '^\-\s+(\w[\w-]*)\s*:\s*(.*)') {
-            Flush-PendingRule -ResultRef ([ref]$result) -RuleRef ([ref]$currentRule) `
-                -PendingKeyRef ([ref]$pendingKey) -CollectingRef ([ref]$collectingArray) `
-                -ArrayRef ([ref]$arrayValues)
-
-            $currentRule = [ordered]@{}
-            $fn = $Matches[1]
-            $fv = CleanYamlValue($Matches[2].Trim())
-            $currentRule[$fn] = $fv
-            $pendingKey = $null
-            $collectingArray = $false
-            continue
-        }
-
-        # === 属性级别（indent >= 4）===
-
-        # "key: value" — 有值的标量属性
-        if ($indent -ge 4 -and $trimmedLine -match '^(\w[\w-]*)\s*:\s*(.+)$') {
-            if ($null -ne $currentRule) {
-                if ($collectingArray -and $arrayValues.Count -gt 0 -and $null -ne $pendingKey) {
-                    $currentRule[$pendingKey] = $arrayValues.ToArray()
-                }
-                $fn = $Matches[1]
-                $fv = CleanYamlValue($Matches[2].Trim())
-                $currentRule[$fn] = $fv
-                $pendingKey = $null
-                $collectingArray = $false
-            }
-            continue
-        }
-
-        # "key:" — 无值的键，预示后面跟数组（如 actions:）
-        if ($indent -ge 4 -and $trimmedLine -match '^(\w[\w-]*)\s*:\s*$') {
-            if ($null -ne $currentRule) {
-                $pendingKey = $Matches[1]
-                $collectingArray = $true
-                $arrayValues.Clear()
-            }
-            continue
-        }
-
-        # "- value" — 数组元素（缩进 >= 6 或在 pendingKey 模式下）
-        if ($indent -ge 6 -and $trimmedLine -match '^\-\s+"?(.+?)"?\s*$' -and $collectingArray -and $null -ne $pendingKey) {
-            $val = CleanYamlValue($Matches[1])
-            [void]$arrayValues.Add($val)
-            continue
-        }
+if (-not (Test-Path $Script:PowerShellYamlModulePath)) {
+    $module = Get-Module -ListAvailable -Name powershell-yaml | Select-Object -First 1
+    if ($null -eq $module) {
+        Write-Host "❌ 缺少必需模块: powershell-yaml" -ForegroundColor Red
+        Write-Host "请运行: Install-Module powershell-yaml -Scope CurrentUser -Force" -ForegroundColor Yellow
+        exit 1
     }
-
-    # 刷新最后一条规则
-    Flush-PendingRule -ResultRef ([ref]$result) -RuleRef ([ref]$currentRule) `
-        -PendingKeyRef ([ref]$pendingKey) -CollectingRef ([ref]$collectingArray) `
-        -ArrayRef ([ref]$arrayValues)
-
-    return ,$result.ToArray()
+    $Script:PowerShellYamlModulePath = $module.ModuleBase + "\powershell-yaml.psd1"
 }
 
-function Flush-PendingRule {
-    <#
-    .SYNOPSIS
-        辅助函数：将当前累积的规则刷新到结果列表
-    #>
-    param(
-        [ref]$ResultRef,
-        [ref]$RuleRef,
-        [ref]$PendingKeyRef,
-        [ref]$CollectingRef,
-        [ref]$ArrayRef
-    )
-
-    if ($null -ne $RuleRef.Value) {
-        if ($CollectingRef.Value -and $ArrayRef.Value.Count -gt 0 -and $null -ne $PendingKeyRef.Value) {
-            $RuleRef.Value[$PendingKeyRef.Value] = $ArrayRef.Value.ToArray()
-        }
-        [void]$ResultRef.Value.Add($RuleRef.Value)
-        $RuleRef.Value = $null
-        $PendingKeyRef.Value = $null
-        $CollectingRef.Value = $false
-        $ArrayRef.Value.Clear()
-    }
-}
-
-function CleanYamlValue {
-    <#
-    .SYNOPSIS
-        清理 YAML 值中的引号和特殊字符
-    #>
-    param([string]$RawValue)
-
-    $val = $RawValue.Trim()
-    if ($val.StartsWith('"') -and $val.EndsWith('"')) {
-        $val = $val.Substring(1, $val.Length - 2)
-    } elseif ($val.StartsWith("'") -and $val.EndsWith("'")) {
-        $val = $val.Substring(1, $val.Length - 2)
-    }
-    return $val
-}
+Import-Module $Script:PowerShellYamlModulePath -ErrorAction Stop
 
 # ============================================================
 # 核心功能：扫描与加载规则
@@ -226,8 +107,14 @@ function Import-RulesFromFile {
             Write-Warning "⚠️ $($File.Name): 文件内容为空，跳过"
             return $null
         }
-        $rules = ConvertFrom-YamlSimple -YamlContent $content
-        return $rules
+
+        $parsed = $content | ConvertFrom-Yaml
+        if ($null -eq $parsed -or $null -eq $parsed.rules) {
+            Write-Warning "⚠️ $($File.Name): 未找到 'rules' 键或内容为空"
+            return $null
+        }
+
+        return $parsed.rules
     } catch {
         Write-Warning "⚠️ $($File.Name): 解析失败 - $($_.Exception.Message)"
         return $null
@@ -427,33 +314,22 @@ function Run-CheckMode {
             }
 
             # 尝试完整解析
-            $rules = ConvertFrom-YamlSimple -YamlContent $content
-            $validCount = 0
-            $lineNum = 0
-            $parseErrors = @()
-
-            $lines = $content -split "`n"
-            foreach ($line in $lines) {
-                $lineNum++
-                $trimmed = $line.Trim()
-                if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) { continue }
-
-                # 检查非法字符或明显语法错误
-                if ($trimmed -match '^\s{0,2}[^-\w#]' -and $trimmed -notmatch '^\s*rules\s*:') {
-                    $parseErrors += "Line $lineNum`: 可能有语法问题"
-                }
+            $parsed = $content | ConvertFrom-Yaml
+            if ($null -eq $parsed) {
+                Write-Host "❌ $($file.Name): YAML 解析失败" -ForegroundColor Red
+                $allPassed = $false
+                continue
             }
+            $rules = $parsed.rules
+            $validCount = 0
 
             if ($rules -and $rules.Count -gt 0) {
                 foreach ($r in $rules) {
-                    if ($null -ne $r['id'] -and $null -ne $r['name']) { $validCount++ }
+                    if ($null -ne $r.id -and $null -ne $r.name) { $validCount++ }
                 }
             }
 
-            if ($parseErrors.Count -gt 0) {
-                Write-Host "❌ $($file.Name): $($parseErrors[0])" -ForegroundColor Red
-                $allPassed = $false
-            } elseif ($validCount -gt 0) {
+            if ($validCount -gt 0) {
                 Write-Host "✅ $($file.Name): $validCount rules validated" -ForegroundColor Green
             } else {
                 Write-Host "⚠️ $($file.Name): 未找到有效规则" -ForegroundColor Yellow

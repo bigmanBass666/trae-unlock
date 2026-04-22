@@ -144,4 +144,32 @@ Write-ColorOutput "=========================================" "White"
 if ($DryRun) { Write-ColorOutput "  [DRY RUN] No files were modified." "Yellow" }
 else { Write-ColorOutput "  Restart Trae window to take effect." "Cyan" }
 
+if ($failedCount -eq 0 -and -not $DryRun) {
+    # === Auto-Backup: Create timestamped clean backup ===
+    $backupDir = "d:\Test\trae-unlock\backups"
+    if (!(Test-Path $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupFile = Join-Path $backupDir "clean-$timestamp.ext"
+    Copy-Item $TargetFile $backupFile -Force
+    $maxBackups = 5
+    $existing = Get-ChildItem $backupDir -Filter "clean-*.ext" | Sort-Object LastWriteTime -Descending | Select-Object -Skip $maxBackups
+    foreach ($old in $existing) { Remove-Item $old.FullName -Force }
+    Write-Host "[BACKUP] Created: $(Split-Path $backupFile -Leaf) ($([math]::Round((Get-Item $TargetFile).Length/1MB), 1) MB)" -ForegroundColor Cyan
+
+    # === Auto-Commit: Snapshot all changes ===
+    Push-Location $RootDir
+    $status = git status --porcelain 2>$null
+    if ($status) {
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm"
+        $total = $appliedCount + $skippedCount
+        git add -A 2>$null
+        git commit -m "chore: auto-snapshot [$ts] — $total patches OK" 2>$null
+        $commitHash = git rev-parse --short HEAD 2>$null
+        Write-Host "[COMMIT] $commitHash — $total patches, $(($status -split "`n").Count) files changed" -ForegroundColor Green
+    } else {
+        Write-Host "[COMMIT] No changes to commit." -ForegroundColor DarkGray
+    }
+    Pop-Location
+}
+
 exit $(if($failedCount -gt 0){1}else{0})

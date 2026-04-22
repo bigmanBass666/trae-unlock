@@ -4,3 +4,4 @@ node_modules/
 *.clean-backup
 test.md
 scripts/search-code.ps1
+.trae/

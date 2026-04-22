@@ -137,3 +137,57 @@ format: registry
 4. L2的provideUserResponse直接和服务端通信，是真正的"确认"动作
 5. L3的auto_confirm标志是最稳定的数据源，所有下游组件都依赖它
 **方法论**: 遇到新限制时，先定位属于哪一层，从最底层开始设计补丁方案
+
+---
+
+### [2026-04-21 19:00] 为什么 auto-continue-thinking 从 ed()→ec()→直调 D.resumeChat() (v3→v4→v5 演进)
+
+**选择**: auto-continue-thinking v5: 直调 D.resumeChat() + sendChatMessage fallback + 500ms 延迟
+**否决 A**: v2 的 ed()/sendChatMessage — 发送"继续"作为新消息，服务端不识别为续接 → 空响应 → Cancel → "手动终止输出"
+**否决 B**: v3 的 ec()/resumeChat — ec() 内部有 `"v3"===p` 条件，agentProcessSupport 不是 "v3" 时走 retryChatByUserMessageId 而非 resumeChat
+**否决 C**: v4 的直调 resumeChat + 2000ms 延迟 — 二次错误(2000000/DEFAULT)在 2000ms 内到达并覆盖 errorCode，J 变 false，setTimeout 回调执行但状态已变
+**原因**: 
+- v2: sendChatMessage 创建新消息轮次，语义错误
+- v3: 中间层 ec() 有隐藏条件判断（rule-012: 中间层陷阱）
+- v4: 延迟太长 + 无 retry + DEFAULT 不在 J 数组中
+- v5: 三管齐下 — 直调绕过 ec() 条件、500ms 抢在二次错误前、嵌套 retry 防 failure、DEFAULT 入 J 数组防覆盖
+
+---
+
+### [2026-04-21 21:00] 为什么新增 guard-clause-bypass 补丁而非修改现有补丁
+
+**选择**: 新增独立补丁 guard-clause-bypass v1: `if(!n||!q||et)` → `if(!n||(!q&&!J)||et)`
+**否决 A**: 在 auto-continue-thinking 中修改 guard clause — guard clause 在 if(V&&J) **之前**，属于不同的代码区域，混入一个补丁违反单一职责
+**否决 B**: 删除 guard clause 整体 — guard clause 的原始目的是过滤无效渲染（n 为空/q 不是 Error/et 为 true），删除会导致组件在无错误时也渲染
+**原因**: 
+- guard clause 是 efp 组件的前置守卫，与 auto-continue-thinking 是正交关系
+- 独立补丁更易维护和理解——每个补丁只做一件事
+- `!q&&!J` 的逻辑是："如果不是 Error/Warning 状态 **且** 也不是可续接错误，则拦截"——精确控制
+
+---
+
+### [2026-04-21 23:00] 为什么 v5 选择三重加固 (DEFAULT入J + 500ms + 嵌套retry)
+
+**选择**: 同时修改 3 个补丁（bypass-loop-detection v4 + auto-continue-thinking v5 + efh-resume-list v3）
+**否决 A**: 只改 auto-continue-thinking — J 不含 DEFAULT，二次错误覆盖后 J=false 跳出 if(V&J)
+**否决 B**: 只加 DEFAULT 到 J 数组 — setTimeout 2000ms 太慢，二次错误在回调前已到达
+**否决 C**: 只缩短延迟到 500ms — 如果 resumeChat 失败（状态已变），没有 fallback 就完全失败
+**原因**: 三重加固是"纵深防御"——每一层解决一个独立的风险点：
+1. DEFAULT 入 J 数组 → 即使被覆盖也保持 J=true（防止跳出 if(V&J)）
+2. 500ms 延迟 → 抢在二次错误到达前触发（时间竞争）
+3. 嵌套 retry → 即使 resumeChat 失败也有 sendChatMessage fallback（最终安全网）
+
+**类比**: 像三层防空系统——拦截导弹(DEFAULT入J)、近防炮(500ms)、装甲(retry)
+
+---
+
+### [2026-04-21 23:00] 为什么 bypass-loop-detection 要加入 kg.DEFAULT
+
+**选择**: 将 kg.DEFAULT(2000000) 加入 J 数组和 efh 列表
+**否决 A**: 忽略 DEFAULT 错误 — 用户实测显示 DEFAULT 错误确实会出现在循环检测之后
+**否决 B**: 只在 efh 列表加入 DEFAULT 不加入 J 数组 — J=false 导致 if(V&J) 不满足，efp 组件不渲染，auto-continue-thinking 的 setTimeout 根本不会设置
+**原因**: 
+- 2000000 是循环检测(4000009)之后的**二次错误**，不是独立的首次错误
+- 它出现在同一消息的错误处理流程中，应该被视为可续接场景
+- J 数组控制"是否显示可续接 Alert"，efh 控制"ec() 是否调用 resumeChat"
+- 两者都需要包含 DEFAULT 才能形成完整的恢复链路

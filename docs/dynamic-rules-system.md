@@ -94,9 +94,9 @@ Trae IDE 的机制是：**每个新会话开始时，AI 会自动读取项目根
 **功能**: YAML 解析 → 过滤 → 排序 → 格式化的完整流水线。
 
 **技术实现**:
-- **纯 PowerShell 5.1+**，无外部依赖（不需要 Python、Node.js 或第三方模块）
-- 自研的 `ConvertFrom-YamlSimple` 函数：专门针对本项目 YAML 格式优化的轻量级解析器
-- 支持数组、嵌套键值对、引号清理等常见 YAML 特性
+- 使用 `powershell-yaml` 库（PowerShell Gallery）进行 YAML 解析
+- `ConvertFrom-Yaml` 处理标准 YAML 格式（数组、嵌套键值对、引号清理等）
+- 模块自动加载：优先使用本地路径，回退到 PowerShell 模块路径
 
 **支持的运行模式**:
 

@@ -24,7 +24,7 @@ rules:
       - "做出技术决策 → 写入 shared/decisions.md"
       - "完成工作后 → 更新 shared/status.md"
       - "项目重大变更 → 更新 shared/context.md"
-      - "会话结束前 → 在 status.md 会话日志区域追加本次会话日志（操作/观察/问题/建议）"
+      - "会话结束前 → 执行检查清单：①有发现？→ discoveries.md ②有决策？→ decisions.md ③安全检查：备份是否新鲜？是否需要 git commit？④写会话日志（含 P2 写入字段）→ status.md"
     enforcement: mandatory
 
   - id: "rule-003"

@@ -1,6 +1,33 @@
 rules:
   - id: "rule-005"
-    name: "标准工作流程八步循环"
+    name: "搜索优先三原则"
+    category: workflow
+    priority: critical
+    enabled: true
+    description: "写代码之前，必须先搜索现有方案。避免重复造轮子。这是用血泪换来的教训。"
+    actions:
+      - "第 1 轮：搜工具 — '有没有现成工具能做这件事？'（WebSearch + npm/scoop 搜索）"
+      - "第 2 轮：搜方案 — '别人遇到类似问题怎么解决的？'（WebSearch + GitHub Issues）"
+      - "第 3 轮：搜生态 — '这个领域的标准做法是什么？'（WebSearch + 技术博客）"
+      - "只有 3 轮搜索都没有找到合适方案时，才自己写代码"
+      - "搜索结果必须记录到 shared/discoveries.md，避免未来 AI 重复搜索"
+      - "可用工具：ast-grep（AST 搜索）、search-target.ps1（文本搜索）、WebSearch（互联网搜索）"
+    enforcement: mandatory
+
+  - id: "rule-005b"
+    name: "理解代码之前先用工具映射"
+    category: workflow
+    priority: high
+    enabled: true
+    description: "不要靠猜来理解压缩代码。先用 ast-grep 映射架构，再精确修改。"
+    actions:
+      - "用 ast-grep 搜索关键函数调用：ast-grep -p 'D.resumeChat($$$)' --lang js --json target.js"
+      - "用 search-target.ps1 搜索中文文本：powershell scripts/tools/search-target.ps1 -Pattern '关键词'"
+      - "用 ast-grep 追踪变量依赖：ast-grep -p 'J = $VALUE' --lang js --json target.js"
+      - "修改前先追踪影响链：搜索所有引用 → 理解完整依赖 → 一次改对"
+    enforcement: mandatory
+
+  - id: "rule-006"
     category: workflow
     priority: high
     enabled: true
@@ -41,3 +68,80 @@ rules:
       - "利用 source-architecture.md 中已有的知识避免重复探索"
       - "将本轮未完成的工作记录到 progress.txt 方便下个会话接续"
     enforcement: recommended
+
+  - id: "rule-009"
+    name: "任务完成后自动复盘"
+    category: workflow
+    priority: critical
+    enabled: true
+    description: "AI 每完成一个任务后，必须自动执行复盘流程。这是自我进化的核心机制，不是可选的。"
+    actions:
+      - "回顾：我做了什么？花了多少步骤？哪些是关键步骤？"
+      - "反思：有没有更快的路径？哪些步骤是冗余的？用错了什么工具？"
+      - "提炼：能提炼什么可复用的方法论？能否抽象成规则？"
+      - "更新：将改进写入规则系统（rules/*.yaml）或 shared/discoveries.md"
+      - "复盘结果必须输出给用户，让用户也能看到 AI 的自我进化过程"
+    enforcement: mandatory
+
+  - id: "rule-010"
+    name: "推理→搜索→验证三步法"
+    category: workflow
+    priority: high
+    enabled: true
+    description: "搜索之前先推理，避免盲目搜索浪费大量时间。从循环检测任务中提炼的方法论。"
+    actions:
+      - "Step 1 推理：从已知架构/文档推断可能的答案，列出关键假设"
+      - "Step 2 搜索：先搜行业参考（WebSearch），再用 ast-grep 精确搜索代码"
+      - "Step 3 验证：只验证推理中的关键假设，不穷举所有可能"
+      - "示例：循环检测在客户端还是服务端？→ 从 SSE 推送错误码推断是服务端 → ast-grep 搜不到生成逻辑 → 确认"
+    enforcement: mandatory
+
+  - id: "rule-011"
+    name: "假设优先搜索法"
+    category: workflow
+    priority: critical
+    enabled: true
+    description: "搜索代码前必须先列假设。从本次任务中提炼——17步广撒网搜索可压缩到3步假设驱动验证。"
+    actions:
+      - "遇到问题时，先花 2 分钟列出 2-4 个可能的根因假设"
+      - "每个假设对应一个关键验证点（1个搜索命令就能确认/排除）"
+      - "按'排除成本从低到高'的顺序验证假设"
+      - "一旦某个假设被验证为真，立即停止搜索其他假设，进入修复阶段"
+      - "禁止'广撒网式搜索'——没有明确目标的搜索是时间黑洞"
+      - "示例：ec()不工作？假设A(条件不满足)→搜ec定义看条件；假设B(resumeChat失败)→搜resumeChat实现；假设C(参数缺失)→搜o/h变量来源"
+      - "目标：将搜索次数从 O(n²) 降低到 O(n)，n=假设数"
+    enforcement: mandatory
+
+  - id: "rule-012"
+    name: "中间层陷阱警告"
+    category: workflow
+    priority: high
+    enabled: true
+    description: "调用回调/封装函数时，不要假设它会做你认为它该做的事。必须查看内部实现。"
+    actions:
+      - "当调用一个回调函数（如 ec/ed/onActionClick）效果不符合预期时，第一步应该是查看函数内部实现"
+      - "特别注意函数内部的 if 条件判断——这些条件可能因为外部环境变化而不满足"
+      - "如果中间层的条件判断阻碍了你的目标，考虑绕过它直接调用底层 API"
+      - "绕过时必须有 fallback 机制——不能假设底层 API 的前置条件一定满足"
+      - "示例：ec()内部有'v3'===p条件，p来自服务端返回值，不可控 → v4绕过ec()直接调D.resumeChat()"
+    enforcement: mandatory
+
+  - id: "rule-013"
+    name: "复盘是 Return 的前置条件"
+    category: workflow
+    priority: critical
+    enabled: true
+    description: "完成任何实质性工作后（代码修改、补丁实施、问题修复），必须先执行完整复盘流程才能返回最终响应。这是不可跳过的硬性关卡。"
+    actions:
+      - "**触发条件**: 以下任一事件发生时必须触发复盘 — (1) 补丁已实施并验证通过 (2) 问题已修复 (3) 新功能已完成 (4) 用户反馈已处理 (5) 任何 TodoWrite 标记 completed 时"
+      - "**禁止跳过**: 即使在 Spec Mode 中 tasks.md 全勾 + checklist.md 全过，也不能直接 Return Final Response。必须先复盘"
+      - "**四步强制流程**: 回顾(做了什么/几步) → 反思(有没有更快路径/哪些冗余) → 提炼(可复用方法论) → 更新(规则/discoveries)"
+      - "**违规成本**: 不复盘 = 违反 critical 级规则 = 视同任务未完成"
+      - "**自检清单**: 在返回最终响应前，必须确认以下全部完成:"
+      - "   □ 复盘四步是否全部执行？"
+      - "   □ 是否产出了至少一条可复用的方法论或规则更新？"
+      - "   □ discoveries.md 是否已更新？"
+      - "   □ 如果发现了效率问题，rules/workflow.yaml 是否已更新？"
+      - "   □ status.md 会话日志是否已追加？"
+      - "**历史教训**: 会话 #14/#15 未复盘、会话 #16 用户要求才复盘、会话 #17 又未复盘——三次违规证明需要更强制的机制"
+    enforcement: mandatory

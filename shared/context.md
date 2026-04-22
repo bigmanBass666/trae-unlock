@@ -80,15 +80,37 @@ trae-unlock/
 
 ## 关键位置速查
 
-| 位置 | 内容 | 重要性 |
-|------|------|--------|
-| ~7502574 | confirm_status 检查 + 自动确认 (knowledge 分支) | ⭐⭐⭐⭐⭐ |
-| ~7503319 | storeService + 服务层确认 (else 分支) | ⭐⭐⭐⭐⭐ |
-| ~8069620 | getRunCommandCardBranch 核心判定 | ⭐⭐⭐⭐ |
-| ~8695303 | efh 可恢复错误列表 | ⭐⭐⭐⭐⭐ |
-| ~8696378 | J 变量（可继续错误判断） | ⭐⭐⭐⭐⭐ |
-| ~8702300 | if(V&&J) Alert 渲染分支 | ⭐⭐⭐⭐⭐ |
-| ~8702342 | auto-continue-thinking 补丁位置 | ⭐⭐⭐⭐⭐ |
-| ~41400 | ToolCallName 枚举 | ⭐⭐⭐ |
-| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举 | ⭐⭐⭐⭐ |
-| ~8635000 | egR (RunCommandCard) React 组件 | ⭐⭐⭐⭐ |
+> ⚠️ **最后更新**: 2026-04-21 23:00 (v5 三重加固后)
+
+| 位置 | 内容 | 版本 | 重要性 |
+|------|------|------|---------|
+| ~7323241 | data-source-auto-confirm (auto_confirm=true) | v3 | ⭐⭐⭐⭐⭐ |
+| ~7507671 | auto-confirm-commands (knowledge分支) | v4 | ⭐⭐⭐⭐⭐ |
+| ~7508254 | service-layer-runcommand-confirm (else分支) | v8 | ⭐⭐⭐⭐⭐ |
+| ~8075009 | bypass-runcommandcard-redlist | v2 | ⭐⭐⭐⭐ |
+| ~8699513 | efh 可恢复错误列表 (含循环检测+DEFAULT) | **v3** | ⭐⭐⭐⭐⭐ |
+| ~8701180 | J 变量（含循环检测+DEFAULT） | **v4** | ⭐⭐⭐⭐⭐ |
+| ~8706067 | guard-clause-bypass (!q&&!J 放行) | **v1** | ⭐⭐⭐⭐⭐ |
+| ~8706660 | auto-continue-thinking (500ms+嵌套retry) | **v5** | ⭐⭐⭐⭐⭐ |
+| ~8702006 | ec() 回调定义 (resumeChat) | — | ⭐⭐⭐⭐ |
+| ~8702572 | ed() 回调定义 (sendChatMessage) | — | ⭐⭐⭐ |
+| ~7538139 | onStreamingStop / stopStreaming (覆盖status为Canceled) | — | ⭐⭐⭐⭐⭐ |
+| ~7511389 | D7.Error 处理器 / handleSideChat | — | ⭐⭐⭐⭐ |
+| ~8038360 | JV() 函数 (guard clause et条件) | — | ⭐⭐⭐⭐ |
+| ~9910446 | DEFAULT 错误组件 (t===kg.DEFAULT) | — | ⭐⭐⭐⭐ |
+| ~41400 | ToolCallName 枚举 | — | ⭐⭐⭐ |
+| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举 | — | ⭐⭐⭐⭐ |
+| ~8635000 | egR (RunCommandCard) React 组件 | — | ⭐⭐⭐⭐ |
+
+## 补丁版本总览 (8/8, 2026-04-21 23:00)
+
+| # | 补丁 ID | 版本 | 偏移 | 核心作用 |
+|---|---------|------|------|---------|
+| 1 | data-source-auto-confirm | v3 | ~7323241 | L3数据层: auto_confirm=true |
+| 2 | auto-confirm-commands | v4 | ~7507671 | L2知识分支: 黑名单自动确认 |
+| 3 | service-layer-runcommand-confirm | v8 | ~7508254 | L2 else分支: 黑名单+守卫 |
+| 4 | bypass-runcommandcard-redlist | v2 | ~8075009 | L1 UI: 弹窗消除 |
+| 5 | **guard-clause-bypass** | **v1** | **~8706067** | **Guard Clause: !q&&!J 放行** |
+| 6 | efh-resume-list | **v3** | **~8699513** | **可恢复列表: +循环检测+DEFAULT** |
+| 7 | bypass-loop-detection | **v4** | **~8701180** | **J数组: +循环检测+DEFAULT** |
+| 8 | auto-continue-thinking | **v5** | **~8706660** | **500ms+嵌套retry+直调resumeChat** |

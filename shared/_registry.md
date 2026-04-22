@@ -12,7 +12,7 @@
 | P1 推荐 | status.md | 当前状态和待办 | 每个新会话 | 每次会话结束时 |
 | P2 按需 | discoveries.md | 重要发现和代码定位 | 需要相关知识时 | 发现关键信息时 |
 | P2 按需 | decisions.md | 技术决策记录 | 需要理解决策时 | 做出重要决策时 |
-| P2 按需 | rules.md | 协作规则 | 需要了解规则时 | 修改 rules/*.yaml 后运行引擎 |
+| P1 推荐 | rules.md | 协作规则 | 每个新会话（**强制**） | 修改 rules/*.yaml 后 |
 
 ## 写入格式约定
 
@@ -37,8 +37,24 @@
 **观察**: 观察到什么现象或模式
 **问题**: 遇到什么问题
 **建议**: 对后续会话的建议
+**P2 写入**: discoveries.md / decisions.md（如未写入则注明"无"及原因）
 
 ---
+
+## 会话结束检查清单
+
+每次会话结束前，必须按以下清单逐项检查：
+
+1. **有发现？** → 写入 `shared/discoveries.md`（关键代码位置、架构关系、枚举值、排除的错误方向）
+2. **有决策？** → 写入 `shared/decisions.md`（为什么选择 X 而不是 Y）
+3. **写会话日志** → 在 `shared/status.md` 的"会话日志"区域追加（含 P2 写入字段）
+4. **安全检查** → 备份是否新鲜？是否需要 git commit？
+   - 如果修改了补definitions.json 或目标文件 → 执行 `scripts/apply-patches.ps1` 会自动备份
+   - 如果修改了 shared/* 文件或 rules/* 文件 → 考虑 `git add` + `git commit`
+   - commit message 格式：`<type>: <简短描述>\n\n变更:\n- 要点1\n- 要点2`
+   - ⚠️ 超过 1 小时未 commit 的工作有丢失风险
+
+**⚠️ 不要跳过检查**: 即使本次没有发现或决策，也要在会话日志的"P2 写入"字段中注明"无"。
 
 ## 模块管理
 
@@ -46,6 +62,13 @@
 - **删除模块**: 删除文件 + 从本表移除对应行
 - **修改优先级**: 只改本表中的优先级列
 - **修改格式**: 只改本文件中的"写入格式约定"章节
+
+## 安全网
+
+- **自动备份**: apply-patches/auto-heal 成功后自动创建 `backups/clean-时间戳.ext`
+- **Git Commit**: 重要操作后应提交（多 AI 场景下，不要假设其他会话会提交）
+- **Commit 格式**: `<type>: <一句话描述>` — type 可用 feat/fix/docs/refactor/chore
+- **恢复优先级**: git commit > backups/clean-* > Trae 更新 > 从头再来
 
 ## 系统改名指引
 

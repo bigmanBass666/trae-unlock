@@ -34,6 +34,7 @@ $content = [System.IO.File]::ReadAllText($TargetFile)
 $activeCount = 0
 $inactiveCount = 0
 $unknownCount = 0
+$failedIds = @()
 
 foreach ($patch in $def.patches) {
     if (-not $patch.enabled) {
@@ -41,7 +42,6 @@ foreach ($patch in $def.patches) {
         continue
     }
 
-    # Use check_fingerprint if available (short, reliable substring), else fall back to replace_with
     $fingerprint = ""
     if ($patch.PSObject.Properties.Name -contains "check_fingerprint") {
         $fingerprint = $patch.check_fingerprint
@@ -57,12 +57,17 @@ foreach ($patch in $def.patches) {
     } elseif ($hasOriginal) {
         Write-ColorOutput "  [INACTIVE] $($patch.id.PadRight(28)) $($patch.name) ($($patch.offset_hint))" "DarkGray"
         $inactiveCount++
+        $failedIds += $patch.id
     } else {
         Write-ColorOutput "  [UNKNOWN]  $($patch.id.PadRight(28)) $($patch.name) ($($patch.offset_hint)) - code may have changed!" "Yellow"
         $unknownCount++
+        $failedIds += $patch.id
     }
 }
 
 Write-ColorOutput "`n-----------------------------------------" "White"
 Write-ColorOutput "  Active: $activeCount | Inactive: $inactiveCount | Unknown: $unknownCount" "White"
 Write-ColorOutput "-----------------------------------------" "White"
+
+$failedJson = ($failedIds | ForEach-Object { "`"$_`"" }) -join ","
+Write-Host "`n{`"active`":$activeCount,`"inactive`":$inactiveCount,`"unknown`":$unknownCount,`"failed_ids`":[$failedJson]}"
