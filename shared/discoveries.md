@@ -1103,6 +1103,97 @@ ERR repeated tool call RunCommand 5 times: Error: repeated tool call RunCommand 
 
 ---
 
+### [2026-04-22 16:00] L1 UI 层冻结原则 — 切走窗口后 React 组件暂停渲染（会话 #24 验证）
+
+**发现**: v7 成功测试日志（`vscode-app-1776857498619.log`）提供了决定性证据，验证了 4 月 18 日（decisions.md [2026-04-18 18:00]）的架构决策。同时解释了 auto-continue-thinking 历史上 **6 次迭代（v3→v7）** 的真正原因。
+
+#### 证据：v7 日志三阶段时间线
+
+**阶段 1 — 窗口聚焦（行 1343-1553）**:
+```
+行 1346: ERR repeated tool call RunCommand 5 times     ← 循环检测 #1
+行 1343: [v7] triggering auto-continue                ← 立即响应 ✅
+行 1422: [v7] resumeChat no effect, fallback sendChatMessage
+行 1547: teaEventChatShown → handleSteamingResult      ← 恢复运行 ✅
+```
+
+**阶段 2 — 用户切到别的聊天窗口（行 1794-2261）**:
+```
+行 1794-1949: [EditFileCard] × 50+ 次               ← 用户在看别的聊天!
+行 2262:   ERR repeated tool call RunCommand 5 times   ← 循环检测 #2
+           ⚠️ 没有 [v7] triggering... !!!            ← 补丁代码没执行!!!
+           （AI 继续执行 RunCommand，进程未停）
+```
+
+**阶段 3 — 用户切回来（行 2331-2545）**:
+```
+行 2332: [v7] triggering auto-continue                ← 延迟触发 ⏰
+行 2454: [v7] fallback sendChatMessage
+行 2530: teaEventChatShown → handleSteamingResult      ← 又恢复了 ✅
+```
+
+#### 根因机制
+
+```
+Chromium 后台标签页限制:
+  requestAnimationFrame 停止触发
+    → React Scheduler 依赖 rAF → 渲染管线暂停
+      → memo() 组件不检查 props → 不重新渲染
+        → render 函数体内的补丁代码不执行
+
+时间线:  错误发生(后台) → 状态变更排队 → 用户切回 → React 批量处理 → 补丁代码执行
+```
+
+#### 历史验证：这解释了一切
+
+| 现象 | 之前的解释 | L1 冻结解释 |
+|------|-----------|------------|
+| 后台轮询测试中 4 次"手动终止输出" | 未解释 | 切走后 ec() 路径和 auto-continue 都不触发 |
+| v3-v6 全部失败 | 各种局部原因（ec条件、setTimeout cleanup、queueMicrotask）| **根本原因都是 L1 冻结 + 各版本引入的副作用** |
+| v5 setTimeout(500) 被 cleanup 杀死 | "React cleanup 10-50ms > setTimeout 500ms"| cleanup 在切走时更激进（浏览器资源回收）|
+| v7 终于成功（聚焦时） | "防重复 + fallback 生效"| ✅ 聚焦时 L1 不冻结 + fallback 解决了 no-op |
+| v7 切走时延迟触发 | 新观察 | **L1 冻结的直接预期行为** |
+
+#### 分层架构约束表
+
+| 层级 | 组成 | 切走行为 | 适用补丁类型 |
+|------|------|---------|------------|
+| **L1 UI层** | React 组件/render 函数/memo/useEffect | ❌ **完全冻结**: rAF 停止→渲染暂停→代码不执行 | 仅限纯视觉修改（按钮样式、文字、Alert 显示） |
+| **L2 服务层** | 事件处理器/SSE 解析/回调函数 | ✅ **始终活跃**: 数据驱动，不依赖渲染周期 | 需要实时响应的操作（确认命令、续接对话） |
+| **L3 数据层** | Store/State/配置字段 | ✅ **始终活跃**: 内存中的值不变 | 从源头改变行为的标志位 |
+
+#### 当前 8 个补丁分层审计
+
+| 补丁 | 所在层 | 受冻结影响？ | 历史迭代次数 |
+|------|--------|------------|------------|
+| service-layer-runcommand-confirm | **L2** (StreamParser) | ✅ 不受影响 | v1→v8（解决其他问题）|
+| data-source-auto-confirm | **L3** (auto_confirm字段) | ✅ 不受影响 | v1→v3 |
+| auto-confirm-commands | **L2** (事件处理) | ✅ 不受影响 | v1→v4 |
+| **auto-continue-thinking** | **L1** (render if(V&&J)) | **❌ 冻结** | **v1→v7 (6次!)** |
+| guard-clause-bypass | **L1** (render guard clause) | **❌ 冻结** | v1 (1次) |
+| bypass-loop-detection | **L1** (J数组定义位置) | ⚠️ 定义存在但读取者在L1 | v1→v4 |
+| efh-resume-list | **L1** (efg列表定义) | ⚠️ 同上 | v1→v3 |
+| bypass-runcommandcard-redlist | **L1** (P7枚举) | ⚠️ 同上 | v1→v2 |
+
+**关键发现**: 迭代次数最多的补丁（auto-continue, 6 次）恰恰住在最糟糕的层（L1）。服务层补丁迭代少且稳定。
+
+#### 设计原则（已验证）
+
+> **「L1 冻结原则」**: 需要实时响应或可靠触发的补丁必须放在 L2 或 L3。L1 仅适用于纯展示性修改。
+>
+> **推论**: 如果一个补丁需要超过 1 次迭代才能稳定，首先检查它是否住在错误的层级。
+
+#### 为什么之前没有主动关联？
+
+1. **信息存在但未被检索**: decisions.md [2026-04-18 18:00] 和 context.md 第 67 行已经记录了"React 组件会冻结"
+2. **auto-continue spec 是独立任务**: 每个会话把 spec 当成独立调查，没有强制回溯已有知识
+3. **rule-014 当时还未创建**: 知识孤岛效应的系统性修复在会话 #23 才实施
+4. **症状被局部解释掩盖**: 每次 v3-v6 失败都有看似合理的局部解释（ec条件、setTimeout、queueMicrotask），导致没有继续深挖
+
+**教训**: 当一个补丁需要 >2 次迭代时，必须停下来检查是否违反了已知架构原则。
+
+---
+
 # 🔍 知识索引
 
 > 三维度快速查询表，覆盖 discoveries.md 中 90%+ 关键知识点。详细信息通过发现编号链接回原文。

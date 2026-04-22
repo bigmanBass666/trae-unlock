@@ -64,10 +64,11 @@ trae-unlock/
 ## 关键架构洞察
 
 1. **服务层补丁才有效** — PlanItemStreamParser 是 SSE 流解析器，不依赖 React 渲染，切窗口不冻住
-2. **React 组件会冻结** — 切换 AI 会话窗口后，后台组件的 hooks 全部暂停（useEffect/useMemo/useCallback）
+2. **React 组件会冻结** ⚠️ **已验证 (会话#24)**: 切换 AI 会话窗口后，后台组件的 hooks 全部暂停（useEffect/useMemo/useCallback）。**L1 层补丁在后台不执行。详见 discoveries.md [2026-04-22 16:00] L1 冻结原则。**
 3. **双层确认系统** — 服务层(PlanItemStreamParser) + UI层(RunCommandCard) 完全独立，两层都需补丁
 4. **ew.confirm() 不是执行** — 它是 telemetry/日志，真正执行函数是 eE(Confirmed)
 5. **补丁安全** — 箭头函数防 this 丢失、不改变控制流、fingerprint 精确匹配
+6. **🔑 L1 冻结原则 (2026-04-22 验证)** — 需要实时响应的补丁必须放在 L2/L3。auto-continue-thinking 因住在 L1 导致 6 次迭代（v3→v7）。设计新补丁时首先选择层级。
 
 ## 架构文档索引
 

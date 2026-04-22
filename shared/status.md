@@ -518,3 +518,37 @@ format: registry
 
 **P2 写入**: discoveries.md（find_original 同步方法论）
 **P1 写入**: definitions.json（ec-debug-log find_original 修复）、shared/status.md（会话日志）
+
+### [2026-04-22 16:30] 会话 #24 — V7 成功确认 + L1 冻结原则提炼
+
+**事件**: 用户报告 v7 测试成功！同时发现切走窗口后 auto-continue 暂停、切回后延迟触发。用户指出"这种情况我们遇到过很多次，可以提炼出更高层次的指导"。
+
+**操作**:
+1. 分析 v7 日志三阶段时间线：聚焦→立即触发 ✅ / 切走→静默 ❌ / 切回→延迟触发 ⏰
+2. 搜索历史记录，发现 **4 月 18 日已记录此现象**（decisions.md [2026-04-18 18:00] + context.md 第 67 行）
+3. 发现 **后台轮询测试文件**（test/messages/后台轮询可行性测试1.md 和 测试2.md）早已展示过相同症状
+4. 提炼 **L1 UI 层冻结原则**：Chromium 后台标签页 rAF 暂停 → React 渲染暂停 → L1 补丁代码不执行
+5. 全量知识库更新：
+   - discoveries.md: 新增 [2026-04-22 16:00] L1 冻结原则（含证据、分层审计表、设计原则）
+   - context.md: 架构洞察 #2 增强（标注已验证+新增 #6 L1 冻结原则）
+   - decisions.md: 新增 [2026-04-22 16:00] v7 验证 4 月 18 日决策
+   - diagnosis-playbook.md: 新增场景 F（前台正常/后台失效诊断流程 + 8 补丁分层速查表）
+
+**关键数据 — 分层 vs 迭代次数**:
+| 补丁 | 层级 | 迭代次数 |
+|------|------|---------|
+| auto-continue-thinking | **L1** | **6 次 (v3→v7)** |
+| service-layer-runcommand-confirm | L2 | 3 次 (v6→v8) |
+| data-source-auto-confirm | L3 | 2 次 (v1→v3) |
+
+**反思 — 为什么需要用户指出才发现？**:
+1. decisions.md 和 context.md 在 4 月 18 日已记录"React 组件会冻结"
+2. 但 auto-continue v3-v7 的 5 个后续会话没有一次回溯这个已知原则
+3. 每次 v3-v6 失败都有局部解释（ec条件、setTimeout、queueMicrotask），掩盖了根本原因
+4. rule-014（诊断前强制搜索知识库）在会话 #23 才创建，之前的会话不受保护
+5. **教训**: 信息存在 ≠ 信息被利用。必须把架构原则嵌入到工作流中（如 diagnosis-playbook 场景 F），而不只是记录在文档里
+
+**V7 最终状态**: ✅ 聚焦时完全正常（防重复+resumeChat+2秒fallback）。切走时静默（L1 冻结，预期行为）。切回后自动恢复。
+
+**P2 写入**: discoveries.md（L1 冻结原则完整分析）、decisions.md（v7 验证记录）
+**P1 写入**: context.md（架构洞察增强）、diagnosis-playbook.md（场景 F）、shared/status.md（本日志）

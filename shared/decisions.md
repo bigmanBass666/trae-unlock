@@ -140,6 +140,21 @@ format: registry
 
 ---
 
+### [2026-04-22 16:00] L1 冻结原则验证 — v7 日志确认 4 月 18 日架构决策
+
+**选择**: 维持 [2026-04-18 18:00] 的决策（服务层补丁优先于 UI 层）
+**否决**: 继续在 L1 UI 层迭代 auto-continue-thinking（已证明需要 6 次迭代）
+**验证证据**: v7 测试日志 `vscode-app-1776857498619.log` 三阶段时间线:
+1. 聚焦时: 循环检测 → [v7] 立即触发 → fallback → 恢复 ✅
+2. 切走时: 循环检测 → **[v7] 不触发**（React 渲染暂停）→ 静默
+3. 切回时: React 批量处理 → **[v7] 延迟触发** → fallback → 恢复 ⏰
+
+**关键数据**: auto-continue-thinking 住在 L1 → 历史迭代 6 次（v3→v7）。service-layer-runcommand-confirm 住在 L2 → 迭代 3 次（v6→v8，且在解决不同问题）。data-source-auto-confirm 住在 L3 → 迭代 2 次（v1→v3）。
+
+**结论**: 4 月 18 日的决策被 v7 日志完全验证。L1 冻结不是理论推测——是可复现、可测量、可日志验证的物理现象。
+
+---
+
 ### [2026-04-21 19:00] 为什么 auto-continue-thinking 从 ed()→ec()→直调 D.resumeChat() (v3→v4→v5 演进)
 
 **选择**: auto-continue-thinking v5: 直调 D.resumeChat() + sendChatMessage fallback + 500ms 延迟
