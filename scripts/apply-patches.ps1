@@ -130,6 +130,21 @@ foreach ($patch in $Patches) {
 
 # Write result
 if ($appliedCount -gt 0 -and -not $DryRun) {
+    # === Syntax Safety Check: Verify JS syntax before writing ===
+    $tmpFile = Join-Path ([System.IO.Path]::GetTempPath()) "trae-unlock-syntax-check-$([guid]::NewGuid().ToString('N')).js"
+    [System.IO.File]::WriteAllText($tmpFile, $content)
+    $syntaxCheck = node --check $tmpFile 2>&1
+    $syntaxOk = ($LASTEXITCODE -eq 0)
+    Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
+
+    if (-not $syntaxOk) {
+        Write-ColorOutput "`n  [SYNTAX ERROR] JavaScript syntax check FAILED! Aborting write to prevent crash." "Red"
+        Write-ColorOutput "  Error: $syntaxCheck" "Red"
+        Write-ColorOutput "  Target file NOT modified. Original content preserved." "Yellow"
+        exit 1
+    }
+    Write-ColorOutput "  [SYNTAX OK] JavaScript syntax verified." "Green"
+
     [System.IO.File]::WriteAllText($TargetFile, $content)
     Write-ColorOutput "`n  File written successfully." "Cyan"
 }

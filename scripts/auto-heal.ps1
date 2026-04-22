@@ -228,6 +228,25 @@ foreach ($diag in $diagnoses) {
 }
 
 if ($needsWrite) {
+    $tmpFile = Join-Path ([System.IO.Path]::GetTempPath()) "trae-unlock-syntax-check-$([guid]::NewGuid().ToString('N')).js"
+    [System.IO.File]::WriteAllText($tmpFile, $content)
+    $syntaxCheck = node --check $tmpFile 2>&1
+    $syntaxOk = ($LASTEXITCODE -eq 0)
+    Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
+
+    if (-not $syntaxOk) {
+        Write-ColorOutput "`n  [SYNTAX ERROR] JavaScript syntax check FAILED! Aborting write to prevent crash." "Red"
+        Write-ColorOutput "  Error: $syntaxCheck" "Red"
+        Write-ColorOutput "  Target file NOT modified. Original content preserved." "Yellow"
+        $latestBackup = Get-ChildItem $BackupDir -Filter "clean-*.ext" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($latestBackup) {
+            Copy-Item $latestBackup.FullName $TargetFile -Force
+            Write-ColorOutput "  Restored from backup: $($latestBackup.Name)" "Yellow"
+        }
+        exit 1
+    }
+    Write-ColorOutput "  [SYNTAX OK] JavaScript syntax verified." "Green"
+
     [System.IO.File]::WriteAllText($TargetFile, $content)
     Write-ColorOutput "  Target file written." "Cyan"
 }
