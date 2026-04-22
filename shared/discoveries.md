@@ -967,4 +967,112 @@ React 无法加载 index.js → 聊天界面消失
 **关键数据点**: 
 - Trae 更新后文件大小从 ~10.73MB 变为 10.24MB（-4.9%，可能是 tree-shaking 优化或代码重构）
 - minifier 变量重命名是**非确定性**的——每次构建都可能不同，不能硬编码变量名
+
+---
+
+### [2026-04-22 14:00] find_original 精确匹配失败的字节级诊断方法论
+
+**位置**: patches definitions.json（补丁定义）、目标文件 index.js
+**发现**: apply-patches 报告 ec-debug-log "NOT FOUND"，但 fuzzy match 成功。通过 6 轮递进式诊断最终定位到根因：**881 字符的字符串中，仅第 879-880 位有 2 字符差异（`}` 和 `)` 互换）**。
+
+**诊断链路（从粗到细，6轮）**:
+
+| 轮次 | 方法 | 发现 | 排除 |
+|------|------|------|------|
+| R1 | 提取目标文件两段代码 | 两段都含 debug 日志版本 | 排除了"文件被 Trae 更新还原" |
+| R2 | 确认 definitions.json 状态 | auto-continue-thinking 已更新过 | 排除了"需要更新两个补丁" |
+| R3 | 运行 apply-patches | auto-continue-thinking ✅, ec-debug-log ❌ | 确认只有 ec-debug-log 有问题 |
+| R4 | 字符串 IndexOf + 长度对比 | 前 879 字符完全匹配 | 缩小到末尾 2 字符 |
+| R5 | 逐字符对比 (char-by-char) | **Pos 879: file=`}` vs orig=`)`; Pos 880: file=`)` vs orig=`}`** | 🎯 根因锁定 |
+| R6 | 字节级验证 (UTF8.GetBytes) | 排除了 BOM/不可见字符/编码问题 | 确认纯 ASCII 差异 |
+
+**差异详情**:
+```
+find_original (definitions.json): ...errorMessage:ef}})})}"   ← 末尾 })})
+目标文件 (index.js) 实际内容:   ...errorMessage:ef}})}})"   ← 末尾 }}})
+                                    ^^                    ^^
+                                  pos 879-880: } 和 ) 互换
+```
+
+**根因推测**: 可能由不同版本的 ec-debug-log 补丁应用导致——某次应用时 replace_with 的括号顺序与另一次不一致，使得目标文件中的版本与记录在 definitions.json 中的 find_original 出现了微小分歧。
+
+**修复方法**: 从目标文件提取实际内容（881字符），替换 definitions.json 中 ec-debug-log 的 find_original。验证新 find_original 的 IndexOf 在目标文件中返回正确偏移。
+
+**通用方法论**:
+1. **fuzzy match 成功 + exact match 失败 = 微小差异** → 必须做逐字符对比，不能用"看起来一样"来判断
+2. **JSON `\u0026` 解码安全** → PowerShell 的 ConvertFrom-Json 正确解码 Unicode 转义，与文件中的实际字符一致
+3. **find_original 必须同步于当前文件状态** → 补丁迭代后 find_original 应指向"上次应用后的文件内容"，而非"最初的原始代码"
+4. **字节级验证是最后手段** → 先用字符级对比定位大致区域，再用字节级排除编码问题
+
+**工具模板**: 当遇到类似问题时，按以下顺序使用：
+```
+Step 1: 提取目标文件对应区域的实际内容（Substring + offset_hint）
+Step 2: 对比 find_original 与实际内容的长度
+Step 3: 逐字符循环对比，记录第一个差异点的位置和前后文
+Step 4: 如需排除编码问题，用 UTF8.GetBytes 做字节级对比
+```
+
+---
+
+### [2026-04-22 14:30] v7-debug 日志三大发现 — resumeChat 是 no-op + React 重渲染风暴
+
+**发现**: 用户测试收集到的 v7-debug 控制台日志（tests/vscode-app-1776835723192.log）揭示了之前所有版本（v3-v6）都基于错误假设的根本原因。
+
+#### 发现 1: queueMicrotask 确实触发了（推翻 v5 的"React cleanup 杀死 setTimeout"假设）
+
+```
+[v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+[v7-auto] queueMicrotask FIRED, o=69e85c1... h=69e85c0c...
+[v7-auto] o&&h=true, calling resumeChat...
+[v7-auto] resumeChat RETURNED (may be async)
+```
+
+- ✅ `queueMicrotask` 回调确实执行了（v6 的核心改进是对的）
+- ✅ `o`(agentMessageId) 和 `h`(sessionId) 都有有效值
+- ✅ `D.resumeChat()` 被调用了
+- ✅ **没抛异常！正常返回了！**
+
+#### 发现 2: resumeChat 是 no-op — 被调用但完全无效
+
+```
+resumeChat RETURNED (may be async)   ← 没报错
+... (之后没有任何新消息出现)          ← 但也没有任何效果!
+ERR repeated tool call RunCommand 5 times ← 真正的错误码
+```
+
+**关键洞察**: `resumeChat` 是一个异步函数。它返回了一个 Promise，但这个 Promise 可能：
+- 永远不 resolve/reject（服务端不响应）
+- resolve 了但没有触发 UI 更新
+- 被 session 的 stopStreaming/cleanup 状态拦截
+
+**这解释了为什么 v3-v6 全部失败**: 不是调度时机的问题（queueMicrotask 已证明能工作），而是 **resumeChat 这个 API 本身在循环检测/重复工具调用后的 session 状态下就是不可用的。**
+
+#### 发现 3: React 重渲染导致 if(V&&J) 被疯狂重复进入
+
+```
+if(V&&J) ENTERED    (line 607)  ← 第 1 次
+if(V&&J) ENTERED x2  (line 630)  ← 第 2-3 次
+if(V&&J) ENTERED     (line 635)  ← 第 4 次
+if(V&&J) ENTERED x2  (line 642)  ← 第 5-6 次  
+if(V&&J) ENTERED x2  (line 650)  ← 第 7-8 次
+if(V&&J) ENTERED x2  (line 659)  ← 第 9-10+ 次
+```
+
+在约 50 行日志中（<1秒），`if(V&&J)` 被进入了 **至少 10 次**。每次都触发一个新的 `queueMicrotask → D.resumeChat()` 调用。
+
+**根因**: Alert 组件在 React 的 memo/useMemo 渲染路径中。当状态变化（比如 resumeChat 返回后触发了某种状态更新），组件重新渲染 → 再次进入 if(V&&J) → 再次触发续接逻辑 → 形成正反馈循环。
+
+#### 发现 4: 真正的错误码不是循环检测
+
+```
+ERR repeated tool call RunCommand 5 times: Error: repeated tool call RunCommand 5 times
+```
+
+触发 Alert 的不是 `LLM_STOP_DUP_TOOL_CALL(4000009)` 或 `TASK_TURN_EXCEEDED_ERROR`，而是 **"repeated tool call"** —— 工具调用重复检测。这意味着 J 数组匹配的是这个错误的码。
+
+**方法论提炼**:
+- **「异步 no-op 检测模式」**: API 调用不抛异常 ≠ 调用成功。必须监控调用后的副作用（如消息数变化）来判断是否真正生效
+- **「渲染风暴防护」**: 在 React render 路径中的副作用（如 API 调用）必须加防重复守卫（cooldown/timestamp flag）
+- **「监控 fallback 策略」**: 对于不确定是否有效的异步 API，采用"先尝试 → 定时监控效果 → 不效则 fallback"的三段式策略
+
 ---

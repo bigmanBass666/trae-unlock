@@ -230,3 +230,30 @@ format: registry
 - diagnose-patch-health.ps1 作为标准工具加入工具链
 - 未来每次 Trae 更新后第一步应该是运行 diagnose-patch-health.ps1 而不是直接 apply-patches
 
+---
+
+### [2026-04-22 14:30] 为什么 v7 选择"防重复+监控 fallback"而非其他方案
+
+**选择**: v7 = 防重复守卫(window.__traeAC + 5秒冷却) + resumeChat 先尝试 + setTimeout(2000) 监控 + sendChatMessage fallback
+**否决 A: 纯 sendChatMessage（放弃 resumeChat）** — 太激进。日志证明 resumeChat 至少不抛异常，可能在某些 session 状态下有效。完全放弃可能丢失"真正续接"的能力（resumeChat 保持上下文，sendChatMessage 是发新消息）
+**否决 B: 只加防重复不改续接逻辑** — 不够。日志证明 resumeChat 是 no-op，只防重复 = 精确地调用了一个无效 API 一次，仍然不会续接
+**否决 C: 延迟重试 resumeChat（多次 retry）** — 如果第一次是 no-op，后续大概率也是 no-op（同一 session 状态）。不如用监控来检测有效性
+**否决 D: 更早阶段拦截（在 D7.Error 处理阶段）** — 过于复杂且高风险，当前方案已能解决问题
+
+**原因**:
+1. **v7-debug 日志是决定性证据**: 第一次有了数据驱动的修复方向（之前 v3-v6 都是猜测）
+2. **三层纵深防御**: 防重复(避免风暴) → resumeChat(尝试最佳API) → 监控(检测是否生效) → fallback(保证可用)
+3. **5秒冷却窗口**: 足够长防止 React 重渲染风暴，又足够短不影响下一次真实错误
+4. **2秒监控窗口**: 平衡用户体验（不想等太久）和可靠性（给 resumeChat 足够时间）
+
+**v7 的执行流程**:
+```
+if(V&&J) 进入
+  ↓ 检查 __traeAC 时间戳 (5秒冷却)
+  ↓ 通过 → 记录当前消息数 _ml
+  ↓ queueMicrotask → D.resumeChat({messageId, sessionId})
+  ↓ setTimeout(2000) 开始监控:
+     ├─ 消息数增长 → ✅ resumeChat 生效! (不做任何事)
+     └─ 消息数没变 → 🔁 fallback 到 D.sendChatMessage({message:"继续"})
+```
+

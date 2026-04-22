@@ -491,3 +491,30 @@ format: registry
 **修改文件**: definitions.json（仅 replace_with/check_fingerprint/name/description，find_original 不变）
 **验证**: JSON 解析通过 ✅
 **待验证**: 用户重启 Trae → 触发循环检测 → 收集 [v7] 控制台日志
+
+### [2026-04-22 14:00] 会话 #24 — 修复 auto-continue-thinking 和 ec-debug-log 的 find_original
+
+**事件**: apply-patches 报告两个补丁失败：
+1. auto-continue-thinking: Fuzzy match near 8708871 — find_original 指向不含日志的原始版本，但文件已含 [v7-auto] 日志
+2. ec-debug-log: NOT FOUND at ~8703863 — 完全找不到匹配
+
+**调查过程**:
+1. 提取目标文件两段代码实际内容 → 发现两者都已含 debug 日志版本（之前会话已应用过）
+2. auto-continue-thinking: find_original 已被前序会话更新为 v7-auto 版本，apply-patches 成功升级到 v7（5s冷却+2秒监控）
+3. ec-debug-log: **字节级逐字符对比发现位置 879-880 有 2 字符差异** — 文件中 `}})}})` vs find_original 中 `}})})}` （`}` 和 `)` 互换）
+
+**根因**: ec-debug-log 的 find_original 与目标文件实际内容有微小的括号顺序差异（可能由不同版本的补丁应用导致），导致 IndexOf 精确匹配失败。虽然 879/881 字符完全相同，但 2 字符差异足以让精确匹配返回 -1。
+
+**修复**:
+1. ec-debug-log 的 find_original 更新为从目标文件提取的实际内容（881字符，末尾 `}})}})`）
+2. 验证：新 find_original 的 IndexOf 在目标文件中返回正确偏移 8703863 ✅
+
+**验证结果**: Applied: 1, Skipped: 8, **Failed: 0** ✅ 全部通过
+
+**方法论提炼**:
+- 当 fuzzy match 成功但 exact match 失败时，必须做**字节级逐字符对比**才能定位差异点
+- JSON `\u0026` 解码后的 `&` 字符与文件中的 `&` 是相同的，问题不在于 Unicode 编码
+- 补丁版本迭代时，find_original 必须与**当前文件实际内容**保持同步，而非停留在"最初原始版本"
+
+**P2 写入**: discoveries.md（find_original 同步方法论）
+**P1 写入**: definitions.json（ec-debug-log find_original 修复）、shared/status.md（会话日志）
