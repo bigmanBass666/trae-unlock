@@ -1,0 +1,10 @@
+- [x] 目标文件 JavaScript 语法验证通过（node --check 无错误）
+- [x] 所有 8 个 enabled 补丁的 fingerprint 匹配或明确标记为未应用
+- [x] 无半应用残留（不存在 find_original 存在但 fingerprint 不存在的情况）
+- [x] auto-continue-thinking 的 replace_with 与 check_fingerprint 描述同一版本代码
+- [x] 其他补丁无版本不一致问题
+- [x] apply-patches.ps1 在 WriteAllText 前有 node --check 语法验证步骤
+- [x] auto-heal.ps1 在 WriteAllText 前有 node --check 语法验证步骤
+- [x] scripts/diagnose-patch-health.ps1 存在且可执行
+- [x] 重新应用后 8/8 指纹全部通过
+- [ ] 聊天界面正常显示（用户重启 Trae 后确认）

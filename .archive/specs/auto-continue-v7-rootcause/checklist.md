@@ -1,0 +1,10 @@
+- [x] ec() 函数内部条件链已分析完成（a/h/p/_/e 五个变量在循环检测时的值已确认）
+- [x] v7-debug 调试日志已添加到 queueMicrotask 和 onActionClick 两条路径
+- [x] 8/8 补丁指纹验证通过（v7-debug 阶段）
+- [x] 用户测试日志已收集（自动续接路径完整时间线：ENTERED→FIRED→o&&h→resumeChat RETURNED→重复触发10+次）
+- [x] v7 修复方案已实施（防重复守卫 + resumeChat + 2秒监控 fallback to sendChatMessage）
+- [x] 目标文件已确认包含 v7 代码（offset 8708871 含 window.__traeAC + setTimeout(2000)）
+- [x] 循环检测后能自动续接（用户确认）✅ V7 聚焦时正常，切走时L1冻结（预期行为），切回后恢复
+- [x] discoveries.md 已更新（v7 日志三大发现 + L1 冻结原则）
+- [x] decisions.md 已更新（v7 方案选择 + 4/18决策验证）
+- [x] 复盘已完成（会话#23 + 会话#24 L1原则提炼）

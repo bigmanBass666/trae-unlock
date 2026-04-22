@@ -1,0 +1,7 @@
+- [x] bypass-loop-detection v3 补丁已应用：J 数组包含 LLM_STOP_DUP_TOOL_CALL 和 LLM_STOP_CONTENT_LOOP
+- [x] efh-resume-list v2 补丁已应用：efh 列表包含 TASK_TURN_EXCEEDED_ERROR、LLM_STOP_DUP_TOOL_CALL、LLM_STOP_CONTENT_LOOP
+- [x] definitions.json 已更新：两个补丁的 find_original、replace_with、offset_hint、check_fingerprint 均已更新
+- [x] verify.ps1 所有补丁指纹通过（7/7 PASS）
+- [x] shared/status.md 补丁表和会话日志已更新
+- [x] shared/discoveries.md 记录了 J=!1 方案缺陷和正确方案
+- [ ] 循环检测错误触发时对话不再被阻塞（用户验证）

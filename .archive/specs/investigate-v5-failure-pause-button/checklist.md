@@ -1,0 +1,8 @@
+- [x] 目标文件中找到"暂停按钮"对应的状态变量和逻辑
+- [x] 确定"复制请求信息"ID 的来源和用途
+- [x] 确认 v5 setTimeout 的实际执行情况（触发？回调执行？API 调用？）→ **根因：React cleanup(~10-50ms) 远快于 500ms**
+- [x] 根据根因实施修复并更新补丁定义 → **v6: queueMicrotask 替代 setTimeout(500)**
+- [x] 8/8 补丁指纹通过
+- [ ] 用户实测循环检测后自动续接成功 (**待用户重启 Trae 测试**)
+- [x] discoveries.md 记录新发现
+- [x] decisions.md 记录最终方案

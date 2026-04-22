@@ -1,0 +1,6 @@
+- [x] auto-continue-thinking 补丁已从 ed() 改为 ec()（resumeChat 路径）
+- [x] definitions.json 已更新
+- [x] auto-heal.ps1 所有补丁指纹通过（7/7 PASS）
+- [x] shared/status.md 补丁表已更新
+- [x] shared/discoveries.md 记录了 ed vs ec 区别
+- [ ] 循环检测后自动续接不再显示"手动终止输出"（用户验证）

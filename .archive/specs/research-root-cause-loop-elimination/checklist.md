@@ -1,0 +1,5 @@
+- [x] 调研完成：循环检测 100% 在服务端，客户端零参与
+- [x] 行业参考已搜索：Gemini CLI（客户端检测）、OpenAI（服务端 hop counter）
+- [x] 可行性分析完成：4 个方案评估，方案 C（当前方案）为最优解
+- [x] shared/discoveries.md 已更新
+- [x] shared/status.md 结论已记录（通过 discoveries.md 间接记录）

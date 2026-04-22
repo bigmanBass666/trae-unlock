@@ -1,63 +1,55 @@
-# Agent Rules for Trae Mod Project
+# Trae Unlock — AI 协作指南
 
-## ⚠️⚠️⚠️ Anchor 声明
+## 项目是什么
 
-**你不是一个孤立的会话。用户会在不同时间开启多个 AI 会话。**
-- 工作成果可能需被未来会话继承 → 持久化到 `shared/` 目录
-- 需要的信息可能已记录在 `shared/` 中 → 先读取再工作
-- **AGENTS.md 是锚点**：每次 AI 回复时自动读取
+通过修改 Trae IDE 源码（`@byted-icube/ai-modules-chat/dist/index.js`），解锁 AI Agent 能力：
+- 命令自动确认（Copy/Remove/Move/Rename 零弹窗）
+- 思考上限自动续接（v8: L1展示+L2轮询双架构）
+- 循环检测绕过、可恢复错误扩展等
 
----
-
-## 🚀 会话开始必做（4 步）
-
-**Step 0**: 🆕 读 `shared/handoff.md` → **最优先！** 获取上一个会话的完整上下文（焦点/Spec/做了什么/遗留/用户意图）
-  - 如果 handoff.md 不存在或为空 → 跳过（首次使用或上轮忘记写）
-  - **读完后你就知道该做什么，不需要用户重新解释背景**
-**Step 1**: 读 `shared/_registry.md` → 按 **P0→P1→P2** 优先级读模块
-**Step 2**: 补丁自检 → `powershell scripts/auto-heal.ps1 -DiagnoseOnly`
-  - ✅ 全PASS → 继续 | ❌ FAIL → `auto-heal.ps1` 修复 | ⚠️ MANUAL → 告知用户+记status.md
-**Step 3**: 按需读模块（见下方路由表）
-> 不自检 = 在破损基础上构建。不读 handoff = 在失忆状态下工作。
+目标文件是单行 10.7MB 压缩 JS，搜索必须用 `ast-grep`（`sg`命令），Grep 无效。
 
 ---
 
-## ✍️ 写入责任
+## 启动必做（3 步）
 
-| 时机 | 文件 | 内容 |
-|------|------|------|
-| 发现关键代码 | `shared/discoveries.md` | 位置、作用、影响 |
-| 做出技术决策 | `shared/decisions.md` | 决策、原因、替代方案 |
-| 完成工作后 | `shared/status.md` | 完成了什么、待做什么、问题 |
-| 修改规则 | 规则引擎命令 | 更新 `shared/rules.md` |
+1. **读 `shared/handoff.md`** — 上一个会话留下了什么（最优先）
+2. **运行 `powershell scripts/auto-heal.ps1 -DiagnoseOnly`** — 补丁健康检查
+3. **按需查 `shared/discoveries.md`** — 源码探索经验（索引在文末）
 
-格式约定 → 见 `_registry.md`
+> 不自检 = 在破损基础上工作。不读 handoff = 重复已知调查。
 
 ---
 
-## 🗺️ 路由表 & Critical 规则
+## 关键文件速查
 
-| 需求 | 文件 |
+| 文件 | 用途 |
 |------|------|
-| 协作规则（完整） | `shared/rules.md` |
-| 方法论速查（🔍索引） | `shared/discoveries.md` 末尾 |
-| 状态 & 效率数据 | `shared/status.md` |
-| 技术决策历史 | `shared/decisions.md` |
-| 项目上下文 | `shared/context.md` |
-
-**Critical 规则**: rule-005(搜索优先) | rule-010(推理搜索验证) | rule-011(假设搜索) | rule-012(中间层陷阱) | rule-013(复盘协议) | rule-018(效率追踪)
+| `patches/definitions.json` | 14 个补丁定义（唯一真实来源） |
+| `scripts/apply-patches.ps1` | 应用/验证补丁（主入口） |
+| `scripts/auto-heal.ps1` | 自动诊断+修复 |
+| `scripts/snapshot.ps1` | 备份+提交 |
+| `shared/handoff.md` | 会话交接单（每次覆盖） |
+| `shared/status.md` | 当前状态+补丁表 |
+| `shared/discoveries.md` | 源码发现+代码定位（**核心资产**） |
+| `shared/context.md` | 项目上下文+架构洞察 |
+| `docs/architecture/` | 架构文档（源码解读） |
 
 ---
 
-## 🔄 核心协议
+## 写入规则
 
-### 🔍 搜索优先（强制）
-写代码前搜 3 轮：工具→方案→生态。工具：`ast-grep` / `search-target.ps1` / `WebSearch` → 详见 rule-005/011
-### 🔄 复盘协议（强制）
-⚠️ **复盘 = Return 前置条件。不复盘 = 任务未完成。**
-触发：补丁PASS/问题修复/功能完成/TodoWrite completed/用户反馈处理完毕
-禁止：❌全勾直接Return | ❌等提醒才复盘 | ❌"下次再做" → 详见 rule-013
-### 📋 会话结束检查
-0. **🆕 写交接单** → `shared/handoff.md`（**覆盖写入**，格式见文件内模板。这是复盘的前置条件！）
-1. 有发现？→ discoveries.md | 2. 有决策？→ decisions.md | 3. 写日志 → status.md | 4. 安全检查 → git commit?
-> 详细格式 + 规则更新命令 → `_registry.md`
+- 发现关键代码位置 → 追加到 `shared/discoveries.md`
+- 做出技术决策 → 追加到 `shared/decisions.md`
+- 会话结束 → 更新 `shared/status.md` + 写 `shared/handoff.md`
+
+格式：`### [YYYY-MM-DD HH:mm] 标题` 然后追加内容。**永远追加，不要重写整个文件。**
+
+---
+
+## 核心原则
+
+1. **服务层 > UI 层** — PlanItemStreamParser（~7502574）不受 React 冻结影响，React 组件内补丁切窗口后失效（[L1 冻结原则](shared/discoveries.md)）
+2. **必须用箭头函数** — `.catch(e=>{...})` 而非 `.catch(function(e){...})`，否则严格模式下 this=undefined 导致崩溃
+3. **先搜索再动手** — 用 `ast-grep` 或 `scripts/tools/search-target.ps1` 定位代码，不要猜偏移量
+4. **改 definitions.json 后必须 apply + verify** — 自动备份到 backups/

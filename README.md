@@ -1,234 +1,87 @@
-# Trae Mod - Trae IDE 定制框架
+# Trae Unlock — Trae IDE 源码定制框架
 
-> 让 Trae IDE 更强大：自动化确认、突破限制、无限可能
+> 通过修改 Trae IDE 源码，解锁 AI Agent 能力：命令自动确认、思考上限续接、循环检测绕过等。
 
-[![Trae Version](https://img.shields.io/badge/Trae-v3.3.x-blue)](https://www.trae.com)
-[![License](https://img.shields.io/badge/license-MIT-green)]()
+## 当前状态
 
-## 项目简介
-
-**Trae Mod** 是一个 Trae IDE 定制框架，专注于通过源码修改解锁 Trae IDE 的更多能力。
-
-本项目不是插件，而是对 Trae 源码的直接定制修改。通过补丁系统，可以安全、可逆地应用各种增强功能。
-
-### 我们的理念
-
-- 🔧 **深度定制** — 直接修改源码，解锁原生功能
-- 🛡️ **安全可控** — 补丁系统支持回滚，随时可恢复
-- 📦 **模块化** — 每个功能独立，可按需启用
-- 🚀 **持续拓展** — 更多定制功能陆续推出
-
----
-
-## 首批成果
-
-### 成果 1: 命令自动确认
-
-危险命令（删除/复制/移动文件）无需手动确认，AI 可自主执行。
-
-**效果**: Copy/Remove/Move/Rename/Git 等命令零弹窗自动执行
-
-📖 [详细文档](docs/achievements/auto-command-confirm.md)
-
----
-
-### 成果 2: 突破思考上限
-
-模型思考次数超限时自动续接，无需手动点击"继续"。
-
-**效果**: 超长任务无缝续接，用户无感知
-
-⚠️ **状态**: 补丁已应用，**尚未实际测试**
-
-📖 [详细文档](docs/achievements/auto-continue-thinking.md)
-
----
+| 功能 | 状态 |
+|------|------|
+| 命令自动确认（Copy/Remove/Move/Rename 零弹窗） | ✅ v4 已验证 |
+| 思考上限自动续接 | ⚠️ **v8 测试中**（L1展示 + L2轮询双架构） |
+| 循环检测自动绕过 | ✅ v4 已验证 |
+| 数据源层 auto_confirm | ✅ v3 最可靠方案 |
 
 ## 快速开始
 
-### 前置要求
-
-- Trae IDE v3.3.x
-- Windows 系统
-- 解包状态的 Trae（未使用 app.asar 打包）
-
-### 应用补丁
-
 ```powershell
-# 查看当前状态
-.\scripts\verify.ps1
+# 查看补丁健康状态
+.\scripts\auto-heal.ps1 -DiagnoseOnly
 
 # 应用所有补丁
 .\scripts\apply-patches.ps1
 
-# 只预览不修改
-.\scripts\apply-patches.ps1 -DryRun
-
-# 应用指定补丁
-.\scripts\apply-patches.ps1 -PatchIds "auto-command-confirm"
-```
-
-### 回滚
-
-```powershell
-# 列出所有备份
-.\scripts\rollback.ps1 --list
-
 # 回滚到最新备份
 .\scripts\rollback.ps1 --latest
-
-# 回滚到指定日期
-.\scripts\rollback.ps1 --date 20260418
 ```
 
----
-
-## 目录结构
+## 项目结构
 
 ```
 trae-unlock/
-├── docs/
-│   ├── achievements/              # 定制成果
-│   │   ├── auto-command-confirm.md
-│   │   └── auto-continue-thinking.md
-│   ├── architecture/             # 架构文档
-│   │   └── source-architecture.md
-│   └── guides/                    # 使用指南
-│       └── getting-started.md
 ├── patches/
-│   └── definitions.json           # 补丁定义
-├── scripts/
-│   ├── apply-patches.ps1          # 应用补丁
-│   ├── rollback.ps1                # 回滚补丁
-│   └── verify.ps1                  # 验证状态
-├── AGENTS.md                      # AI 协作规则
-├── progress.txt                   # 项目进度
-└── README.md                      # 本文件
+│   └── definitions.json       # 9 个补丁定义（唯一真实来源）
+├── scripts/                    # 核心脚本（仅 6 个）
+│   ├── apply-patches.ps1       # 应用/验证补丁（主入口）
+│   ├── auto-heal.ps1           # 自动诊断+修复
+│   ├── snapshot.ps1            # 备份+提交
+│   ├── rollback.ps1            # 紧急回滚
+│   ├── verify.ps1              # 验证状态
+│   └── diagnose-patch-health.ps1
+├── shared/                     # 共享知识库（AI 协作核心）
+│   ├── handoff.md              # 会话交接单（每次覆盖）
+│   ├── discoveries.md          # 源码探索经验（**核心资产**）
+│   ├── status.md               # 当前状态+补丁表
+│   ├── decisions.md            # 技术决策记录
+│   ├── context.md              # 项目上下文
+│   ├── diagnosis-playbook.md   # 诊断操作手册
+│   ├── _registry.md            # 模块索引
+│   └── rules.md                # 协作规则
+├── rules/                      # 规则定义（5 个 YAML）
+├── AGENTS.md                   # AI 协作指南（新会话必读）
+├── docs/architecture/          # 架构文档
+└── .archive/                   # 历史材料（已归档的 spec/脚本）
 ```
 
----
+## 核心架构
 
-## 🔄 Anchor 规则子系统 (2026-04-19 新增)
-
-本项目采用**三层架构的 Anchor 规则子系统**，解决跨会话 AI 协作中的规则遵守问题。
-
-### 核心优势
-- **动态化**: 规则从 YAML 配置文件加载，支持启用/禁用，无需手动编辑 AGENTS.md
-- **可维护**: 修改规则只需编辑 `rules/*.yaml`，牵一发不动全身
-- **可移植**: 可在 30 分钟内迁移到任意项目使用
-- **强执行**: 利用 AGENTS.md "AI 每次必读"特性，强制新会话加载最新规则
-
-### 快速使用
-```powershell
-# 查看当前所有有效规则
-powershell scripts/rules-engine.ps1
-
-# 验证规则语法
-powershell scripts/rules-engine.ps1 --check
-
-# 列出规则状态摘要
-powershell scripts/rules-engine.ps1 --list
-```
-
-### 架构概览
-```
-AGENTS.md (路由器, ~43行)
-    ↓ 强制引导 AI 执行
-rules-engine.ps1 (引擎, ~470行)
-    ↓ 解析 + 过滤 + 排序 + 格式化
-rules/*.yaml (仓库, 15条规则)
-    ↓ 结构化定义
-core.yaml / workflow.yaml / git.yaml / safety.yaml
-```
-
-📖 [完整使用文档](docs/dynamic-rules-system.md)
-
-### 新增文件
-```
-rules/                           # 规则仓库（新增）
-├── core.yaml                    # 核心必读规则（4条）
-├── workflow.yaml                # 工作流程规则（3条）
-├── git.yaml                     # Git 提交规范（4条）
-└── safety.yaml                  # 安全规则（4条）
-scripts/
-└── rules-engine.ps1             # 规则引擎脚本（新增）
-docs/
-└── dynamic-rules-system.md      # 使用指南（新增）
-```
-
-### 与传统方式的对比
-| 维度 | 传统方式 (旧) | Anchor 规则子系统 (新) |
-|------|--------------|------------------|
-| 规则存储 | 硬编码在 AGENTS.md (~128行) | 外置到 rules/*.yaml |
-| 维护成本 | 改规则要编辑 AGENTS.md 多处 | 只改对应 YAML 文件 |
-| 灵活性 | 静态，无法按条件加载 | 支持 enabled/priority/conditions |
-| 可移植性 | 低（依赖特定项目结构） | 高（30分钟迁移到新项目） |
-| 可观测性 | 无（不知道规则是否被遵守） | 有 (--check/--list/--output) |
-
----
-
-## 技术原理
-
-### 为什么修改源码而不是写插件？
-
-Trae 的很多限制是在前端代码中硬编码的，无法通过设置或插件修改。通过源码定制，可以：
-
-- 移除不必要的确认弹窗
-- 修改内部逻辑行为
-- 突破前端限制
-
-### 补丁系统
+目标文件: `@byted-icube/ai-modules-chat/dist/index.js`（单行 10.7MB 压缩 JS）
 
 ```
-Trae 源码 (87MB minified JS)
-    ↓
-检测当前状态 (verify.ps1)
-    ↓
-应用补丁 (apply-patches.ps1)
-    ↓
-自动备份 (backups/*.js)
+L3 数据层 (~7318521)  →  auto_confirm 标志（最可靠，不受 React 影响）
+L2 服务层 (~7502574)  →  PlanItemStreamParser provideUserResponse（不受窗口冻结影响）
+L1 UI 层 (~8640000)    →  React 组件（⚠️ 切走窗口后冻结！仅适合纯视觉修改）
 ```
 
-每个补丁包含：
-- `find_original`: 原始代码（用于定位）
-- `replace_with`: 替换后的代码
-- `check_fingerprint`: 短字符串验证是否已应用
+**关键发现 — L1 冻结原则**: Chromium 后台标签页停止 rAF → React Scheduler 暂停 → L1 补丁代码不执行。这就是 auto-continue 历史迭代 6 次（v3→v7）的根因。
 
----
+v8 架构解决方案: L1 负责检测+展示+捕获服务引用到 `window.__traeSvc`，L2（setInterval 3000ms 轮询器）负责实际发送续接消息，完全不受窗口焦点影响。
 
-## 安全建议
+## 给未来 AI 同事
 
-1. **仅在信任的环境使用** — 修改源码后，所有命令都会自动执行
-2. **善用沙箱模式** — Trae 的沙箱仍可保护项目外文件
-3. **保持备份习惯** — 回滚脚本可以随时恢复
-4. **关注 Trae 更新** — 大版本更新后需要重新应用补丁
+1. **读 `shared/handoff.md`** — 上一个会话留下了什么
+2. **运行 `auto-heal.ps1 -DiagnoseOnly`** — 补丁是否健康
+3. **搜 `shared/discoveries.md`** — 90% 的代码问题前人已分析过（索引在文末）
+4. 搜索用 `ast-grep`（`sg`），Grep 对压缩文件无效
 
----
+详细协议见 [AGENTS.md](AGENTS.md)。
 
-## 参与贡献
+## 安全
 
-本项目是探索 Trae 源码的成果记录。如果你也发现了有趣的定制点，欢迎提交 Issue 或 PR。
-
-### 给后续探索者的提示
-
-> ⚠️ **修改源码后必须立即 push 到 GitHub！**
->
-> 本项目的所有发现都记录在 `docs/architecture/source-architecture.md` 里。
-> 开始工作前先读一遍，可以避免重复探索。
-
----
+- 仅在信任环境使用（修改源码后所有命令自动执行）
+- apply-patches/auto-heal 成功后**自动备份**到 `backups/`
+- 自动 git commit 防止丢失
+- 写入前 `node --check` 语法验证
 
 ## 相关链接
 
 - [Trae IDE](https://www.trae.com)
-- [Trae Mod GitHub](https://github.com/bigmanBass666/trae-unlock)
-
----
-
-## 更新日志
-
-### 2026-04-18
-- 🗃️ 初始化 Trae Mod 项目
-- ✅ 完成命令自动确认功能
-- ✅ 完成思考上限自动续接功能
-- ✅ 建立补丁系统框架

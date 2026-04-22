@@ -1,0 +1,9 @@
+- [x] auto-heal.ps1 四步闭环正常工作：验证→诊断→修复→再验证
+- [x] auto-heal.ps1 -DiagnoseOnly 只读模式正常
+- [x] auto-heal.ps1 能自动修复偏移漂移的补丁（find_original 存在但 fingerprint 不存在）
+- [x] auto-heal.ps1 对代码结构变化的补丁输出诊断报告（find_original 也不存在）
+- [x] auto-heal.ps1 修复后自动更新 definitions.json 的 offset_hint
+- [x] verify.ps1 末尾输出 JSON 摘要行
+- [x] AGENTS.md 添加了 AI 会话自检规则
+- [x] 运行 auto-heal.ps1 确认当前 7/7 补丁全部通过
+- [x] 运行 auto-heal.ps1 -DiagnoseOnly 确认只读模式正常

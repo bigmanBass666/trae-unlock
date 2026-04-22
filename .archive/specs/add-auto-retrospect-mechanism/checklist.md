@@ -1,0 +1,4 @@
+- [x] rule-009（自动复盘）和 rule-010（推理→搜索→验证）已添加到 rules/workflow.yaml
+- [x] rules-engine.ps1 已运行，shared/rules.md 已更新
+- [x] AGENTS.md 已添加复盘协议章节
+- [x] shared/discoveries.md 已记录复盘教训
