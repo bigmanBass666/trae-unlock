@@ -121,7 +121,8 @@ if (-not [System.IO.Directory]::Exists($BackupDir)) {
 
 # Summary
 Write-ColorOutput "`n=========================================" "White"
-$totalScore = ($passCount * 10) - ($failCount * 20) - ($residualCount * 10) - (if(-not $syntaxOk){50}else{0}) - ($consistencyIssues * 15)
+$syntaxPenalty = if (-not $syntaxOk) { 50 } else { 0 }
+$totalScore = ($passCount * 10) - ($failCount * 20) - ($residualCount * 10) - $syntaxPenalty - ($consistencyIssues * 15)
 $healthStatus = if ($totalScore -ge 70) { "HEALTHY" } elseif ($totalScore -ge 30) { "DEGRADED" } else { "CRITICAL" }
 $statusColor = if ($healthStatus -eq "HEALTHY") { "Green" } elseif ($healthStatus -eq "DEGRADED") { "Yellow" } else { "Red" }
 
