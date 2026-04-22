@@ -1102,3 +1102,79 @@ ERR repeated tool call RunCommand 5 times: Error: repeated tool call RunCommand 
 - **「违规成本量化」**: 这次重复调查浪费 ~25 分钟。如果每次会话都浪费 20% 时间在重复工作上 → 项目整体效率下降 20%。规则的存在价值 = 防止这种浪费 × 会话次数
 
 ---
+
+# 🔍 知识索引
+
+> 三维度快速查询表，覆盖 discoveries.md 中 90%+ 关键知识点。详细信息通过发现编号链接回原文。
+
+## 表 1: 按函数/API 索引
+
+| 函数/API | 已知行为 | 相关发现 | 关键决策 |
+|----------|---------|---------|---------|
+| `PlanItemStreamParser._handlePlanItem()` | SSE流解析核心入口，检测confirm_status后调用provideUserResponse | #SSE-parser | 最可靠补丁注入点，切窗口不冻住 |
+| `provideUserResponse({task_id, type, decision})` | 主动确认工具调用，4个调用点，成功后需手动同步confirm_status | #provideUserResponse-chain | 无单独SSE确认事件，必须手动同步 |
+| `DG.parse()` | 数据解析层(~7318521)，设置auto_confirm标志 | #data-source-auto-confirm | L3最底层拦截，不受React时序影响 |
+| `getRunCommandCardBranch({run_mode_version, autoRunMode, blockLevel, hasBlacklist})` | v2模式下三元组决策UI分支，仅P8.Default自动执行 | #getRunCommandCardBranch | P8只控制按钮样式不控制弹窗 |
+| `D.resumeChat({messageId, sessionId})` | 服务端级别恢复对话，异步函数，循环检测后可能为no-op | #ed-vs-ec, #v7-debug, #pause-button | 必须用resumeChat而非sendChatMessage续接 |
+| `D.sendChatMessage({message, sessionId})` | 创建全新消息轮次，服务端不识别为续接→空响应→Cancel | #ed-vs-ec | 续接场景禁用，仅作fallback |
+| `ec()` | resumeChat回调，含"v3"===p条件判断+efh列表检查 | #J-efh-two-paths, #v4-fix | 条件不满足时走retryChatByUserMessageId |
+| `ed()` | sendChatMessage回调，发送"Continue"文本作为新消息 | #ed-vs-ec | 已废弃，改用ec()/直接调D.resumeChat |
+| `b.retryChatByUserMessageId(a)` | 重试原始消息(非发"Continue")，ec()的else分支 | #ed-vs-ec | 非续接路径，效果有限 |
+| `ew.confirm(true/false)` | **仅为telemetry日志打点**，不触发任何业务逻辑 | #ew-confirm-telemetry | 真正执行函数是eE(Ck.Confirmed) |
+| `eE(Ck.Confirmed/Unconfirmed)` | 触发状态更新和命令执行的**真正**核心函数 | #ew-confirm-telemetry | ew.confirm只是打点，别混淆 |
+| `stopStreaming()` | 流结束后执行，将status从Warning**覆盖为Canceled** | #guard-clause-root | "沉默杀手"模式，静默破坏上游状态 |
+| `onStreamingStop()` | SSE流结束触发器，调用stopStreaming | #guard-clause-root | D7.Error之后执行，时序关键 |
+| `queueMicrotask(fn)` | 微任务调度，当前渲染完成后立即执行 | #v5-timeout-defect, #pause-button | 替代setTimeout(500)，抢在cleanup前 |
+| `setTimeout(fn, delay)` | 定时器调度，在render path中使用有三大缺陷 | #v5-timeout-defect | render-path中禁用，用queueMicrotask替代 |
+| `JV()` | CommercialExhaust检测，需同时满足usage limit+CommercialExhaust | #guard-clause-root | 循环检测错误码不在其中→et=false |
+| `setRunningStatusMap(sessionId, Io.Running)` | 设置Running状态，触发暂停图标显示 | #send-pause-state-machine | 仅在onSendChatMessageStart中调用 |
+| `N(sessionId, status)` | sendMessage入口的状态设置器(Sending/Running) | #send-pause-state-machine | 追加消息设Running，错误设WaitingInput |
+| `onSendChatMessageStart()` | 发送消息触发，设置Io.Running | #send-pause-state-machine | 暂停图标的充要条件触发点 |
+| `apply-patches.ps1` | 补丁应用脚本，只追加不清理旧代码 | #dirty-backup, #crash-three-causes | 回滚到脏备份后需用干净备份 |
+| `auto-heal.ps1` | 自动修复脚本，每次新会话必运行自检 | AGENTS.md补丁自检协议 | FAIL项需立即执行修复 |
+| `diagnose-patch-health.ps1` | 一键诊断当前补丁健康状态 | #crash-three-causes | 崩溃排查首选工具 |
+| `ey` (useMemo) | RunCommandCard中根据en/auto_confirm/er决定Confirmed/Canceled | #trae-update-ey | Trae更新后逻辑变化，L1层不可靠 |
+
+## 表 2: 按错误码/现象索引
+
+| 错误码/现象 | 已知行为 | 处理方式 | 涉及补丁 |
+|-------------|---------|---------|---------|
+| `LLM_STOP_DUP_TOOL_CALL (4000009)` | 服务端循环检测：重复工具调用，客户端零参与 | J数组匹配→if(V&&J)→resumeChat | bypass-loop-detection, auto-continue-thinking |
+| `LLM_STOP_CONTENT_LOOP (4000012)` | 服务端内容循环检测，与4000009同源 | 同上+efh列表扩展含DEFAULT | bypass-loop-detection v4, efh-resume-list v3 |
+| `TASK_TURN_EXCEEDED_ERROR (4000002)` | 思考次数上限，可续接错误 | J数组匹配→自动续接 | bypass-loop-detection |
+| `MODEL_OUTPUT_TOO_LONG` | 输出过长，可续接错误 | J数组匹配→显示继续按钮 | auto-continue-thinking |
+| `DEFAULT (2000000)` | 默认错误码，二次错误覆盖的元凶 | 加入J数组和efh列表防御 | bypass-loop-detection v4, efh-resume-list v3 |
+| `repeated tool call RunCommand N times` | 工具调用重复检测（非4000009），v7-debug发现的真实触发码 | J数组兜底捕获 | bypass-loop-detection |
+| `MODEL_PREMIUM_EXHAUSTED` | 高级版配额耗尽，17个Alert点之一 | 未处理，推荐加入J或efh | — |
+| `CLAUDE_MODEL_FORBIDDEN` | Claude模型禁止使用，error类型Alert | 未处理 | — |
+| `INVALID_TOOL_CALL` | 无效工具调用，error类型Alert | 未处理 | — |
+| `RISK_REQUEST_V2 (4015)` | 风险请求，触发"复制请求信息"长ID | 未处理 | — |
+| 聊天界面消失/白屏 | definitions.json不一致+语法错误+Trae变量重命名三根因协同 | 四层防护(L0 node --check + L1备份 + L2 git + L3诊断) | 全局防护架构 |
+| 暂停按钮(⏹图标) | =消息已发送+AI正在生成=Io.Running状态 | 正常行为非bug，resumeChat后必然出现 | — |
+| 黄色警告(type:warning) | =if(V&&J)正常渲染Alert≠bug，是补丁工作的证明 | 「预期即正确」原则，先确认是否真异常 | auto-continue-thinking |
+| 循环检测(服务端) | 100%在服务端决策，客户端只有接收-处理角色 | 事后自动续接(唯一可行方案) | bypass-loop-detection + efh-resume-list + auto-continue-thinking |
+| 二次错误覆盖 | code从4000009被覆盖为2000000，正确UI变错误UI | J数组含DEFAULT+延迟500ms→500ms+嵌套retry | v5三重加固 |
+| 渲染风暴(if(V&&J)重复进入) | React memo组件重渲染导致<1秒进入10+次 | 需加防重复守卫(cooldown/timestamp flag) | v7-debug待修 |
+| resumeChat no-op | 异步函数调用不抛异常但完全无效(v7-debug证实) | 先尝试→监控效果→fallback三段式策略 | 待定新方案 |
+| find_original精确匹配失败 | 881字符中仅2字符差异(}和)互换) | 逐字符对比+字节级验证6轮方法论 | ec-debug-log修复 |
+| 旁观者效应(多AI) | 多会话都假设其他会话会commit→无人提交 | 脚本强制替代清单提醒 | L2自动commit |
+| 知识孤岛效应 | AI未检索已有发现导致~25min重复调查 | rule-014:诊断前必须先搜discoveries.md | 流程规则 |
+| stopStreaming覆盖status | D7.Error后stopStreaming将Warning覆盖为Canceled | guard-clause-bypass放行J=true时的Canceled | guard-clause-bypass |
+| 脏备份残留代码 | 回滚脏备份后apply-patches只追加不删除→3个provideUserResponse | 删除残留+创建干净备份 | service-layer-runcommand-confirm v6修复 |
+| Trae更新变量重命名 | terser/webpack重新打包导致efh→efg, P8→P7等 | find_original需同步更新，不可硬编码变量名 | 全局影响 |
+
+## 表 3: 按补丁索引
+
+| 补丁名 | 当前版本 | 状态 | 最后修改原因 |
+|--------|---------|------|------------|
+| `auto-continue-thinking` | v7-debug | ⚠️ 调试中 | queueMicrotask触发但resumeChat为no-op，需新方案 |
+| `data-source-auto-confirm` | v1 | ✅ 有效 | L3数据层设置auto_confirm=true，最可靠方案 |
+| `bypass-loop-detection` | v4 | ✅ 有效 | J数组扩展含DEFAULT，防御二次错误覆盖 |
+| `guard-clause-bypass` | v1 | ✅ 有效 | 放行J=true时status=Canceled的情况，v4/v5前置依赖 |
+| `efh-resume-list` | v3 | ✅ 有效 | 含DEFAULT+LLM_STOP_CONTENT_LOOP，ec()条件满足 |
+| `bypass-runcommandcard-redlist` | v2 | ⚠️ 仅改按钮样式 | L1层限制：只改变P8返回值不影响弹窗显示 |
+| `auto-confirm-commands` | v1 | ✅ 有效 | L2服务层provideUserResponse调用 |
+| `service-layer-runcommand-confirm` | v7 | ✅ 有效 | 黑名单扩展含AskUserQuestion，过滤response_to_user |
+| `ec-debug-log` | v1 | ⚠️ 已修复 | find_original括号顺序差异(881字符中pos879-880) |
+
+---
