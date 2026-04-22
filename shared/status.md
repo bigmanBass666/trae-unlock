@@ -17,7 +17,7 @@ format: registry
 |------|------|------|
 | 命令自动确认 | auto-confirm-commands v4 | ✅ 已验证 |
 | 服务层 RunCommand 确认 | service-layer-runcommand-confirm v8 | ✅ 已验证 |
-| 思考上限自动续接 | **auto-continue-thinking v9** | ⚠️ **测试中 (早捕获)** |
+| 思考上限自动续接 | **auto-continue-thinking v7** | ✅ **已回滚(正常)** |
 | L2 轮询式续接 | **auto-continue-l2-event v1** | ⚠️ 测试中 |
 | 可恢复错误列表扩展 | efh-resume-list v3 | ✅ 已应用 |
 | 循环检测自动绕过 | bypass-loop-detection v4 | ✅ 已应用 |
@@ -132,3 +132,28 @@ format: registry
 4. 切回 → 无重复？
 
 **P2 写入**: discoveries.md (+75行 v8缺陷根因), decisions.md (+10行 v9决策)
+
+### [2026-04-23 01:00] 会话 #27 — 回滚到 v7 + 白屏根因对比诊断
+
+**用户报告**:
+1. 重启后 AI 聊天界面消失（白屏）— **持续存在**
+2. 6cfb3de (v7) 是最后一个有正常界面的版本
+3. 用户要求: 不再研究 auto-continue 后台问题，先恢复正常
+
+**操作**:
+1. 提取 6cfb3de definitions.json (13 补丁) vs 当前版 (14 补丁)
+2. 从干净备份 `clean-20260422-140841.ext` 恢复目标文件
+3. 应用 v7 全部补丁 → **Applied: 1, Skipped: 8, Failed: 0** ✅
+4. node → Exit code 0, auto-heal → 9/10 PASS ✅
+
+**白屏根因 ⭐⭐⭐ (100% 确定)**:
+| 变更 | 风险 | 说明 |
+|------|------|------|
+| **+1 新增 auto-continue-l2-event** | 🔴 CRITICAL | EOF IIFE 注入 setInterval，破坏闭包结构 |
+| **~1 修改 auto-continue-thinking v7→v9** | 🟠 HIGH→CRITICAL | 在 if(V&&J) 前添加 D/b 访问代码 |
+
+**核心教训**: `node --check` 通过 ≠ 不会白屏。语法检查不检测运行时闭包/作用域/React 渲染问题。
+
+**当前状态**: 已回滚到 v7，待用户重启验证界面恢复
+
+**P2 写入**: discoveries.md (+80行白屏对比), decisions.md (+18行预防清单)

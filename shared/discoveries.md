@@ -12,6 +12,96 @@ format: registry
 > **这是本项目最有价值的文件。** 所有 Trae 内部代码位置、枚举值、架构关系都在这里。
 > 未来 AI 同事：改补丁前先搜这里，90% 的概率前人已经分析过。
 
+## [2026-04-23 01:00] 白屏根因对比诊断 — 6cfb3de (v7) vs 当前版 ⭐⭐⭐
+
+**问题**: 当前版本补丁导致 AI 聊天界面消失（白屏）。commit `6cfb3de` 是最后一个确认有正常界面的版本。
+
+### 对比方法
+- 提取 6cfb3de 的 definitions.json（13 个补丁，UTF-16 编码）
+- 备份当前白屏版 definitions.json（14 个补丁）
+- Node.js 脚本逐补丁对比 find_original / replace_with / fingerprint
+
+### 对比结果
+
+| 变更类型 | 补丁 ID | 详情 | 风险 |
+|---------|---------|------|------|
+| **+1 新增** | `auto-continue-l2-event` | 在文件末尾 IIFE 注入 setInterval(3000) 轮询器，读取 window.__traeSvc 并调用 sendChatMessage | **🔴 CRITICAL** |
+| **~1 修改** | `auto-continue-thinking` | v7(1266c, 纯 if(V&&J) 内部逻辑) → v9(611c, 在 if(V&&J)**前**添加 D/b 变量访问 + window.__traeSvc 捕获) | **🟠 HIGH → CRITICAL** |
+| -0 删除 | 无 | — | — |
+
+### 根因分析
+
+#### 原因 1 [CRITICAL]: auto-continue-l2-event 新增补丁
+
+```
+注入位置: 文件末尾 `,apis:FW}})(),l})()`
+替换为:   `,apis:FW}})();(function(){setInterval(...)});l})()`
+```
+
+**为什么导致白屏**:
+1. 这个补丁在 IIFE 的闭合位置注入代码
+2. 如果注入破坏了闭包结构（括号不匹配、作用域泄漏等）→ 整个模块无法正确初始化
+3. React 依赖此模块 → 模块崩溃 → React 无法挂载 → **聊天界面空白**
+4. **关键**: 此补丁在 6cfb3de 中**完全不存在**
+
+#### 原因 2 [HIGH→CRITICAL]: auto-continue-thinking v7→v9 修改
+
+```javascript
+// v7 (安全): 纯内部逻辑，不改变组件结构
+if(V&&J){
+    let e=M.localize("continue",{},"Continue");
+    // ... queueMicrotask + resumeChat + fallback ...
+    return sX().createElement(Cr.Alert,{...})
+}
+
+// v9 (危险): 在 if(V&&J) 外部添加代码
+if(typeof D!=='undefined'&&D&&typeof b!=='undefined'&&b){   // ← 新增！
+    if(!window.__traeSvc){window.__traeSvc={D:D,b:b,M:M}}      // ← 新增！
+}else{window.__traeSvc.D=D;...}                               // ← 新增！
+if(V&&J){...}  // 原有逻辑不变
+```
+
+**为什么危险**:
+1. 在 React 组件的 render 函数中、在条件渲染之前添加了副作用代码
+2. 访问 D 和 b 变量——这些是闭包内的局部变量，在某些渲染路径下可能未定义
+3. 与原因 1 协同：v9 设置 `window.__traeSvc`，而 l2-event 读取它。如果设置时机/内容错误 → l2-event 的轮询器可能触发异常操作
+
+### 为什么 node --check 没有捕获到
+
+**语法检查 ≠ 运行时安全**:
+- `node --check` 只检查 JavaScript 语法是否合法
+- 它**不检查**:
+  - 变量在运行时是否存在（D/b 可能 undefined）
+  - 闭包作用域是否正确（IIFE 注入可能破坏 scope chain）
+  - React 组件是否能正常渲染（需要实际 DOM 环境）
+- 这是白屏问题的核心教训：**语法通过不代表不会崩溃**
+
+### 预防措施（给未来 AI）
+
+1. **新增补丁 = 高风险操作** — 必须在干净目标上测试，不能在已有其他修改的目标上叠加
+2. **修改现有补丁的 replace_with 结构** = 同样高风险 — 特别是改变代码位置（如从 if 内部移到外部）的修改
+3. **两个互相依赖的新补丁同时上线** = 最高风险 — 应该分步验证
+4. **白屏发生时的标准诊断流程**:
+   ```
+   a. git log --oneline patches/definitions.json 找到最后一个工作版本
+   b. git diff <working> <last-good>:patches/definitions.json > diff.txt
+   c. 关注: 新增补丁? replace_with 结构变化? 注入位置变化?
+   d. 回滚到工作版本的 definitions.json + 干净目标文件
+   e. apply-patches + node --check + 重启 Trae 验证
+   ```
+module: discoveries
+description: 源码发现和代码定位（核心资产）
+read_priority: P2
+read_when: 需要查代码时
+write_when: 发现关键信息时
+format: registry
+---
+
+# 源码探索经验
+
+> **这是本项目最有价值的文件。** 所有 Trae 内部代码位置、枚举值、架构关系都在这里。
+> 未来 AI 同事：改补丁前先搜这里，90% 的概率前人已经分析过。
+
 ---
 
 ## 架构总览
@@ -325,7 +415,7 @@ terser/webpack 重新打包导致变量重命名（非确定性！）：`efh`→
 | data-source-auto-confirm | v3 | L3 | ✅ |
 | guard-clause-bypass | v1 | L1 | ✅ |
 | **auto-continue-thinking** | **v9** | **L1+L2** | ⚠️ **测试中** |
-| auto-continue-l2-event | v1 | L2 | ⚠️ 测试中 |
+| auto-continue-thinking | **v7** | **L1** | ✅ **已回滚** |
 | efh-resume-list | v3 | L1 | ✅ |
 | bypass-loop-detection | v4 | L1 | ✅ |
 | bypass-runcommandcard-redlist | v2 | L1 | ⚠️ 仅改样式 |
