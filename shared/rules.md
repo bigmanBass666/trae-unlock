@@ -1,4 +1,4 @@
-﻿# 📋 Trae Mod 动态规则清单
+# 📋 Trae Mod 动态规则清单
 
 > 由 rules-engine.ps1 自动生成 | 2026-04-22 18:56:37
 
@@ -125,12 +125,12 @@ AGENTS.md 只做路由，指向 _registry.md。不硬编码 shared/ 文件列表
 
 **强制级别**: ⚠️ mandatory
 
-不要靠猜来理解压缩代码。先用 ast-grep 映射架构，再精确修改。
+不要靠猜来理解压缩代码。先用 PowerShell 子串搜索映射架构，再精确修改。
 
 **操作步骤**:
-1. 用 ast-grep 搜索关键函数调用：ast-grep -p 'D.resumeChat($$$)' --lang js --json target.js
+1. 用 PowerShell 子串搜索关键函数：`$c=[IO.File]::ReadAllText($path); $c.IndexOf("resumeChat")`
 2. 用 search-target.ps1 搜索中文文本：powershell scripts/tools/search-target.ps1 -Pattern '关键词'
-3. 用 ast-grep 追踪变量依赖：ast-grep -p 'J = $VALUE' --lang js --json target.js
+3. 用 PowerShell 追踪变量依赖：`$c.IndexOf("J =")` 查找变量赋值
 4. 修改前先追踪影响链：搜索所有引用 → 理解完整依赖 → 一次改对
 
 ### [🔴] rule-006: 
@@ -157,9 +157,9 @@ AGENTS.md 只做路由，指向 _registry.md。不硬编码 shared/ 文件列表
 
 **操作步骤**:
 1. Step 1 推理：从已知架构/文档推断可能的答案，列出关键假设
-2. Step 2 搜索：先搜行业参考（WebSearch），再用 ast-grep 精确搜索代码
+2. Step 2 搜索：先搜行业参考（WebSearch），再用 PowerShell 子串搜索精确搜索代码
 3. Step 3 验证：只验证推理中的关键假设，不穷举所有可能
-4. 示例：循环检测在客户端还是服务端？→ 从 SSE 推送错误码推断是服务端 → ast-grep 搜不到生成逻辑 → 确认
+4. 示例：循环检测在客户端还是服务端？→ 从 SSE 推送错误码推断是服务端 → PowerShell 搜不到生成逻辑 → 确认
 
 ### [🔴] rule-012: 中间层陷阱警告
 
@@ -210,7 +210,7 @@ AGENTS.md 只做路由，指向 _registry.md。不硬编码 shared/ 文件列表
 3. 第 3 轮：搜生态 — '这个领域的标准做法是什么？'（WebSearch + 技术博客）
 4. 只有 3 轮搜索都没有找到合适方案时，才自己写代码
 5. 搜索结果必须记录到 shared/discoveries.md，避免未来 AI 重复搜索
-6. 可用工具：ast-grep（AST 搜索）、search-target.ps1（文本搜索）、WebSearch（互联网搜索）
+6. 可用工具：PowerShell 子串搜索（`$c.IndexOf("keyword")`）、search-target.ps1（文本搜索）、WebSearch（互联网搜索）
 
 ### [⚪] rule-009: 任务完成后自动复盘
 

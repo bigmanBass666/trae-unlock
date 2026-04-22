@@ -7,7 +7,7 @@
 - 思考上限自动续接（v8: L1展示+L2轮询双架构）
 - 循环检测绕过、可恢复错误扩展等
 
-目标文件是单行 10.7MB 压缩 JS，搜索必须用 `ast-grep`（`sg`命令），Grep 无效。
+目标文件是单行 ~10MB 压缩 JS，搜索必须用 PowerShell 子串搜索（Grep/ast-grep 均无效）。
 
 ---
 
@@ -51,5 +51,5 @@
 
 1. **服务层 > UI 层** — PlanItemStreamParser（~7502574）不受 React 冻结影响，React 组件内补丁切窗口后失效（[L1 冻结原则](shared/discoveries.md)）
 2. **必须用箭头函数** — `.catch(e=>{...})` 而非 `.catch(function(e){...})`，否则严格模式下 this=undefined 导致崩溃
-3. **先搜索再动手** — 用 `ast-grep` 或 `scripts/tools/search-target.ps1` 定位代码，不要猜偏移量
+3. **先搜索再动手** — 用 PowerShell 子串搜索定位代码：`$c=[IO.File]::ReadAllText($path); $c.IndexOf("keyword")`，不要猜偏移量
 4. **改 definitions.json 后必须 apply + verify** — 自动备份到 backups/

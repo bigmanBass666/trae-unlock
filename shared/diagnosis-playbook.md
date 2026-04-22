@@ -277,7 +277,7 @@ Chromium 后台标签页:
 | 自愈修复 | `scripts/auto-heal.ps1` | 自动检测 + 修复（自动备份 + 提交） |
 | 一键快照 | `scripts/snapshot.ps1` | backup + git commit 一体化 |
 | 补丁验证 | `scripts/verify.ps1` | 指纹匹配验证每个补丁状态 |
-| AST 搜索 | `ast-grep -p 'pattern' --lang js --json target.js` | AST 结构搜索（含 byteOffset） |
+| 子串搜索 | `$c=[IO.File]::ReadAllText($path); $c.IndexOf("keyword")` | 压缩文件精确搜索（唯一可靠方式） |
 | 文本搜索 | `scripts/tools/search-target.ps1 -Pattern "关键词"` | 项目内文本搜索 |
 | 语法检查 | `node --check target.js` | 写入前验证 JS 语法正确性 |
 

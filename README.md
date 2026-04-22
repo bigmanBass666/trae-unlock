@@ -71,7 +71,7 @@ v8 架构解决方案: L1 负责检测+展示+捕获服务引用到 `window.__tr
 1. **读 `shared/handoff.md`** — 上一个会话留下了什么
 2. **运行 `auto-heal.ps1 -DiagnoseOnly`** — 补丁是否健康
 3. **搜 `shared/discoveries.md`** — 90% 的代码问题前人已分析过（索引在文末）
-4. 搜索用 `ast-grep`（`sg`），Grep 对压缩文件无效
+4. 搜索用 PowerShell 子串搜索（`$c=[IO.File]::ReadAllText($path); $c.IndexOf("keyword")`），Grep/ast-grep 对压缩文件无效
 
 详细协议见 [AGENTS.md](AGENTS.md)。
 

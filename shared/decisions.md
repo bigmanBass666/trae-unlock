@@ -45,7 +45,7 @@ format: registry
 **根因分析**: v8 的 L2 轮询器虽然用 setInterval 不受 rAF 影响，但它读取的 `window.__traeSvc` 是由 L1 (if(V&&J)) 设置的。后台窗口时 L1 冻结 → __traeSvc 永远为空 → L2 拿到 undefined → 静默退出。**L2 形式上独立，实际上完全依赖 L1。**
 **v9 方案**: 将 `window.__traeSvc = {D,b,M}` 移到 if(V&&J) **之前**，使其在组件每次渲染时都执行（不依赖错误状态）。用户只要看到聊天界面，__traeSvc 就被设置。
 **否决的其他方案**:
-- 直接从模块级获取 D/b: ast-grep 搜索确认 SessionServiceImpl/sendChatMessage 在更新后变量名全变，无法可靠定位
+- 直接从模块级获取 D/b: PowerShell 子串搜索确认 SessionServiceImpl/sendChatMessage 在更新后变量名全变，无法可靠定位
 - DOM 操作模拟点击: React 冻结时 DOM 也不更新，按钮不存在
 - fetch 直接调 API: 需要 auth token 格式，复杂度高
 
@@ -64,3 +64,52 @@ format: registry
 | 5 | **node --check 通过后是否重启验证?** | 语法 ≠ 运行时安全 | **必须重启 Trae 看界面**，不能只看语法 |
 
 **核心原则**: `node --check Exit code 0 ≠ 不会白屏`。这是本次白屏事件最重要的教训。
+
+### [2026-04-23 02:00] 废弃 ast-grep — PowerShell 子串搜索是唯一可靠的源码搜索方式
+
+**选择**: PowerShell 子串搜索 (`$c=[IO.File]::ReadAllText($path); $c.IndexOf("keyword")`) | **否决**: ast-grep (`sg`)
+
+**实测数据**（2026-04-23，目标文件 ~10MB 单行压缩 JS）:
+
+| 搜索关键词 | PowerShell | ast-grep |
+|-----------|-----------|----------|
+| `resumeChat` | ✅ @7540953 | ❌ 空 |
+| `sendChatMessage` | ✅ @7524962 | ❌ 空 |
+| `provideUserResponse` | ✅ @7509668 | ❌ 空 |
+| `_taskService` | ✅ @7509655 | ✅ 勉强 |
+| `storeService` | ✅ @7320181 | ✅ 勉强 |
+| **成功率** | **7/7 (100%)** | **2/5 (40%)** |
+
+**ast-grep 失败根因**:
+1. **单行压缩文件** — terser/webpack 打包为单行 10MB，ast-grep 的 AST 解析器对超长行处理不佳
+2. **变量名混淆** — 函数调用模式（`resumeChat($$$)`、`sendChatMessage($$$)`）在混淆后 AST 结构失配
+3. **只能匹配简单属性访问** — `this._taskService` 这类固定模式能搜到，但实际需要的函数调用模式全军覆没
+
+**PowerShell 子串搜索优势**:
+- 100% 可靠：只要字符串在文件中就一定能找到精确偏移量
+- 额外发现：搜到了之前不知道的 `_aiAgentChatService`(@7500589) 和 `_sessionServiceV2`(@7776387)
+- 无需安装任何额外工具：纯 .NET API，Windows 自带
+- 速度极快：10MB 文件 IndexOf 操作毫秒级完成
+
+**操作**: 已执行 `npm uninstall -g @ast-grep/cli`，全局移除。所有文档中的 ast-grep 引用已替换为 PowerShell 子串搜索。
+**未来禁止重新安装 ast-grep** — 除非有证据表明它能处理本项目的单行压缩文件格式。
+
+### [2026-04-23 03:00] "切窗口就失效"根因研究结论 — 推荐 DI 容器方案
+
+**研究结论**: "切窗口后失效"的根因不是"后台不能执行代码"，而是 **L1 补丁放在了 React 组件 render 函数内**，而 React 在后台标签页中时序不可预测。
+
+**推荐方案**: Direction A/G — **在 PlanItemStreamParser（L2 层）中使用 `uj.getInstance().resolve(BR)` 获取 `_sessionServiceV2`，直接调用其 `resumeChat()`/`sendChatMessage()` 方法**。
+
+**选择理由**:
+1. PlanItemStreamParser 运行在 SSE 回调内，完全不受 React 冻结影响
+2. `uj.getInstance()` 是模块级全局单例，任何位置都可访问
+3. `_sessionServiceV2` 的 `resumeChat()` 和 `sendChatMessage()` 已被 Trae 自身在多个模块级位置使用（@7789264、@8146411）
+4. F3/sendToAgentBackground 函数（@7610443）已证明此模式的可行性
+5. 无需 IIFE 注入、无需 window 变量 hack、不会导致白屏
+
+**实施前提**:
+1. 需确认 PlanItemStreamParser 内可获取到 sessionId 和 messageId
+2. 需确定 auto-continue 的触发条件放在 L2 的哪个具体位置（confirm_status 检查？error handler？）
+3. DI token `BR` 可能随 Trae 更新变化，需要建立搜索定位机制
+
+**备选方案**: Direction D — visibilitychange 事件 + L1 补丁组合。切回窗口时立即触发一次续接检查。简单但非真正的后台执行。

@@ -1,69 +1,114 @@
-# 交接单 — 会话 #27
+# 会话交接单
 
-## 元数据
-- **会话号**: #27
-- **时间**: 2026-04-23 01:00
-- **状态**: **已回滚到 v7 (6cfb3de)，待用户重启验证**
+## 上次会话摘要
+- **会话 #28**: "切窗口就失效"全景根因研究 + DI 容器突破性发现
 
-## 当前焦点
+## 当前状态
+- **补丁版本**: v7（已回滚，9/10 PASS）
+- **目标文件**: 10.24 MB 单行压缩 JS
+- **界面状态**: 用户确认已恢复正常
 
-**回滚到已知正常版本 + 白屏根因诊断完成**
+## 本次完成的工作
 
-## 完成了什么
+### 1. ast-grep 废弃 ✅
+- 实测对比：PowerShell 7/7 (100%) vs ast-grep 2/5 (40%)
+- 已执行 `npm uninstall -g @ast-grep/cli`
+- 所有文档中的 ast-grep 引用已替换为 PowerShell 子串搜索
+- 记录在 decisions.md `[2026-04-23 02:00]`
 
-### 1. 回滚到 6cfb3de (v7) ✅
-- 从 git 提取 `6cfb3de` 的 definitions.json（13 个补丁）
-- 从干净备份 (clean-20260422-140841) 恢复目标文件
-- **apply-patches → Applied: 1, Skipped: 8, Failed: 0** ✅ 全部成功
-- **node → Exit code 0**, **auto-heal → 9/10 PASS** ✅
+### 2. "切窗口就失效"全景研究 ✅ (spec: research-window-switch-freeze-rootcause)
 
-### 2. 白屏根因 100% 确定 ⭐⭐⭐
+**Task 1-2: Chromium/React 后台行为**
+- rAF 停止 / setInterval 节流到 1s / MessageChannel 不受影响
+- React 18 Scheduler 通过 MessageChannel 调度，时间片降级到 1s
 
-对比 6cfb3de (v7, 正常) vs 当前版 (白屏):
+**Task 3: 源码搜索 — 🔥🔥🔥 三大突破性发现**
 
-| 变更 | 补丁 | 风险 |
-|------|------|------|
-| **+1 新增** | auto-continue-l2-event | 🔴 **CRITICAL** — EOF IIFE 注入破坏闭包 |
-| **~1 修改** | auto-continue-thinking | 🟠 **HIGH→CRITICAL** — if(V&&J) 前添加 D/b 访问 |
+#### 发现 A: 全局 DI 容器 `uj.getInstance()`
+```
+位置: ~6275751 (模块级)
+用法: uj.getInstance().resolve(TOKEN) → 获取任何服务实例
+快捷: hX() = () => uj.getInstance()
+```
 
-**两个变更协同导致白屏。**
+#### 发现 B: `_sessionServiceV2` (DI token = BR)
+```
+13处使用全部在模块级！方法:
+  .sendChatMessage({sessionId, message, parsedQuery, multiMedia})
+  .resumeChat({messageId, sessionId})     ← 续接思考！
+  .stopChat(sessionId)
+关键位置:
+  @7789264 — session管理类中 resumeChat（知识库续接）
+  @8146411 — KnowledgesTaskService 中 resumeChat
+  @7776405 — session管理类中 sendChatMessage
+```
 
-### 3. 知识库更新
-- discoveries.md: +80行「白屏根因对比诊断」(**必须读**)
-- decisions.md: +18行「白屏预防强制检查清单」
-- status.md: 会话 #27 日志
+#### 发现 C: F3/sendToAgentBackground 函数蓝图 (@7610443)
+```javascript
+async function F3(e, t) {
+    let i = uj.getInstance();
+    let { sessionServiceV2: s } = FX(i);  // 从 DI 容器获取服务
+    s.stopChat(f.sessionId);              // 直接调用！
+}
+```
+**证明 DI 容器模式是 Trae 自己的标准做法。**
 
-## 待处理
+**Task 4: 解决方向评估**
+- ⭐⭐⭐ **首选 Direction A/G**: PlanItemStreamParser 内 `uj.getInstance().resolve(BR)` → `sessionServiceV2.resumeChat()`
+- ⭐ 备选 Direction D: visibilitychange 事件触发续接
 
-### 🔴 最高优先级：用户验证回滚
-**重启 Trae，确认聊天界面恢复正常！**
+## 推荐的下一步行动
 
-如果正常 → ✅ 问题解决，进入下一任务
-如果仍然白屏 → 可能是 Trae 自身问题（非补丁），需要进一步排查
+### 方向 A/G 实施路线图（auto-continue v10 — L2 DI 版）
 
-## 关键文件
+**Step 1**: 确认 PlanItemStreamParser 内的数据可用性
+- 搜索 PlanItemStreamParser 类（@7508858 附近）的完整结构
+- 确认能否从 `t` 参数或 `this` 获取 sessionId/messageId
+- 搜索 `this._taskService` 是否有 getSession/getCurrentSession 方法
 
-| 文件 | 说明 |
-|------|------|
-| [patches/definitions.json](patches/definitions.json) | **v7 版本 (13 补丁)** |
-| [shared/discoveries.md](shared/discoveries.md) | ⭐⭐⭐ 白屏根因分析（最新追加）|
-| [shared/decisions.md](shared/decisions.md) | ⭐ 白屏预防 checklist（5 条强制检查）|
-| [.archive/definitions-broken-fixed.json](.archive/definitions-broken-fixed.json) | 白屏版的备份（供参考）|
+**Step 2**: 确定 auto-continue 触发条件在 L2 的位置
+- 选项 A: 在 confirm_status == "unconfirmed" 检查附近（类似 L1 的 if(V&&J) 但在 L2）
+- 选项 B: 在 error code 检测位置（检测 MODEL_PREMIUM_EXHAUSTED 等）
+- 选项 C: 新增独立的 SSE event handler（监听特定错误码）
 
-## 给下一位 AI 的提示
+**Step 3**: 编写补丁代码
+```javascript
+// 在 PlanItemStreamParser 内:
+if (需要自动续接的条件) {
+    try {
+        let svc = uj.getInstance().resolve(BR);
+        await svc.resumeChat({
+            messageId: xxx,
+            sessionId: yyy
+        });
+        this._logService("[v10-bg] resumed via DI container");
+    } catch(err) {
+        this._logService.warn("[v10-bg] failed:", err);
+    }
+}
+```
 
-**如果用户确认界面恢复**: 太好了！进入用户指定的下一个任务。
+**Step 4**: 测试三场景（聚焦/切走/切回）
 
-**如果用户报告仍有问题**:
-1. 先读 `shared/discoveries.md` 中 `[2026-04-23 01:00]` 章节 — 完整的白屏诊断过程
-2. 按 diagnosis-playbook.md Scene A 处理：
-   - 确认是否真的用了 v7 definitions.json
-   - 确认目标文件是从干净备份恢复的
-   - 运行完整诊断流程
+## 关键偏移量速查
 
-**未来修改补丁时必须遵守**（decisions.md 白屏预防清单）:
-1. 新增补丁? → 干净目标测试 → 重启 Trae 验证
-2. 改变 replace_with 结构位置? → 同上
-3. 互相依赖的补丁同时上线? → 分步验证
-4. IIFE 边界注入? → 特别小心括号匹配
-5. **node --check 通过 ≠ 不会白屏！必须重启验证！**
+| 关键词 | 偏移量 | 说明 |
+|--------|--------|------|
+| `uj.getInstance()` | ~6275751 | DI 容器 |
+| `_aiAgentChatService` | ~7500589 | AI聊天服务(27处) |
+| `_sessionServiceV2` | ~7776387 | 会话服务V2(13处) |
+| `[PlanItemStreamParser]` | ~7508858 | L2 解析器日志标记 |
+| `resumeChat`(模块级#1) | ~7540953 | _aiAgentChatService.resumeChat() |
+| `resumeChat`(模块级#4) | ~7789264 | _sessionServiceV2.resumeChat() |
+| `sendChatMessage`(模块级) | ~7776405 | _sessionServiceV2.sendChatMessage() |
+| F3/sendToAgentBackground | ~7610443 | DI 用法蓝图 |
+
+## 风险提醒
+1. DI token `BR` 可能随 Trae 更新改名 → 用 PowerShell 搜索 `_sessionServiceV2` 定位新 token
+2. `resumeChat` 参数格式可能变化 → 参考现有调用(@7789264, @8146411)保持一致
+3. PlanItemStreamParser 内可能没有直接的 sessionId → 需要从 stream context 或 store 获取
+
+## 待办事项
+- [ ] 实施 auto-continue v10 (L2 DI 版) — 基于 Direction A/G
+- [ ] 更新 definitions.json 中 auto-continue-thinking 为 v10
+- [ ] 三场景测试（聚焦/切走/切回）

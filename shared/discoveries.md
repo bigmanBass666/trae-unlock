@@ -492,3 +492,214 @@ if(V&&J){...}  // 错误处理逻辑不变
 - **本**: 服务引用在 React 闭包内，后台无法访问 — **v9 才真正解决**
 
 未来遇到类似问题，先问："这个变量/函数的作用域是什么？在后台能访问到吗？"
+
+## [2026-04-23 02:00] 模块级服务发现 + ast-grep 废弃 ⭐
+
+### PowerShell 子串搜索发现的新模块级服务
+
+在废弃 ast-grep 的对比测试中，PowerShell 子串搜索发现了两个之前未记录的模块级服务引用：
+
+| 服务 | 偏移量 | 说明 |
+|------|--------|------|
+| `_aiAgentChatService` | **~7500589** | AI Agent 聊天服务，有 `resumeChat` 方法！这是 `D.resumeChat()` 的真正底层实现 |
+| `_sessionServiceV2` | **~7776387** | 会话服务 v2，可能有 `getCurrentSession` 等方法 |
+
+**重要**: 这两个服务都在 React 组件闭包**外部**（PlanItemStreamParser 类或模块级），可能不受 L1 冻结影响！需要进一步探索其完整 API。
+
+### 搜索方式决策：ast-grep → PowerShell 子串搜索
+
+详见 [decisions.md](decisions.md) 中 `[2026-04-23 02:00]` 条目。核心结论：
+
+```
+ast-grep (sg): 2/5 命中率，函数调用模式全军覆没
+PowerShell:   7/7 命中率，还额外发现 2 个未知服务
+结论:         永远用 $c.IndexOf("keyword") 搜索
+```
+
+---
+
+## [2026-04-23 03:00] "切窗口就失效"全景根因研究 ⭐⭐⭐
+
+### 一、Chromium 后台标签页行为（精确实测）
+
+| Web API | 后台行为 | 对本项目影响 |
+|---------|----------|-------------|
+| **requestAnimationFrame** | **完全停止** | React 时间片计算降级 |
+| **requestIdleCallback** | **完全停止** | 不影响（项目未使用） |
+| **setTimeout/setInterval** | **节流到最小1秒** | v8 的 setInterval(3000) 实际变成 ~3s（不受影响，因为 >1s） |
+| **MessageChannel** | **完全正常** ✅ | React Scheduler 主调度通道！ |
+| **Promise/microtask** | **完全正常** ✅ | queueMicrotask 正常执行 |
+| **postMessage (window)** | **完全正常** ✅ | 跨窗口通信可用 |
+| **fetch/WebSocket/SSE** | **完全正常** ✅ | 数据接收层不受影响 |
+| **Web Worker** | **完全正常** ✅ | 独立线程 |
+
+**关键洞察**: SSE 数据到达 → onmessage 回调触发 → 回调内代码同步执行 → 微任务正常 → **数据层(L3)和服务层(L2)在后台完全工作**。
+
+### 二、React 18 Scheduler 在后台的行为
+
+```
+调度链路:
+  MessageChannel.postMesage() → onmessage → performWorkUntilDeadline()
+    ↓ (不受后台影响 ✅)
+  shouldYieldToHost():
+    deadline = rAF timestamp (停止 ❌) → fallback setTimeout(100ms → 节流到1s ⚠️)
+    ↓
+  结论: Scheduler 工作但变慢，不会完全暂停
+```
+
+**对 L1 补丁的影响**:
+- `setState()` → 正常入队 ✅
+- 组件 render 函数中的 `if(V&&J){...}` → **会执行但时序不可预测** ⚠️
+- `useEffect` → 会执行但可能延迟 ⚠️
+- `memo()` 浅比较 → 正常工作 ✅
+
+### 三、Trae 源码架构突破性发现 🔥🔥🔥
+
+#### 发现 1：全局 DI 容器 `uj.getInstance()`
+
+```
+位置: ~6275751 (模块级变量)
+类型: 全局单例 DI 容器（类似 InversifyJS）
+用法:
+  uj.getInstance().resolve(TOKEN)  → 解析服务实例
+  uj.getInstance().provide(TOKEN, instance) → 注册服务
+快捷方式: hX() = () => uj.getInstance()
+```
+
+**这是解决 L1 冻结问题的关键钥匙！**
+
+#### 发现 2：`_sessionServiceV2` — 模块级会话服务（DI token = BR）
+
+```
+DI Token: BR (Symbol 或唯一标识符)
+注入方式: uX(BR) 装饰器注入到 G6/HT/etJ 等类
+获取方式: uj.getInstance().resolve(BR)
+
+方法清单:
+  .sendChatMessage({sessionId, message, parsedQuery, multiMedia})  ← 发消息
+  .resumeChat({messageId, sessionId})                              ← 续接思考！
+  .stopChat(sessionId)                                             ← 停止对话
+```
+
+**所有13处使用都在模块级（非React闭包），包括：**
+- @7776405: session管理类中 sendChatMessage
+- @7789264: session管理类中 resumeChat（用于知识库续接）
+- @7839175: workspace facade 中 sendMessage
+- @8144926-8146411: KnowledgesTaskService 中 stopChat + resumeChat
+
+#### 发现 3：`_aiAgentChatService` — AI Agent 聊天服务（DI token = Di）
+
+```
+DI Token: Di
+注入方式: uX(Di) 装饰器注入到 zb/Bs/BP/G6/etz 等类
+获取方式: uj.getInstance().resolve(Di)
+
+方法清单:
+  .resumeChat({message_id})           ← 底层续接API
+  .chat(t, i, r)                      ← 发起新对话
+  .appendChat({...})                  ← 追加消息
+  .cancel({session_id, user_message_id})
+  .getSessions / getSessionMessages / createSession ...
+```
+
+**关键发现 @7540953**: `_aiAgentChatService.resumeChat()` 在 SideChatStreamService 中被调用（模块级）。
+
+#### 发现 4：F3/sendToAgentBackground 函数 — 已有的蓝图！
+
+```javascript
+// @7610443 — 模块级函数，不在 React 闭包内
+async function F3(e, t) {
+    let i = uj.getInstance();              // ← 获取 DI 容器
+    let r = i.resolve(bY);                 // ← 解析 logger
+    
+    let {
+        sessionService: n,
+        agentService: o,
+        docsetService: a,
+        sessionServiceV2: s,               // ← BR token!
+        commandService: l,
+        // ...
+    } = FX(i);                             // ← 从容器解构服务
+    
+    // 使用 window 事件监听取消操作
+    window.addEventListener(t.cancelEventKey, () => {
+        s.stopChat(f.sessionId);            // ← 直接调用模块级服务！
+    });
+}
+```
+
+**这个函数证明了：从模块级通过 DI 容器获取服务并直接调用其方法是 Trae 自己的标准模式。**
+
+#### 发现 5：PlanItemStreamParser 精确位置
+
+```
+日志标记: "[PlanItemStreamParser]" @7508858
+所在类: Bs 类（~7530948 注入了 _aiAgentChatService）
+可访问的服务:
+  this._logService     — 日志
+  this._taskService    — 任务服务（有 provideUserResponse）
+  this.storeService    — Store 服务
+运行环境: SSE 回调内（L2 层，不受 React 冻结影响）
+```
+
+### 四、完整根因链条（最终版）
+
+```
+用户切换窗口
+  → Chromium 停止 rAF
+    → React Scheduler 时间片精度降级 (5ms → 1s)
+      → L1 组件 render 执行延迟/不确定
+        → if(V&&J) 条件判断时机错乱
+          → D.resumeChat() 未被调用
+            → 自动续接失效
+
+但与此同时：
+  SSE 数据继续到达 ✅ (不受影响)
+  PlanItemStreamParser 继续解析 ✅ (不受影响)
+  _sessionServiceV2 存在于模块级 ✅ (不受影响)
+  uj.getInstance().resolve(BR) 可随时调用 ✅ (不受影响)
+  
+结论: 问题不是"后台不能执行代码"，而是"L1补丁放在了错误的位置"
+```
+
+### 五、解决方向评估
+
+| 方向 | 描述 | 可行性 | 复杂度 | 安全性 | 兼容性 | 推荐度 |
+|------|------|--------|--------|--------|--------|--------|
+| **A. L2 服务层补丁** | 在 PlanItemStreamParser 中用 DI 容器获取 sessionServiceV2 | **极高** | **极低** | **极高** | 中高 | ⭐⭐⭐ **首选** |
+| B. Zustand Store 直接触发 | 从 store 触发 action | 中 | 高 | 中 | 低 | ❌ |
+| C. Web Worker | Worker 内轮询检测 | 极低 | 极高 | 高 | 低 | ❌ |
+| D. visibilitychange 事件 | 切回窗口时触发续接 | 中 | 低 | 高 | 高 | ⭐ 备选 |
+| E. startTransition | 标记为低优先级更新 | 低 | 低 | 中 | 中 | ❌ |
+| F. postMessage 自定义事件 | L1→L2 事件桥接 | 低 | 中 | 高 | 中 | ❌ |
+| **G. DI 容器解析 (新)** | uj.getInstance().resolve(BR) + resumeChat/sendChatMessage | **极高** | **极低** | **极高** | 中高 | ⭐⭐⭐ **=A** |
+
+**Direction A/G（合二为一）的具体方案**:
+
+```javascript
+// 在 PlanItemStreamParser 的 confirm_status 检查或 error handler 中:
+if (需要自动续接的条件) {
+    try {
+        let svc = uj.getInstance().resolve(BR);  // 获取 sessionServiceV2
+        await svc.resumeChat({
+            messageId: lastMessageId,
+            sessionId: this.currentSessionId || t.sessionId
+        });
+        this._logService("[auto-continue-bg] resumed via DI container");
+    } catch(err) {
+        this._logService.warn("[auto-continue-bg] DI resolve failed:", err);
+    }
+}
+```
+
+**优势**:
+1. 运行在 L2（SSE 回调）— 完全不受 React 冻结影响 ✅
+2. 使用 Trae 自身的 DI 系统 — 与现有代码模式一致 ✅
+3. 无 IIFE 注入 — 不会导致白屏 ✅
+4. 无 window 变量 hack — 干净整洁 ✅
+5. 代码量极少（3-5行）— find_original 长度不变 ✅
+
+**风险**:
+1. DI token `BR` 可能随 Trae 更新而改名（中等风险，可通过搜索 `_sessionServiceV2` 定位新 token）
+2. `resumeChat` 参数格式可能变化（低风险，与现有调用保持一致即可）
+3. 需要确认 PlanItemStreamParser 内能访问到 sessionId/messageId
