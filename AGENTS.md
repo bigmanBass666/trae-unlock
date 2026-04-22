@@ -9,13 +9,16 @@
 
 ---
 
-## 🚀 会话开始必做（3 步）
+## 🚀 会话开始必做（4 步）
 
+**Step 0**: 🆕 读 `shared/handoff.md` → **最优先！** 获取上一个会话的完整上下文（焦点/Spec/做了什么/遗留/用户意图）
+  - 如果 handoff.md 不存在或为空 → 跳过（首次使用或上轮忘记写）
+  - **读完后你就知道该做什么，不需要用户重新解释背景**
 **Step 1**: 读 `shared/_registry.md` → 按 **P0→P1→P2** 优先级读模块
 **Step 2**: 补丁自检 → `powershell scripts/auto-heal.ps1 -DiagnoseOnly`
   - ✅ 全PASS → 继续 | ❌ FAIL → `auto-heal.ps1` 修复 | ⚠️ MANUAL → 告知用户+记status.md
 **Step 3**: 按需读模块（见下方路由表）
-> 不自检 = 在破损基础上构建
+> 不自检 = 在破损基础上构建。不读 handoff = 在失忆状态下工作。
 
 ---
 
@@ -55,5 +58,6 @@
 触发：补丁PASS/问题修复/功能完成/TodoWrite completed/用户反馈处理完毕
 禁止：❌全勾直接Return | ❌等提醒才复盘 | ❌"下次再做" → 详见 rule-013
 ### 📋 会话结束检查
+0. **🆕 写交接单** → `shared/handoff.md`（**覆盖写入**，格式见文件内模板。这是复盘的前置条件！）
 1. 有发现？→ discoveries.md | 2. 有决策？→ decisions.md | 3. 写日志 → status.md | 4. 安全检查 → git commit?
 > 详细格式 + 规则更新命令 → `_registry.md`
