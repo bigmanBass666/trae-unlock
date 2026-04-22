@@ -80,12 +80,13 @@ format: registry
 
 | 指标 | 值 | 状态 |
 |------|-----|------|
-| 最后备份时间 | 2026-04-22 09:36 (clean-20260422-093605.js) | ✅ 新鲜 |
-| 最后提交时间 | 2026-04-22 09:36 (a0142c1) | ✅ 新鲜 |
+| 最后备份时间 | 2026-04-22 11:20 (clean-20260422-112008.ext) | ✅ 新鲜 |
+| 最后提交时间 | 2026-04-22 11:25 (5d1b95a) | ✅ 新鲜 |
 | 备份文件数 | 1 | ✅ 正常 |
 
 > ⚠️ **规则**: 每次修改目标文件后必须备份。每次完成重要工作后必须 commit。不遵守 = 下次重启可能丢失一切。
-> 🆕 **自动化**: apply-patches/auto-heal 成功后自动 backup + auto-commit。多 AI 场景下不再依赖人工记忆。
+> 🆕 **自动化**: apply-patches/auto-heal 成功后自动 backup + auto-commit + syntax verify。多 AI 场景下不再依赖人工记忆。
+> 🛡️ **语法安全网**: 写入前 `node --check` 验证，防止破坏性内容导致界面崩溃。
 
 ## 会话日志
 
@@ -421,3 +422,44 @@ format: registry
 | 改 queueMicrotask 能修 | **queueMicrotask 可能无效，需看日志确认真实失败点** |
 
 **待操作**: 用户重启 Trae → 触发循环检测 → 打开 DevTools Console → 收集 [auto-continue-v6] 日志
+
+### [2026-04-22 11:00] 会话 #22 — 补丁崩溃根因调查与四层防护系统建立
+
+**事件**: 用户报告"重启后 AI 聊天界面直接消失，历史上多次出现"
+
+**诊断结果（diagnose-patch-health.ps1 首次运行）**:
+1. 目标文件存在，10.24MB，**语法合法** ✅
+2. **8/8 补丁全部丢失** — Trae 更新还原了目标文件
+3. 7个 RESIDUAL（find_original 存在但 replace 不在）+ 1个 FAIL
+4. **backups/ 为空！**
+5. definitions.json 版本不一致：auto-continue-thinking 的 fingerprint 检测 v6-debug 但 replace_with 是干净 v6
+
+**发现的三个根因链条**:
+```
+根因链 1: definitions.json 版本不一致
+  会话#21 用 SearchReplace 直接写入 v6-debug 到目标文件
+  但 definitions.json 的 replace_with 没同步更新 → fingerprint/replace_with 描述不同版本
+  
+根因链 2: 缺少语法验证安全网
+  apply-patches 写入前不检查 JS 语法 → 半应用/错误替换 → 10MB 文件变废料 → 界面崩溃
+  
+根因链 3: Trae 更新变量重命名
+  minifier 将 efh→efg, P8→P7 → 2个补丁的 find_original 不再匹配
+```
+
+**修复操作**:
+1. 统一 auto-continue-thinking 到干净 v6（fingerprint 与 replace_with 一致）
+2. 适配 efh-resume-list (efh→efg) 和 bypass-runcommandcard-redlist (P8→P7)
+3. apply-patches.ps1 添加 `node --check` 语法验证（写入前检查）
+4. auto-heal.ps1 添加语法验证 + 自动回滚到备份
+5. 新建 diagnose-patch-health.ps1 一键诊断脚本（5项健康检查 + 100分制评分）
+6. 首次 apply-patches: 6/8 通过 → 修复 2 个失败补丁 → 二次 **8/8 全通过**
+
+**新增基础设施**:
+- `scripts/diagnose-patch-health.ps1` — 一键健康诊断（语法+指纹+残留+一致性+备份）
+- 语法安全网：apply-patches/auto-heal 写入前 `node --check` 验证
+- definitions.json 一致性校验逻辑
+
+**验证**: 8/8 指纹全部通过 ✅ | JS 语法合法 ✅ | 自动备份+提交 ✅
+**P2 写入**: discoveries.md（崩溃三根因链+四层防护架构）、decisions.md（脚本优先原则决策）
+**P1 写入**: definitions.json（3处修复）、apply-patches.ps1、auto-heal.ps1、diagnose-patch-health.ps1

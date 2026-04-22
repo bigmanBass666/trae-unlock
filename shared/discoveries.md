@@ -920,4 +920,51 @@ iw (sendingState) = useMemo(() =>
 **方法论提炼**:
 - **「脚本优先」原则**: 安全关键操作必须嵌入脚本执行路径。文档/清单只能作为辅助提示，不能作为主要保障
 - **「旁观者效应防护」**: 多 Agent 环境下任何"某方应该做X"的设计都必须改为"系统自动做X"
+
+---
+
+### [2026-04-22 11:00] 补丁崩溃三根因链 — "界面消失"的系统性解剖
+
+**发现**: 用户报告"重启后聊天界面消失，历史上多次出现"。通过 diagnose-patch-health.ps1 诊断 + 根因追踪，确认**三个独立但协同作用的根因**：
+
+**根因链 1: definitions.json 版本不一致（直接破坏者）**
+- auto-continue-thinking 的 check_fingerprint 检测 v6-debug（有 console.log）
+- 但 replace_with 是干净 v6（无 console.log）
+- 来源：会话 #21 用 SearchReplace 直接写目标文件，没同步更新 definitions.json
+- 后果：apply-patches/auto-heal 的指纹检测与实际写入内容不匹配 → 行为不可预测
+
+**根因链 2: 缺少语法验证安全网（放大器）**
+- apply-patches 在 WriteAllText 前**不做任何语法检查**
+- 一个括号错误、一个变量名拼错 → 整个 10MB 文件变成无法解析的废料
+- React 加载失败 → 聊天界面白屏/消失
+- 历史上 `fix-patch-crash-restore` 记录了同类事件（this 绑定错误 + return 语句改变控制流）
+
+**根因链 3: Trae 更新导致 minifier 变量重命名（触发器）**
+- Trae 更新后 terser/webpack 重新打包，短变量名随机变化
+- 本次：`efh`→`efg`, `P8`→`P7`
+- 后果：find_original 不再匹配 → 补丁"丢失" → 部分残留代码可能导致半应用状态
+
+**崩溃模式总结**:
+```
+Trae 更新(变量重命名) → 部分补丁失效 → 残留+新代码混合
+    ↓
+某次操作触发了不完整的重新应用（版本不一致的 fingerprint 导致误判）
+    ↓
+apply-patches 写入了含语法错误的 10MB 文件（无验证！）
+    ↓
+React 无法加载 index.js → 聊天界面消失
+```
+
+**四层防护架构（本次建立）**:
+| 层 | 机制 | 防御 |
+|---|------|------|
+| L0 | `node --check` 写入前验证 | **防止语法错误写入** |
+| L1 | 自动备份 (clean-时间戳.ext) | 可回滚到已知良好状态 |
+| L2 | 自动 git commit | 变更可追溯 |
+| L3 | diagnose-patch-health.ps1 | 一键诊断当前状态 |
+| L4 | 检查清单 + status.md 安全状态 | AI 会话感知 |
+
+**关键数据点**: 
+- Trae 更新后文件大小从 ~10.73MB 变为 10.24MB（-4.9%，可能是 tree-shaking 优化或代码重构）
+- minifier 变量重命名是**非确定性**的——每次构建都可能不同，不能硬编码变量名
 ---
