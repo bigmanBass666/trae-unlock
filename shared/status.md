@@ -37,7 +37,7 @@ format: registry
 | service-layer-runcommand-confirm | ~7508254 | v8 | else 分支确认（黑名单+confirm_status守卫，NotifyUser 已移除） |
 | **data-source-auto-confirm** | ~**7323241** | **v3 (已启用)** | **数据源层设置auto_confirm=true+confirm_status="confirmed"（黑名单: AskUserQuestion+ExitPlanMode，NotifyUser 已移除）** |
 | guard-clause-bypass | ~8706067 | v1 | **[NEW]** Guard Clause 循环检测放行：`if(!n||!q||et)` → `if(!n||(!q&&!J)||et)`，修复 stopStreaming 覆盖 status 为 Canceled 导致 if(V&&J) 不触发 |
-| **auto-continue-thinking** | ~8706660 | **v6 (已启用)** | **思考上限/循环检测/未知错误自动恢复（queueMicrotask+嵌套retry+DEFAULT入J）— v6: 用queueMicrotask替代setTimeout(500)，在React render完成后立即执行续接，避免cleanup(~10-50ms)先于定时器清理session** |
+| **auto-continue-thinking** | ~8706660 | **v7 (已启用)** | **思考上限/循环检测/未知错误自动恢复（防重复5秒冷却+resumeChat先试+2秒监控fallback）— v7: (1) window.__traeAC防重复守卫防止React重渲染10+次调用 (2) resumeChat+2秒消息数监控，无效则sendChatMessage fallback** |
 | efh-resume-list | ~8699513 | v3 | 含循环检测+DEFAULT的可恢复列表（配合bypass-loop v4+auto-continue v5） |
 | bypass-loop-detection | ~8701180 | v4 | J数组扩展含循环检测+**DEFAULT**（v4: 防止二次覆盖导致J=false） |
 | bypass-runcommandcard-redlist | ~8075009 | v2 | 全模式弹窗消除（WHITELIST+ALWAYS_RUN+default→Default） |
@@ -463,3 +463,31 @@ format: registry
 **验证**: 8/8 指纹全部通过 ✅ | JS 语法合法 ✅ | 自动备份+提交 ✅
 **P2 写入**: discoveries.md（崩溃三根因链+四层防护架构）、decisions.md（脚本优先原则决策）
 **P1 写入**: definitions.json（3处修复）、apply-patches.ps1、auto-heal.ps1、diagnose-patch-health.ps1
+
+### [2026-04-22 12:30] 会话 #23 — auto-continue-thinking v7 修复（防重复+2秒fallback）
+
+**事件**: v7-debug 日志分析结论：
+1. `queueMicrotask` 确实触发了 ✅
+2. `o`(agentMessageId) 和 `h`(sessionId) 都有有效值 ✅
+3. `D.resumeChat()` 被调用了，没抛异常，返回了(may be async) ✅
+4. **但 resumeChat 完全没有效果** — 聊天界面停止，没有续接 🔴
+5. **React 重渲染导致 if(V&&J) 被进入 10+ 次**，每次都触发新的 resumeChat 调用 ⚠️
+
+**v7 两个核心改进**:
+
+**改进 1: 防重复守卫**
+- `window.__traeAC` 全局时间戳变量，5秒冷却窗口
+- React 重渲染导致 10+ 次进入 if(V&&J) → 只在首次触发，后续被拦截
+- 用 `Date.now()` 差值判断，避免 flag 忘记重置的问题
+
+**改进 2: resumeChat + 2秒监控 fallback**
+- 先调用 resumeChat（可能某些场景下有效）
+- 记录当前 session 消息数 `_ml`
+- setTimeout(2000ms) 后检查消息数是否增长
+  - 增长了 → resumeChat 生效 ✅
+  - 没增长 → fallback 到 sendChatMessage 🔁
+- 三层 try-catch 保护：resumeChat catch → fallback, fallback catch → 静默, outer catch → fallback
+
+**修改文件**: definitions.json（仅 replace_with/check_fingerprint/name/description，find_original 不变）
+**验证**: JSON 解析通过 ✅
+**待验证**: 用户重启 Trae → 触发循环检测 → 收集 [v7] 控制台日志

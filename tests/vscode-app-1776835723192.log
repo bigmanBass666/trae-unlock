@@ -1,0 +1,659 @@
+workbench.desktop.main.js:38   ERR [iCubeAgentService] Failed to delete DSL agent: generate_deepwiki, code: 9000000
+error @ workbench.desktop.main.js:38
+error @ workbench.desktop.main.js:38
+error @ workbench.desktop.main.js:3801
+tb @ workbench.desktop.main.js:6647
+await in tb
+ub @ workbench.desktop.main.js:6647
+rb @ workbench.desktop.main.js:6647
+await in rb
+pb @ workbench.desktop.main.js:6647
+await in pb
+getData @ workbench.desktop.main.js:6647
+await in getData
+getData @ index.js:3861
+getAllAgentData @ index.js:3868
+t @ index.js:4367
+workbench.desktop.main.js:38   ERR [iCubeAgentService] Failed to delete DSL agent: update_deepwiki, code: 9000000
+error @ workbench.desktop.main.js:38
+error @ workbench.desktop.main.js:38
+error @ workbench.desktop.main.js:3801
+tb @ workbench.desktop.main.js:6647
+await in tb
+ub @ workbench.desktop.main.js:6647
+await in ub
+rb @ workbench.desktop.main.js:6647
+await in rb
+pb @ workbench.desktop.main.js:6647
+await in pb
+getData @ workbench.desktop.main.js:6647
+await in getData
+getData @ index.js:3861
+getAllAgentData @ index.js:3868
+t @ index.js:4367
+workbench.desktop.main.js:6316  POST https://mcs.zijieapi.com/list?aid=711126&sdk_version=5.3.7&device_platform=electron net::ERR_CONNECTION_RESET
+i.useRequest @ workbench.desktop.main.js:6316
+i.report @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6329
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+i.reportExposure @ workbench.desktop.main.js:6329
+i.fechEvent @ workbench.desktop.main.js:6329
+i.getRealVar @ workbench.desktop.main.js:6329
+i.getVar @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6316
+i._emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6329
+i.getVar @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6329
+T0s @ workbench.desktop.main.js:6329
+getVar @ workbench.desktop.main.js:6329
+m @ workbench.desktop.main.js:6329
+await in m
+（匿名） @ workbench.desktop.main.js:6329
+getABTestConfigByKey @ workbench.desktop.main.js:6329
+pb @ workbench.desktop.main.js:6647
+await in pb
+getData @ workbench.desktop.main.js:6647
+await in getData
+getData @ index.js:3861
+getAllAgentData @ index.js:3868
+t @ index.js:4367
+workbench.desktop.main.js:38  WARN [ai-chat][chatStreamService] checkBeforeSendMessage timeout sessionId: 69e85c0c1ea40a67794ade17
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:3801
+log @ index.js:3793
+warn @ index.js:3797
+（匿名） @ index.js:3861
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+（匿名） @ index.js:3861
+_checkBeforeSendMessage @ index.js:3861
+chatStream @ index.js:3861
+sendChatMessage @ index.js:3861
+await in sendChatMessage
+（匿名） @ index.js:4287
+await in （匿名）
+i.current.i.current @ index.js:17
+（匿名） @ index.js:401
+（匿名） @ index.js:401
+rz @ index.js:1107
+read @ index.js:1107
+read @ index.js:1107
+（匿名） @ index.js:401
+rU @ index.js:1107
+（匿名） @ index.js:1107
+rG @ index.js:1107
+rH @ index.js:1107
+update @ index.js:1107
+rU @ index.js:1107
+dispatchCommand @ index.js:1107
+（匿名） @ index.js:401
+leading @ index.js:401
+b @ index.js:1107
+A @ index.js:1107
+u.test.i.<computed> @ index.js:942
+kj @ react-dom.production.min.js:223
+jj @ react-dom.production.min.js:34
+mj @ react-dom.production.min.js:34
+gh @ react-dom.production.min.js:62
+Xg @ react-dom.production.min.js:63
+（匿名） @ react-dom.production.min.js:72
+Tf @ react-dom.production.min.js:189
+wg @ react-dom.production.min.js:32
+Ce @ react-dom.production.min.js:65
+Be @ react-dom.production.min.js:47
+zj @ react-dom.production.min.js:46
+workbench.desktop.main.js:6316  POST https://mcs.zijieapi.com/list?aid=711126&sdk_version=5.3.7&device_platform=web net::ERR_CONNECTION_RESET
+i.useRequest @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i.send @ workbench.desktop.main.js:6316
+i.sliceEvent @ workbench.desktop.main.js:6316
+i.report @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+i.event @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i._emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6329
+i.event @ workbench.desktop.main.js:6329
+collect @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6313
+await in （匿名）
+（匿名） @ workbench.desktop.main.js:6329
+await in （匿名）
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+d @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+N @ workbench.desktop.main.js:3810
+（匿名） @ workbench.desktop.main.js:76
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+（匿名） @ workbench.desktop.main.js:76
+$ @ workbench.desktop.main.js:3810
+（匿名） @ workbench.desktop.main.js:76
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+（匿名） @ workbench.desktop.main.js:76
+Jse.S @ workbench.desktop.main.js:3810
+Jse.W @ workbench.desktop.main.js:3810
+workbench.desktop.main.js:6316  POST https://mcs.zijieapi.com/list?aid=711126&sdk_version=5.3.7&device_platform=web net::ERR_CONNECTION_RESET
+i.useRequest @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i.send @ workbench.desktop.main.js:6316
+i.sliceEvent @ workbench.desktop.main.js:6316
+i.report @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+i.event @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i._emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6329
+i.event @ workbench.desktop.main.js:6329
+collect @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6313
+await in （匿名）
+（匿名） @ workbench.desktop.main.js:6329
+await in （匿名）
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+d @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+event @ index.js:3797
+event @ index.js:3797
+teaEventChatShown @ index.js:3861
+teaEventChatShownWhenFirstToken @ index.js:3861
+handleSteamingResult @ index.js:3861
+handle @ index.js:3861
+onMessage @ index.js:3861
+_onMessage @ index.js:3861
+onMessage @ index.js:3861
+write @ workbench.desktop.main.js:619
+h @ workbench.desktop.main.js:619
+o @ workbench.desktop.main.js:6665
+emit @ workbench.desktop.main.js:6665
+drain @ workbench.desktop.main.js:6665
+enqueueData @ workbench.desktop.main.js:6665
+emit @ workbench.desktop.main.js:6665
+emit @ workbench.desktop.main.js:6665
+e @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:38  WARN [tooling] commandId:3ef4a033-4e78-47ea-ba06-b3005e3aa841 startMarker was disposed, fetching full terminal content as fallback 
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:3801
+warn @ workbench.desktop.main.js:3260
+Hb @ workbench.desktop.main.js:3281
+await in Hb
+checkRunCommandStatus @ workbench.desktop.main.js:3281
+checkRunCommandStatus @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:6316  POST https://mcs.zijieapi.com/list?aid=711126&sdk_version=5.3.7&device_platform=web net::ERR_CONNECTION_RESET
+i.useRequest @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i.send @ workbench.desktop.main.js:6316
+i.sliceEvent @ workbench.desktop.main.js:6316
+i.report @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+i.event @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i._emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6329
+i.event @ workbench.desktop.main.js:6329
+collect @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6313
+await in （匿名）
+（匿名） @ workbench.desktop.main.js:6329
+await in （匿名）
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+d @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+event @ index.js:3797
+event @ index.js:3797
+（匿名） @ index.js:3999
+Id @ react-dom.production.min.js:165
+Xb @ react-dom.production.min.js:200
+Rk @ react-dom.production.min.js:198
+xb @ react-dom.production.min.js:196
+Li @ react-dom.production.min.js:189
+db @ react-dom.production.min.js:79
+（匿名） @ react-dom.production.min.js:184
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+workbench.desktop.main.js:27 Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at iCs.add (workbench.desktop.main.js:27:1775)
+    at g.value (workbench.desktop.main.js:3276:3067)
+    at m._deliver (xterm.js:1:427397)
+    at m._deliverQueue (xterm.js:1:427503)
+    at m.fire (xterm.js:1:427838)
+    at n.dispose (xterm.js:1:224023)
+    at xt (workbench.desktop.main.js:27:765)
+    at iCs.clear (workbench.desktop.main.js:27:1567)
+    at iCs.dispose (workbench.desktop.main.js:27:1496)
+    at workbench.desktop.main.js:3276:6935
+add @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+_deliver @ xterm.js:1
+_deliverQueue @ xterm.js:1
+fire @ xterm.js:1
+dispose @ xterm.js:1
+xt @ workbench.desktop.main.js:27
+clear @ workbench.desktop.main.js:27
+dispose @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+Bb @ workbench.desktop.main.js:3276
+await in Bb
+zb @ workbench.desktop.main.js:3276
+（匿名） @ workbench.desktop.main.js:3284
+Promise.then
+runCommandInTerminal @ workbench.desktop.main.js:3284
+runCommandInTerminal @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+workbench.desktop.main.js:38  WARN [tooling] commandId:0f27dc1a-63b3-43a5-9d5b-75ed49d6c309 startMarker was disposed, fetching full terminal content as fallback 
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:3801
+warn @ workbench.desktop.main.js:3260
+Hb @ workbench.desktop.main.js:3281
+await in Hb
+checkRunCommandStatus @ workbench.desktop.main.js:3281
+checkRunCommandStatus @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:6316  POST https://mcs.zijieapi.com/list?aid=711126&sdk_version=5.3.7&device_platform=web net::ERR_CONNECTION_RESET
+i.useRequest @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i.send @ workbench.desktop.main.js:6316
+i.sliceEvent @ workbench.desktop.main.js:6316
+i.report @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+i.event @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i._emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6329
+i.event @ workbench.desktop.main.js:6329
+collect @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6313
+await in （匿名）
+（匿名） @ workbench.desktop.main.js:6329
+await in （匿名）
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+d @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+event @ index.js:3797
+event @ index.js:3797
+（匿名） @ index.js:3999
+Id @ react-dom.production.min.js:165
+Xb @ react-dom.production.min.js:200
+Rk @ react-dom.production.min.js:198
+xb @ react-dom.production.min.js:196
+Li @ react-dom.production.min.js:189
+db @ react-dom.production.min.js:79
+（匿名） @ react-dom.production.min.js:184
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+workbench.desktop.main.js:27 Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at iCs.add (workbench.desktop.main.js:27:1775)
+    at g.value (workbench.desktop.main.js:3276:3067)
+    at m._deliver (xterm.js:1:427397)
+    at m._deliverQueue (xterm.js:1:427503)
+    at m.fire (xterm.js:1:427838)
+    at n.dispose (xterm.js:1:224023)
+    at xt (workbench.desktop.main.js:27:765)
+    at iCs.clear (workbench.desktop.main.js:27:1567)
+    at iCs.dispose (workbench.desktop.main.js:27:1496)
+    at workbench.desktop.main.js:3276:6935
+add @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+_deliver @ xterm.js:1
+_deliverQueue @ xterm.js:1
+fire @ xterm.js:1
+dispose @ xterm.js:1
+xt @ workbench.desktop.main.js:27
+clear @ workbench.desktop.main.js:27
+dispose @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+Bb @ workbench.desktop.main.js:3276
+await in Bb
+zb @ workbench.desktop.main.js:3276
+（匿名） @ workbench.desktop.main.js:3284
+Promise.then
+runCommandInTerminal @ workbench.desktop.main.js:3284
+runCommandInTerminal @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+workbench.desktop.main.js:38  WARN [tooling] commandId:09497dd3-3169-43ea-9071-56d782912460 startMarker was disposed, fetching full terminal content as fallback 
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:3801
+warn @ workbench.desktop.main.js:3260
+Hb @ workbench.desktop.main.js:3281
+await in Hb
+checkRunCommandStatus @ workbench.desktop.main.js:3281
+checkRunCommandStatus @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:6316  POST https://mcs.zijieapi.com/list?aid=711126&sdk_version=5.3.7&device_platform=web net::ERR_CONNECTION_RESET
+i.useRequest @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i.send @ workbench.desktop.main.js:6316
+i.sliceEvent @ workbench.desktop.main.js:6316
+i.report @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+i.event @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i._emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6329
+i.event @ workbench.desktop.main.js:6329
+collect @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6313
+await in （匿名）
+（匿名） @ workbench.desktop.main.js:6329
+await in （匿名）
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+d @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+event @ index.js:3797
+event @ index.js:3797
+（匿名） @ index.js:3999
+Id @ react-dom.production.min.js:165
+Xb @ react-dom.production.min.js:200
+Rk @ react-dom.production.min.js:198
+xb @ react-dom.production.min.js:196
+Li @ react-dom.production.min.js:189
+db @ react-dom.production.min.js:79
+（匿名） @ react-dom.production.min.js:184
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+workbench.desktop.main.js:27 Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at iCs.add (workbench.desktop.main.js:27:1775)
+    at g.value (workbench.desktop.main.js:3276:3067)
+    at m._deliver (xterm.js:1:427397)
+    at m._deliverQueue (xterm.js:1:427503)
+    at m.fire (xterm.js:1:427838)
+    at n.dispose (xterm.js:1:224023)
+    at xt (workbench.desktop.main.js:27:765)
+    at iCs.clear (workbench.desktop.main.js:27:1567)
+    at iCs.dispose (workbench.desktop.main.js:27:1496)
+    at workbench.desktop.main.js:3276:6935
+add @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+_deliver @ xterm.js:1
+_deliverQueue @ xterm.js:1
+fire @ xterm.js:1
+dispose @ xterm.js:1
+xt @ workbench.desktop.main.js:27
+clear @ workbench.desktop.main.js:27
+dispose @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+Bb @ workbench.desktop.main.js:3276
+await in Bb
+zb @ workbench.desktop.main.js:3276
+（匿名） @ workbench.desktop.main.js:3284
+Promise.then
+runCommandInTerminal @ workbench.desktop.main.js:3284
+runCommandInTerminal @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+workbench.desktop.main.js:38  WARN [tooling] commandId:c37298cd-8576-4971-bbb8-3f2712f8a832 startMarker was disposed, fetching full terminal content as fallback 
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:38
+warn @ workbench.desktop.main.js:3801
+warn @ workbench.desktop.main.js:3260
+Hb @ workbench.desktop.main.js:3281
+await in Hb
+checkRunCommandStatus @ workbench.desktop.main.js:3281
+checkRunCommandStatus @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:6316  POST https://mcs.zijieapi.com/list?aid=711126&sdk_version=5.3.7&device_platform=web net::ERR_CONNECTION_RESET
+i.useRequest @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i.send @ workbench.desktop.main.js:6316
+i.sliceEvent @ workbench.desktop.main.js:6316
+i.report @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+setTimeout
+e.setTimeout @ workbench.desktop.main.js:1272
+i.event @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+（匿名） @ workbench.desktop.main.js:6316
+i._emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6316
+i.emit @ workbench.desktop.main.js:6329
+i.event @ workbench.desktop.main.js:6329
+collect @ workbench.desktop.main.js:6329
+（匿名） @ workbench.desktop.main.js:6313
+await in （匿名）
+（匿名） @ workbench.desktop.main.js:6329
+await in （匿名）
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+d @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+report @ workbench.desktop.main.js:6329
+event @ index.js:3797
+event @ index.js:3797
+（匿名） @ index.js:3999
+Id @ react-dom.production.min.js:165
+Xb @ react-dom.production.min.js:200
+Rk @ react-dom.production.min.js:198
+xb @ react-dom.production.min.js:196
+Li @ react-dom.production.min.js:189
+db @ react-dom.production.min.js:79
+（匿名） @ react-dom.production.min.js:184
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+workbench.desktop.main.js:27 Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at iCs.add (workbench.desktop.main.js:27:1775)
+    at g.value (workbench.desktop.main.js:3276:3067)
+    at m._deliver (xterm.js:1:427397)
+    at m._deliverQueue (xterm.js:1:427503)
+    at m.fire (xterm.js:1:427838)
+    at n.dispose (xterm.js:1:224023)
+    at xt (workbench.desktop.main.js:27:765)
+    at iCs.clear (workbench.desktop.main.js:27:1567)
+    at iCs.dispose (workbench.desktop.main.js:27:1496)
+    at workbench.desktop.main.js:3276:6935
+add @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+_deliver @ xterm.js:1
+_deliverQueue @ xterm.js:1
+fire @ xterm.js:1
+dispose @ xterm.js:1
+xt @ workbench.desktop.main.js:27
+clear @ workbench.desktop.main.js:27
+dispose @ workbench.desktop.main.js:27
+（匿名） @ workbench.desktop.main.js:3276
+Bb @ workbench.desktop.main.js:3276
+await in Bb
+zb @ workbench.desktop.main.js:3276
+（匿名） @ workbench.desktop.main.js:3284
+Promise.then
+runCommandInTerminal @ workbench.desktop.main.js:3284
+runCommandInTerminal @ workbench.desktop.main.js:6012
+c @ workbench.desktop.main.js:6012
+（匿名） @ workbench.desktop.main.js:6012
+invokeFunction @ workbench.desktop.main.js:1970
+n @ workbench.desktop.main.js:1927
+executeCommand @ workbench.desktop.main.js:1927
+（匿名） @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+resolveRequest @ workbench.desktop.main.js:6665
+resolveAnyMessage @ workbench.desktop.main.js:6665
+（匿名） @ workbench.desktop.main.js:6665
+n @ workbench.desktop.main.js:6665
+emit @ VM445 sandbox_bundle:2
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]Start to scan port. ppid=21380
+workbench.desktop.main.js:549 [Extension Host] [node][2e2daade-c19c-4cba-b775-2e111be4d42d]isScanning
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+workbench.desktop.main.js:38   ERR repeated tool call RunCommand 5 times: Error: repeated tool call RunCommand 5 times
+    at GZt.create (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:619:104301)
+    at h (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:619:106257)
+    at Array.o (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:16437)
+    at Object.emit (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:3113)
+    at YTr.drain (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:5703)
+    at YTr.enqueueData (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:5450)
+    at YTr.emit (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:4539)
+    at Y1s.emit (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:6520)
+    at Object.e [as callback] (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:9706)
+    at tLr.resolveRequest (vscode-file://vscode-app/d:/apps/Trae%20CN/resources/app/out/vs/workbench/workbench.desktop.main.js:6665:12461)
+error @ workbench.desktop.main.js:38
+error @ workbench.desktop.main.js:38
+error @ workbench.desktop.main.js:3801
+ad @ workbench.desktop.main.js:3810
+（匿名） @ workbench.desktop.main.js:3810
+onUnexpectedError @ workbench.desktop.main.js:7
+hi @ workbench.desktop.main.js:7
+（匿名） @ workbench.desktop.main.js:3810
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] if(V&&J) ENTERED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
+index.js:4003 [v7-auto] o&&h=true, calling resumeChat...
+index.js:4003 [v7-auto] resumeChat RETURNED (may be async)
+index.js:4003 [v7-auto] queueMicrotask FIRED, o=69e85c121ea40a67794ade19 h=69e85c0c1ea40a67794ade17
