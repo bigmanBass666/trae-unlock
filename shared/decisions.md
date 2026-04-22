@@ -191,3 +191,22 @@ format: registry
 - 它出现在同一消息的错误处理流程中，应该被视为可续接场景
 - J 数组控制"是否显示可续接 Alert"，efh 控制"ec() 是否调用 resumeChat"
 - 两者都需要包含 DEFAULT 才能形成完整的恢复链路
+
+---
+
+### [2026-04-22 09:30] 为什么选择"脚本内嵌自动commit"而非仅依赖检查清单
+
+**选择**: 在 apply-patches.ps1 和 auto-heal.ps1 成功路径中直接嵌入 `git add -A` + `git commit` 逻辑
+**否决 A**: 仅在 _registry.md 检查清单中写"应该 commit" — 已证明在单 AI 场景下就不可靠（2 天未 commit），多 AI 场景下更不可靠（旁观者效应）
+**否决 B**: 创建 git pre-commit hook — hook 只在手动 commit 时触发，不能解决"没人手动 commit"的问题
+**否决 C**: 创建定时任务定期 commit — 过于复杂，且可能在不恰当的时机 commit 半成品
+**原因**:
+- **根本问题不是"不知道要 commit"而是"没有强制执行的机制"**
+- apply-patches/auto-heal 是项目中唯二修改目标文件的入口，在这两个点嵌入 commit = 覆盖 100% 的补丁变更场景
+- shared/* 文件和 rules/* 文件的变更是次要的（可通过 snapshot.ps1 手动补充）
+- commit message 格式约定为 `chore: auto-snapshot [时间戳] — 状态摘要`，便于追溯
+
+**配套措施**:
+- 新建 `scripts/snapshot.ps1` 作为手动兜底（用于非补丁类变更的快照）
+- status.md 安全状态仪表盘可视化最后备份/提交时间
+- rule-002 检查清单保留安全检查项（作为 L4 补充防线）
