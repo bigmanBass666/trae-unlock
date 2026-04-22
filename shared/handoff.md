@@ -7,84 +7,91 @@
 
 ## 元数据
 
-- **时间**: 2026-04-22 20:36
-- **会话编号**: #24
-- **Spec Mode**: 否（本轮为 Agent 模式，含 brainstorming 设计环节）
+- **时间**: 2026-04-22 23:21
+- **会话编号**: #25
+- **Spec Mode**: ✅ 是（migrate-auto-continue-l1-to-l2）
 
 ## 当前焦点
 
-**已完成**: 两项重大工作全部完成：
-1. ✅ L1 UI 层冻结原则提炼（v7 日志验证 4/18 架构决策）
-2. ✅ 结构化交接单系统实现（shared/handoff.md + rule-015 + AGENTS.md 4步启动）
-
-**用户方向转变**: 从此进入**单轮会话模式**——每个会话只做一轮，结束前写交接单，下个 AI 通过 handoff 接手。
+**v8 实现已完成，等待用户测试验证！** 核心变更：auto-continue 从纯 L1（React render）迁移到 L1+L2 双层架构，解决切走窗口后补丁失效问题。
 
 ## 活跃 Spec
 
 | 路径 | 状态 | 下一步 |
 |------|------|--------|
-| `.trae/specs/auto-continue-v7-rootcause/` | ✅ **全部完成 (11/11)** | 已关闭 |
+| `.trae/specs/migrate-auto-continue-l1-to-l2/` | ⏳ **Task 1-4 完成, Task 5 待测试** | 用户重启 Trae 后测试 3 个场景 |
 
-**无其他活跃 Spec**。如需新功能需创建新 spec。
+## 本轮做了什么
 
-## 本轮做了什么（按时间顺序）
+### Phase 1: L1 冻结原则提炼（承接 #24）
+1. 分析 v7 成功日志三阶段时间线 → 确认切走=静默、切回=延迟触发
+2. 搜索历史发现 4/18 已记录 + 后台测试文件已展示症状
+3. 提炼 **L1 UI 层冻结原则**（Chromium rAF→React Scheduler→memo 不渲染）
+4. 全量知识库更新 (commit `2c1d34f`)
 
-1. **v7 成功日志分析** — 用户报告 `vscode-app-1776857498619.log` 测试成功，提取三阶段时间线（聚焦→切走→切回）
-2. **历史搜索** — 发现 4 月 18 日 decisions.md + context.md 已记录相同现象，后台测试文件早已展示症状
-3. **L1 冻结原则提炼** — Chromium rAF 暂停 → React 渲染暂停 → L1 补丁不执行。解释了 auto-continue 6次迭代的根因
-4. **全量知识库更新（commit `2c1d34f`）**:
-   - discoveries.md: +95行 L1 冻结完整分析（证据+分层审计表+8补丁分层+设计原则）
-   - context.md: 架构洞察增强 + 新增 #6 L1 冻结原则
-   - decisions.md: v7 验证 4/18 决策记录
-   - diagnosis-playbook.md: +场景 F（前台正常/后台失效诊断流程）
-   - status.md: 会话 #24 日志 + 反思
-   - auto-continue-v7-rootcause spec: tasks+checklist 全部标记完成
-5. **交接单系统设计（brainstorming 流程）**:
-   - 分析当前交接机制缺口（5个致命缺口）
-   - 确认用户需求：结构化交接单、每次覆盖、shared/handoff.md
-   - 设计 8 字段固定格式 + AGENTS.md Step 0/4步协议变更
-6. **交接单系统实现（commit `febad97`）**:
-   - 🆕 shared/handoff.md 创建（以 #24 状态作为初始内容）
-   - AGENTS.md: 3步→4步启动 + 结束检查新增写 handoff
-   - _registry.md: 注册 handoff.md 为 P0 必读模块
-   - rules/workflow.yaml: 新增 rule-015 (critical)
-   - shared/rules.md: 规则引擎重新生成
+### Phase 2: 交接单系统设计+实现
+5. 设计 `shared/handoff.md` 结构化交接单（8 字段固定格式）
+6. 实现: handoff.md 创建 + AGENTS.md Step 0 + _registry P0 注册 + rule-015 (commit `febad97`)
+
+### Phase 3: v8 L1→L2 迁移（核心工作）
+7. **Task 1 研究**: 用 ast-grep 发现 D/b 在 React 组件闭包内 → 改用 "L1 捕获服务引用到 window + L2 轮询读取" 方案
+8. **Task 2 新补丁**: `auto-continue-l2-event` — 文件末尾注入 setInterval(3000) 轮询器
+9. **Task 3 简化 v8**: `auto-continue-thinking` — 移除所有执行逻辑，只保留 Alert 显示 + `window.__traeSvc` 服务捕获
+10. **Task 4 应用**: apply-patches.ps1 → 两个补丁 Applied + Syntax OK + fingerprint 9/10 PASS (commit `a5d91b6`)
 
 ## 关键决策
 
 | 决策 | 选择 | 否决 |
 |------|------|------|
-| L1 冻结处理方式 | 提炼原则+知识库更新 | 实际迁移 auto-continue 到 L2 |
-| 原因 | v7 聚焦时已工作，冻结是预期行为非 bug | 迁移成本高，当前不急需 |
-| 交接单形式 | 结构化交接单（8字段固定格式） | 状态看板（太简略）/双层模式（过度设计）|
-| 交接单位置 | shared/handoff.md | 嵌入 status.md / 根目录 HANDOFF.md |
+| L2 注入方式 | **文件末尾 setInterval 轮询** | SessionServiceImpl.onStreamingStop hook（find_original 太长太脆弱） |
+| 服务引用传递 | **L1 首次检测时捕获 D/b/M 到 window.__traeSvc** | 直接在模块顶层访问（D/b 在组件闭包内不可达） |
+| 轮询间隔 | 3000ms | 2000ms（太频繁）/ 5000ms（响应太慢） |
+| 错误检测方式 | **检查最后消息 status/code** | 监听 SSE 事件（需要找到事件系统入口） |
+
+## v8 架构设计
+
+```
+┌─────────────────────────────────────────────┐
+│  L1 (if(V&&J) in React render):             │
+│  1. 首次检测错误 → window.__traeSvc = {D,b,M} │
+│  2. 设置 __taeAC 冷却标记                    │
+│  3. 显示 Alert 按钮（纯展示）                 │
+├─────────────────────────────────────────────┤
+│  L2 (文件末尾 IIFE, setInterval 3000):       │
+│  1. 读 window.__traeSvc                      │
+│  2. b.getCurrentSession() → 最后消息          │
+│  3. 检查可续接错误码                          │
+│  4. __taeAC 冷却检查                          │
+│  5. D.sendChatMessage("继续")                │
+│  ✅ 不受窗口焦点影响                           │
+└─────────────────────────────────────────────┘
+```
 
 ## 用户最后意图
 
-> "我现在需要转变思路与方向。我以后不会再在一个会话中进行超过 1 轮的迭代，我用完一个会话之后马上就会转向新的会话。你需要做些什么，让以后你的 AI 同事能准确无误的接手你的工作。我们先来好好的设计"
-
-> **→ 已完成设计和实现。handoff.md 系统已上线（rule-015 强制执行）。**
+> "你先解决当前这个切换窗口就失效的现象, 先把这个解决好先, 解决好了再把经验落实下来"
 
 ## 遗留 / 待办
 
-- [ ] **验证交接单系统** — 下一个新会话的 AI 是否能通过 handoff.md 正确接手？这是对整个系统的首次实战检验
-- [ ] **auto-continue-thinking 未来可考虑从 L1 迁移到 L2** — 使其在后台也能触发（不急，v7 聚焦时已正常）
-- [ ] **ec-debug-log [v7-manual] console.log 清理** — 生产代码不应有调试日志（等 v7 完全稳定后）
+- [ ] **🔥 用户测试 Task 5（核心！）**:
+  - 重启 Trae
+  - 场景 A: 聚焦 → 循环检测 → 自动续接
+  - **场景 B: 切走 → 循环检测 → 后台自动续接 ← 这是目标!**
+  - 场景 C: 切回 → 无重复
+  - 收集控制台日志（应有 [v8-L1] 和 [v8-L2] 输出）
+- [ ] Task 6: 测试通过后更新知识库 + 复盘 + handoff
 
 ## 相关文件速查
 
 | 文件 | 变更内容 | commit |
 |------|---------|--------|
-| `shared/handoff.md` | 🆕 **交接单系统核心文件** | `febad97` |
-| `AGENTS.md` | 启动协议 3→4 步 + 结束检查增强 | `febad97` |
-| `shared/_registry.md` | 注册 handoff.md 为 P0 必读 | `febad97` |
-| `rules/workflow.yaml` | +rule-015 (交接单强制写入) | `febad97` |
-| `shared/rules.md` | 规则引擎重新生成 | `febad97` |
-| `shared/discoveries.md` | +L1 冻结原则（95行） | `2c1d34f` |
-| `shared/context.md` | 架构洞察 #2 增强 + #6 新增 | `2c1d34f` |
-| `shared/decisions.md` | +v7 验证 4/18 决策 | `2c1d34f` |
-| `shared/diagnosis-playbook.md` | +场景 F | `2c1d34f` |
-| `shared/status.md` | +会话 #24 日志 | `2c1d34f` |
+| `patches/definitions.json` | 🔄 auto-continue-thinking v7→v8 + 🆕 auto-continue-l2-event | `a5d91b6` |
+| target `index.js` | v8 L1 + v8 L2 已应用 (9/10 PASS) | `a5d91b6` |
+| `shared/handoff.md` | 🆕 交接单系统 | `febad97` / `2baea7a` |
+| `AGENTS.md` | 启动协议 3→4 步 | `febad97` |
+| `shared/_registry.md` | handoff.md P0 注册 | `febad97` |
+| `rules/workflow.yaml` | +rule-015 | `febad97` |
+| `shared/discoveries.md` | +L1 冻结原则 | `2c1d34f` |
 
 ## 知识库索引（新 AI 快速定位）
 
@@ -93,9 +100,7 @@
 | 方向 | 搜索关键词 | 位置 |
 |------|-----------|------|
 | **🔥 接手本会话** | 读 `shared/handoff.md`（本文件！） | **Step 0 最优先** |
-| 补丁失效/崩溃 | "崩溃"/"消失" | diagnosis-playbook 场景 A |
-| auto-continue 问题 | "v7"/"resumeChat"/"L1 冻结" | diagnosis-playbook 场景 B+F + discoveries [2026-04-22 16:00] |
-| 弹窗/确认问题 | "confirm"/"弹窗" | diagnosis-playbook 场景 D |
-| Trae 更新后恢复 | "更新"/"变量重命名" | diagnosis-playbook 场景 C |
-| 新补丁架构设计 | "分层"/"L1 冻结"/"L2 服务层" | context.md 架构洞察 #6 + decisions [2026-04-20 20:40] |
-| 交接单格式规范 | "handoff"/"交接"/"rule-015" | rules/workflow.yaml rule-015 |
+| **🔥 v8 测试结果分析** | `[v8-L1]` 或 `[v8-L2]` 控制台日志 | 用户提供的 log 文件 |
+| v8 架构说明 | "v8"/"L1 L2 双层"/"__traeSvc" | 本 handoff + spec |
+| 补丁失效诊断 | diagnosis-playbook 场景 A+F | shared/diagnosis-playbook.md |
+| L1 冻结原则 | "冻结"/"L1"/"rAF" | discoveries.md [2026-04-22 16:00] |
