@@ -113,3 +113,26 @@ format: registry
 3. DI token `BR` 可能随 Trae 更新变化，需要建立搜索定位机制
 
 **备选方案**: Direction D — visibilitychange 事件 + L1 补丁组合。切回窗口时立即触发一次续接检查。简单但非真正的后台执行。
+
+### [2026-04-23 03:20] v10 实施决策 — 用 `this._aiAgentChatService` 而非 DI 容器 resolve
+
+**选择**: `this._aiAgentChatService.resumeChat()` | **否决**: `uj.getInstance().resolve(BR).resumeChat()`
+
+**理由**:
+1. Bs 类（ChatStreamService）已通过 DI 注入了 `_aiAgentChatService`（DI token=Di）
+2. Trae 自己的 `createStream` 方法就用 `this._aiAgentChatService.resumeChat()` — 这是标准模式
+3. 无需额外的 `uj.getInstance().resolve()` 调用 — 更简洁、更安全
+4. `resolve(BR)` 获取的是 `_sessionServiceV2`，其 `resumeChat` 参数是 `{messageId, sessionId}`
+5. `_aiAgentChatService.resumeChat` 参数是 `{message_id}` — 与 Trae 已有调用一致
+
+### [2026-04-23 03:20] v10 实施决策 — 用数字字面量而非 kg.XXX 引用
+
+**选择**: `[4000002,4000009,4000012,2000000,987,4008,977].indexOf(_rc)` | **否决**: `[kg.TASK_TURN_EXCEEDED_ERROR,...].includes(_rc)`
+
+**理由**:
+1. Bs 类区域中 `kg.` 使用次数为 0 — 虽然模块级可访问，但不符合该类的代码风格
+2. 数字字面量不依赖 `kg` 变量名 — Trae 更新后更稳定
+3. `indexOf` 比 `includes` 兼容性更好（虽然现代浏览器都支持）
+4. 补丁中的代码越少依赖外部变量越好
+
+**教训**: 错误码是**数字枚举**（`kg.XXX = 数字`），不是字符串。`MODEL_PREMIUM_EXHAUSTED` 在源码中不存在！之前 spec 中的字符串白名单完全错误。

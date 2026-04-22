@@ -703,3 +703,102 @@ if (需要自动续接的条件) {
 1. DI token `BR` 可能随 Trae 更新而改名（中等风险，可通过搜索 `_sessionServiceV2` 定位新 token）
 2. `resumeChat` 参数格式可能变化（低风险，与现有调用保持一致即可）
 3. 需要确认 PlanItemStreamParser 内能访问到 sessionId/messageId
+
+---
+
+## [2026-04-23 03:20] v10 实施过程中的关键发现 ⭐⭐
+
+### 发现 1：错误码是数字枚举，不是字符串！
+
+```
+枚举变量: kg (模块级)
+格式: kg.XXX = 数字值
+e.code 返回数字，不是字符串
+
+关键错误码数值:
+  kg.TASK_TURN_EXCEEDED_ERROR  = 4000002  (思考次数上限)
+  kg.LLM_STOP_DUP_TOOL_CALL    = 4000009  (循环检测-重复工具调用)
+  kg.LLM_STOP_CONTENT_LOOP     = 4000012  (循环检测-内容循环)
+  kg.DEFAULT                   = 2000000  (未知错误兜底)
+  kg.MODEL_OUTPUT_TOO_LONG     = 987      (输出过长)
+  kg.PREMIUM_MODE_USAGE_LIMIT  = 4008     (高级模式用量限制)
+  kg.MODEL_PREMIUM_QUOTA_DRAINED = 977    (高级模型配额耗尽)
+  kg.CLAUDE_MODEL_FORBIDDEN    = 4113     (Claude模型禁止)
+  kg.INVALID_TOOL_CALL         = 4027     (无效工具调用)
+```
+
+**教训**: 之前 spec 中写的 `["MODEL_PREMIUM_EXHAUSTED","CLAUDE_MODEL_FORBIDDEN",...]` 字符串白名单完全错误！`MODEL_PREMIUM_EXHAUSTED` 在源码中根本不存在。必须用数字值。
+
+### 发现 2：`class Bs` = ChatStreamService（不是 PlanItemStreamParser！）
+
+```
+位置: @7524723
+完整名: class Bs extends bV.Disposable
+实际功能: ChatStreamService — SSE 流的核心管理类
+
+关键方法:
+  chatStream(e)           — 发起聊天流 (@7524723)
+  createStream(e)         — 创建流，含 resumeChat 蓝图 (@7540700)
+  _onError(e,t,i)         — SSE 错误回调 (@7528742) ← v10 补丁位置
+  _onMessage(e,t)         — SSE 消息回调
+  _onCancel(e)            — SSE 取消回调
+  _onComplete(e)          — SSE 完成回调
+  _onStreamingStop(e)     — 流停止统一处理
+  _stopStreaming(e)       — 停止流（取消请求）
+
+DI 注入的服务:
+  this._aiAgentChatService  (DI token=Di) — AI聊天服务，有 resumeChat()
+  this._logService          — 日志服务
+  this.storeService         — Store 服务
+  this._taskService         — 任务服务
+  this.eventHandlerFactory  — 事件处理器工厂
+```
+
+### 发现 3：`createStream` 中已有 resumeChat 蓝图
+
+```javascript
+// @7540933 — Bs 类中已有的续接逻辑
+async createStream(e){
+  let{requestObject:t,chatType:i,agentMessage:r,aiClient:n,terminalInfo:o}=e;
+  return "resume"===i
+    ? await this._aiAgentChatService.resumeChat({...t,message_id:r.agentMessageId})
+    : await this._aiAgentChatService.chat(t,n,o)
+}
+```
+
+**意义**: `this._aiAgentChatService.resumeChat({message_id: xxx})` 是 Trae 自己的续接调用模式。v10 补丁直接复用此模式，无需 `uj.getInstance().resolve()`。
+
+### 发现 4：`_onError` 回调参数结构
+
+```
+_onError(e, t, i):
+  e = 错误对象 {code: number, data: any, message: string}
+  t = boolean (是否为 SSE 流错误，true=流错误, false=其他错误)
+  i = stream context {sessionId, agentMessageId, context, ...}
+
+调用处 (@7526672):
+  this._onError(e, !0, u)  — SSE 流错误
+  this._onError(e, !1, u)  — catch 中的异常
+
+i.agentMessageId 可用性: ✅ 确认存在（Bs 类中22处使用）
+fallback: i.context?.agentMessageId
+```
+
+### 发现 5：`kg` 枚举在 Bs 类中不可直接访问
+
+```
+Bs 类区域 (7520000-7560000) 中 kg. 的使用次数: 0
+但同文件其他位置有使用（如 @7513091: e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR）
+
+结论: kg 是模块级变量，理论上可在 Bs 类中访问
+但为了补丁安全性，v10 使用数字字面量而非 kg.XXX 引用
+好处: 不依赖 kg 变量名，Trae 更新后更稳定
+```
+
+### 发现 6：v10 最终方案 — 无需 DI 容器 resolve
+
+研究阶段推荐的 `uj.getInstance().resolve(BR)` 方案在实际实施中被简化：
+- Bs 类已经通过 DI 注入了 `this._aiAgentChatService`
+- 直接用 `this._aiAgentChatService.resumeChat()` 即可
+- 无需额外的 `uj.getInstance().resolve()` 调用
+- 更简洁、更安全、更符合 Trae 自身代码模式
