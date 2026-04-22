@@ -38,3 +38,13 @@ format: registry
 
 **数据**: auto-continue-thinking 迭代 6 次（L1）vs service-layer 迭代 3 次（L2）vs data-source 迭代 2 次（L3）
 **结论**: 迭代次数与所在层级强相关。L1 补丁因冻结问题反复失败。新补丁优先考虑 L2/L3 注入点。
+
+### [2026-04-23 00:45] v9 早捕获 — 为什么 v8 的 L2 独立设计是假的
+
+**选择**: v9 早捕获（在 if(V&&J) 外无条件捕获服务） | **否决**: v8 设计（L2 依赖 L1 先设置 __traeSvc）
+**根因分析**: v8 的 L2 轮询器虽然用 setInterval 不受 rAF 影响，但它读取的 `window.__traeSvc` 是由 L1 (if(V&&J)) 设置的。后台窗口时 L1 冻结 → __traeSvc 永远为空 → L2 拿到 undefined → 静默退出。**L2 形式上独立，实际上完全依赖 L1。**
+**v9 方案**: 将 `window.__traeSvc = {D,b,M}` 移到 if(V&&J) **之前**，使其在组件每次渲染时都执行（不依赖错误状态）。用户只要看到聊天界面，__traeSvc 就被设置。
+**否决的其他方案**:
+- 直接从模块级获取 D/b: ast-grep 搜索确认 SessionServiceImpl/sendChatMessage 在更新后变量名全变，无法可靠定位
+- DOM 操作模拟点击: React 冻结时 DOM 也不更新，按钮不存在
+- fetch 直接调 API: 需要 auth token 格式，复杂度高

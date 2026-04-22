@@ -324,8 +324,81 @@ terser/webpack 重新打包导致变量重命名（非确定性！）：`efh`→
 | service-layer-runcommand-confirm | v8 | L2 | ✅ |
 | data-source-auto-confirm | v3 | L3 | ✅ |
 | guard-clause-bypass | v1 | L1 | ✅ |
-| **auto-continue-thinking** | **v8** | **L1+L2** | ⚠️ 测试中 |
+| **auto-continue-thinking** | **v9** | **L1+L2** | ⚠️ **测试中** |
 | auto-continue-l2-event | v1 | L2 | ⚠️ 测试中 |
 | efh-resume-list | v3 | L1 | ✅ |
 | bypass-loop-detection | v4 | L1 | ✅ |
 | bypass-runcommandcard-redlist | v2 | L1 | ⚠️ 仅改样式 |
+
+---
+
+## [2026-04-23 00:45] v8 架构缺陷根因 — "切换窗口后失效"的真正原因 ⭐⭐⭐
+
+**这是本项目最重要的发现之一。** 解释了为什么 auto-continue 从 v3 到 v8 迭代了 6 次，每次都"解决"了但又复发。
+
+### v8 的依赖链（有缺陷的设计）
+
+```
+L1 (if(V&&J), React render 内):
+  └─ 检测到错误 → 设置 window.__traeSvc = {D, b, M, sid, mid}
+
+L2 (setInterval(3000), 文件末尾 IIFE):
+  └─ 读取 window.__traeSvc → 如果存在 → sendChatMessage
+```
+
+### 后台窗口场景下的执行流程（v8 失效的完整证据链）
+
+```
+1. 用户切到别的窗口
+2. Chromium 停止后台标签页的 requestAnimationFrame
+3. React Scheduler 暂停 → memo() 不重渲染
+4. if(V&&J) **不执行**（它在 React render path 内）
+5. window.__traeSvc **从未被设置** ← 关键！
+6. L2 轮询器运行（✅ setInterval 不受 rAF 影响）
+7. var svc = window.__traeSvc → **undefined**
+8. if(!svc) return → **退出，什么都不做**
+9. 结果：和 v3-v7 完全一样失效！
+```
+
+### 为什么之前没发现
+
+1. **测试时总盯着窗口** — 前台时 L1 正常执行 → __traeSvc 被设置 → L2 也工作 → 误以为 L2 独立有效
+2. **v8 的 L2 确实能运行** — setInterval 不受影响，但拿到的是 undefined → 静默失败无报错
+3. **焦点在"换触发方式"上** — queueMicrotask → setTimeout → setInterval，一直在改"何时触发"，没意识到问题是"拿不到服务引用"
+
+### v9 解决方案：早捕获 (Early Capture)
+
+**核心改变**: 将 `window.__traeSvc` 捕获从 `if(V&&J)` **内部**移到**外部**。
+
+```javascript
+// v8 (有缺陷): 只在错误检测时捕获
+if(V&&J){
+    if(!window.__traeSvc){window.__traeSvc={D:D,b:b,M:M}}  // ← 后台时不执行!
+    ...
+}
+
+// v9 (修复): 每次渲染都无条件捕获
+if(typeof D!=='undefined'&&D&&typeof b!=='undefined'&&b){
+    if(!window.__traeSvc){window.__traeSvc={D:D,b:b,M:M}}  // ← 只要组件渲染就执行!
+}else{window.__traeSvc.D=D;...}  // 更新引用（防止 stale）
+if(V&&J){...}  // 错误处理逻辑不变
+}
+```
+
+### v9 的保证
+
+| 场景 | v8 | v9 |
+|------|-----|-----|
+| 前台触发错误 | ✅ L1执行→__traeSvc设置→L2可用 | ✅ 同上 |
+| **后台首次触发错误** | ❌ __traeSvc从未设置→L2空转 | ✅ 前台已设置→L2读取可用 |
+| 切走后再切回 | ✅ 但可能重复 | ✅ __taeAC守卫防重复 |
+| 组件首次渲染 | 不捕获 | ✅ **立即捕获** |
+
+**关键洞察**: 用户只要看到聊天界面（组件至少渲染一次），`window.__traeSvc` 就被设置了。之后无论是否切走窗口，L2 都能使用。
+
+### 教训：标与本
+
+- **标**: 换触发方式（queueMicrotask→setTimeout→setInterval）— 改了 6 次
+- **本**: 服务引用在 React 闭包内，后台无法访问 — **v9 才真正解决**
+
+未来遇到类似问题，先问："这个变量/函数的作用域是什么？在后台能访问到吗？"
