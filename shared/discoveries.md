@@ -785,6 +785,101 @@ DI 注入:
 
 注意: zU 类没有 this._aiAgentChatService!
 需要通过 uj.getInstance().resolve(Di) 获取
+
+### [2026-04-23 05:00] v10 第二次测试失败 — 思考上限错误不走 SSE 路径！⭐⭐⭐
+
+**这是本项目最关键的架构发现——推翻了之前所有 L2 补丁位置的假设！**
+
+#### 完整错误传播链路（从日志 vscode-app-1776902776348.log 确认）
+
+```
+时序图 (用户全程切走窗口):
+
+T1: AI 开始回复 (前台)
+  → teaEventChatShown + teaEventChatShownWhenFirstToken
+  → handleSteamingResult (SSE正常消息)
+
+T2: 用户切走窗口 (后台)
+  → (AI 继续思考，SSE 数据继续到达...)
+
+T3: 思考次数达到上限 (后台!)
+  → workbench.desktop.main.js:38  ERR exceeded maximum number of turns
+    → GZt.create() 在主进程中创建错误对象
+    → YTr.drain/enqueueData/emit (主进程事件总线)
+    → POST mcs.zijieapi.com... ERR_CONNECTION_RESET (网络断开!)
+
+T4: 渲染进程收到通知 (后台)
+  → teaEventChatFail ×2 (@7199-7200) ← 思考上限的真正入口!
+  → _onError @ index.js:3861 (@7202) ← SSE连接断开(e.code=1006)
+  → [v10-bg] 没有出现! ← parse方法没被调用或e.code不匹配
+
+T5: 用户切回窗口
+  → React Scheduler 恢复正常
+  → Store 状态更新触发 re-render
+  → if(V&&J) 条件满足
+  → [v7] triggering auto-continue (@7420) ← L1续接触发!
+```
+
+#### 核心发现：两条完全独立的错误路径
+
+**路径 A: 思考上限错误（我们关心的）**
+```
+主进程 GZt.create("exceeded maximum number of turns")
+  → 主进程 YTr 事件总线
+    → teaEventChatFail 事件 (渲染进程)
+      → 更新 Store/State
+        → React re-render (切回窗口后才执行!)
+          → if(V&&J) → L1续接
+```
+**特点**: 不经过 SSE 的 Ot.Error 事件! 不经过 ErrorStreamParser.parse()!
+`_onError` 只是巧合地在同一时间被 SSE 连接断开触发的!
+
+**路径 B: SSE 连接断开错误（之前误判为路径A）**
+```
+Chromium 后台节流 → SSE 连接断开 (ERR_CONNECTION_RESET, e.code=1006)
+  → Bs._onError(e, !0, u)
+    → BP.onError(e, true, i)
+      → 1006!==e.code → false → 跳过 teaEventChatFail
+      → t && eventHandlerFactory.handle(Ot.Error, e, r) ← 这里才调用parse()
+        → ErrorStreamParser.parse(e, t) ← 但 e.code=1006不在白名单!
+```
+
+#### BP.onError 的关键代码 (@7542473, @7546037)
+
+```javascript
+onError(e, t, i) {
+  let {context: r} = i;
+  // 只有 e.code != 1006 时才上报
+  1006 !== e.code && this.chatStreamBizReporter.teaEventChatFail(e, r),
+  // 有 code 时处理通用错误
+  e.code && this._aiChatRequestErrorService.handleCommonError(e.code, e.data),
+  // ★★★ 只在 t=true 时才分发到 eventHandlerFactory!
+  t && this.eventHandlerFactory.handle(Ot.Error, e, r),   // @7542473
+  // ...
+}
+```
+
+**结论**: `eventHandlerFactory.handle(Ot.Error)` → `ErrorStreamParser.parse()` 只在 `t=true` 且 `e.code != 1006` 时才会被有意义地调用。而思考上限错误根本不经过这条路！
+
+#### 为什么 L1 补丁在后台不工作
+
+L1 补丁 (`if(V&&J)`) 在 React render 函数中:
+1. 思考上限错误到达 → teaEventChatFail → Store 更新 ✅ (后台可执行)
+2. React setState 入队 ✅ (后台可执行)
+3. **但 React re-render 在后台被延迟/不确定** ⚠️ (Scheduler 时间片降级到1s)
+4. **if(V&&J) 判断时机不可预测** ⚠️
+5. 切回窗口 → React 立即 re-render → if(V&&J) 满足 → L1续接 ✅
+
+#### 最终结论
+
+**L2 补丁无法拦截"思考上限"错误，因为这个错误不经过任何 L2 层的代码路径。**
+
+它从主进程直接通过 IPC/事件机制到达渲染进程的 Store/State 层，然后依赖 React re-render 触发 UI 更新。
+
+可行的方案只剩:
+1. **Direction D: visibilitychange 事件** — 切回窗口时立即检查+续接(简单可靠)
+2. **Store 订阅/中间件** — 拦截 Store 中 thinking status 变化(复杂但真正的后台执行)
+3. **主进程补丁** — 修改 workbench.desktop.main.js(不在本项目范围内)
 ```
 
 ### 发现 2：`class Bs` = ChatStreamService（不是 PlanItemStreamParser！）
