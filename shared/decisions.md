@@ -161,3 +161,24 @@ format: registry
 **原因**: subscribe 回调的 prevState/currentState 搞反 + 条件逻辑反转。
 **修复**: 交换 _m/_o 变量来源, 条件不变(因为语义也变了)。
 **验证**: node --check 通过, fingerprint 存在, 待用户重新测试。
+
+### [2026-04-23 10:00] v11.3 决策 — 放弃store.subscribe改用setInterval轮询
+
+背景: v11.0-v11.2 三次失败, 诊断版揭示真正根因是Zustand浅比较遗漏属性变异。
+决策: 用setInterval(2000ms)轮询n.getState()替代store.subscribe()。
+理由:
+1. 诊断证明subscribe能触发但检测目标错误(监听length变化vs属性变异)
+2. 轮询同步读取Store最新值, 绕过Zustand通知机制限制
+3. setInterval在后台tab中正常工作(Chromium最小1s节流>我们的2s间隔)
+4. 与沙箱useMemo补丁同款"同步读取"成功模式
+风险: 轮询有最大2s延迟(可接受, 比切回窗口手动续接快得多)
+
+### [2026-04-23 11:00] v11.4 决策 — setInterval→MessageChannel绕过后台节流
+
+背景: v11.3 setInterval检测到错误但与v7几乎同时触发(差3行),说明被Chromium后台节流。
+决策: 用MessageChannel+setTimeout替代setInterval。
+理由:
+1. MessageChannel基于IPC, Chromium规范明确不节流
+2. 与Zustand内部通知机制同款(已证明有效)
+3. setTimeout仅用于间隔控制(2000ms), 即使被节流也只影响轮询频率不影响正确性
+4. v11.3证明了检测逻辑本身是正确的, 只是定时器不可靠

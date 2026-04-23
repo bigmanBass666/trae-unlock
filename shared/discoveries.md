@@ -1025,3 +1025,77 @@ if(_m.length<=_o.length)return;  // 无新消息时跳过 ✅
 **次要发现**: "store.subscribe installed" 日志未出现 — FR() 在启动早期执行，可能在日志捕获前完成。这不影响功能(subscribe已安装), 只是调试日志缺失。
 
 **经验教训**: 写 subscribe 回调时必须明确标注 `(curr, prev)` 参数含义!
+
+### [2026-04-23 10:00] v11.2 诊断结果 — Zustand 浅比较 + 属性变异 ⭐⭐⭐
+
+**诊断日志决定性证据** (vscode-app-1776921117541.log):
+```
+[v11-diag] CALLBACK FIRED! {"p_msgs":1,"c_msgs":0}     ← store.subscribe 回调在后台确实触发了!
+[v11-diag] lastNew msg: 69e9a0b1
+[v11-diag]   exception: undefined                        ← 🔴 但 exception 是 undefined!
+[v11-diag]   status: completed                            ← 状态是 completed
+[v11-diag] checking error code: undefined whitelist: -1   ← code=undefined, 不在白名单
+[v11-diag] SKIP: code not in whitelist                   ← 跳过!
+```
+
+**时间线**:
+```
+行29766: v11-diag → status=completed, exception=undefined → SKIP
+行29767: exceeded maximum number of turns (主进程报错!)
+行29915: [v7] triggering auto-continue ← 用户切回窗口后触发!
+```
+
+**根因**: 思考上限错误通过**修改已有消息对象的属性**(mutation)写入Store:
+```
+① 流结束: messages=[{status:"completed", exception:undefined}]
+   → 数组引用变化 → subscribe ✅ 触发 → v11看到exception=undefined → SKIP ✗
+
+② 错误到达: messages[0].exception = {code:4000002}  ← 属性变异!
+   → 数组引用不变! Zustand浅比较认为"无变化" → subscribe ❌ 不再通知!
+
+③ 用户切回: React直接读Store当前值 → exception.code=4000002 → J=true → v7✅
+```
+
+**v7的J从哪来的?**:
+- J = !![TASK_TURN_EXCEEDED_ERROR,...].includes(_)
+- _ = (JP.Sz(Jj,e=>e.exception)||efp).code
+- 当React re-render时直接读Store最新值(不是subscribe回调), 此时exception已填充
+- 所以J=true, V=true → if(V&J)触发resumeChat
+
+**修复方案(v11.3)**: setInterval轮询替代store.subscribe
+- 每2秒调用 n.getState().currentSession?.messages[last]?.exception?.code
+- 同步读取Store最新状态, 不依赖Zustand通知机制
+- 与沙箱问题(useMemo)同款模式: 后台同步读取有效
+
+### [2026-04-23 11:00] v11.4 MessageChannel轮询 — 绕过Chromium后台节流 ⭐⭐⭐
+
+**v11.3(setInterval)测试结果** (vscode-app-1776927977865.log):
+- [v11-bg] POLL detected error 4000002 ✅ 检测到了!
+- 但 v11 和 v7 只差3行日志 → 说明都是在切回窗口后才触发
+- **根因: Chromium 后台 tab 将 setInterval 节流到可能1分钟+**
+- 我们的2000ms间隔在后台被严重延迟
+
+**修复方案(v11.4)**: MessageChannel + setTimeout 组合
+- MessageChannel.postMessage 基于 IPC 机制, **不受后台节流影响**
+- 这与 Zustand 内部使用的通知机制完全相同
+- 架构:
+  ```
+  IIFE启动 → _mc.port2.postMessage("") → port1.onmessage → _v11poll()
+                                                    ↓
+                                             检测 n.getState() 错误码
+                                                    ↓
+                                        成功? → clearInterval等效(不再_sched) → resumeChat
+                                        失败? → _sched() → 新MC → setTimeout(2000) → postMessage → 循环
+  ```
+
+**注入技术要点**:
+- 位置: async function FR() 末尾 (offset ~7588639), 在 subscribe #8 和 FP() 之间
+- 花括号平衡: 原始 `})}` = close-subscribe + close-FR, 替换为 `}); }` + MC代码
+- 必须用模板字面量(String.raw)避免引号冲突
+- fingerprint: [v11.4-bg] MC installed
+
+**完整失败→成功演进链**:
+v11.0 store.subscribe → 参数顺序反了(不触发)
+v11.2 diagnostic版   → 发现exception=undefined(Zustand浅比较)
+v11.3 setInterval    → 检测到但时机不对(后台节流)
+v11.4 MessageChannel → 待验证 ✨
