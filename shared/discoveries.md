@@ -1099,3 +1099,25 @@ v11.0 store.subscribe → 参数顺序反了(不触发)
 v11.2 diagnostic版   → 发现exception=undefined(Zustand浅比较)
 v11.3 setInterval    → 检测到但时机不对(后台节流)
 v11.4 MessageChannel → 待验证 ✨
+
+### [2026-04-23 12:00] v11.5 模块级注入 — 解决FR()不执行导致零输出 ⭐⭐
+
+**v11.4测试结果** (vscode-app-1776936667064.log):
+- [v11.4-bg] 完全零输出 — 连 "MC installed" 都没有
+- 代码验证: 文件中 ✅ 存在, node --check ✅ 通过
+- **根因推断**: async function FR() 内部卡在 await o() 未执行到我们的代码
+  FR()结构: if(FL)return → resolve DI → await o() [可能挂起] → subscribe#8 → [v11代码]
+  如果 o() (isPastChatsEnabled检查) 在后台/特定条件下永远不resolve, 后续代码全不会执行
+
+**v11.5修复**: 将MC轮询从FR()内部移至模块级
+- 注入位置: async function FR() 定义之前 (offset ~7588017)
+- 执行时机: 模块加载时立即执行IIFE (不等任何async函数)
+- Store获取: uj.getInstance().resolve(xC).getState() (与FR()内相同DI方式)
+- 完全消除对FR()/await o()/FL守卫的依赖
+
+**完整演进链更新**:
+v11.0 store.subscribe(参数反了) → 不触发
+v11.2 diagnostic(30次回调) → 发现exception=undefined(属性变异)
+v11.3 setInterval(检测到了!) → 但与v7同时触发(后台节流)
+v11.4 MessageChannel(FR()内) → 零输出(FR没执行完)
+v11.5 MessageChannel(模块级) → 待测试 ✨✨
