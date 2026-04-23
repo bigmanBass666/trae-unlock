@@ -955,3 +955,43 @@ Bs 类区域 (7520000-7560000) 中 kg. 的使用次数: 0
 - 直接用 `this._aiAgentChatService.resumeChat()` 即可
 - 无需额外的 `uj.getInstance().resolve()` 调用
 - 更简洁、更安全、更符合 Trae 自身代码模式
+
+### [2026-04-23 08:35] v11 根因确认: React Scheduler 后台冻结 + store.subscribe 解决方案 ⭐⭐⭐
+
+**问题**: v7/v10 auto-continu 在后台窗口不触发，切回后才执行。
+
+**根因**: `if(V&&J)` 代码位于 **sX().memo() (React.memo) 子组件的 render body** 中 (offset 8709284)，依赖 React Scheduler 调度 re-render。后台 tab 中 React 将渲染节流到 ~1s 或完全不执行。
+
+**完整数据流**:
+```
+主进程 GZt.create("exceeded max turns") → IPC → Zustand Store更新(currentSession.messages[last].exception={code:4000002})
+  → store.subscribe() 回调 ✅ 立即执行
+  → React useStore → scheduleReRender ❌ 后台冻结
+        → sX().memo() → if(V&J) ❌ 不执行
+```
+
+**组件结构** (offset ~8709284):
+- 父组件: D=uB(BR)=_sessionServiceV2, G=N.useStore(e=>e.currentSession)
+- sX().memo(Jj): JP.Sz选择器提取 status/exception/agentMessageId/sessionId
+- **`_` (错误码) = (JP.Sz(Jj,e=>e.exception)||efp).code** — 来自消息对象的exception字段!
+- V=G?.messages?[last]?.agentMessageId===o, J=!![TASK_TURN_EXCEEDED_ERROR,...].includes(_)
+
+**三个成功案例对比**:
+| 补丁 | 层 | 位置 | 为什么能后台工作 |
+|------|-----|------|----------------|
+| 命令确认 | L2 | PlanItemStreamParser._onMessage | SSE回调，不受React影响 |
+| DG.parse | L3 | DG.parse() | 数据修改层，React前拦截 |
+| 沙箱useMemo | L1 | useMemo同步计算 | 同步执行路径 |
+| v7/v10 | L1 | sX().memo() render body | ❌ React Scheduler冻结 |
+
+**解决方案 v11**: store.subscribe() 模块级监听
+- 注入点: offset ~7588590 (async function FR() 末尾, subscribe #8 旁边)
+- 模式: 完全绕过React, 用Zustand MessageChannel通知
+- 变量: n=store(从e.resolve(xC)), uj=DI容器, BR=_sessionServiceV2 DI token
+- 参考: subscribe #8 已有 `n.subscribe((e,t)=>{...currentSession.messages.length...})` 先例
+
+**关键代码位置**:
+- subscribe #8: offset 7588518, `n.subscribe((e,t)=>{((e.currentSession?.messages?.length??0)!==(t.currentSession?.messages?.length??0)||e.currentSessionId!==t.currentSessionId)&&a()})`
+- v11注入: offset 7588639, find_original以 `d!==t.currentSessionId)&&a()})}async function FP(e)` 结尾
+- sX().memo(): offset ~8707000, 包含全部JP.Sz选择器和V/J计算
+- efc函数: offset 8701488, 返回{hub,errorInfo,chatConfirmPopUp} from commercial activity config

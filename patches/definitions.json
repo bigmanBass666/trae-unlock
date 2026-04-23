@@ -1,166 +1,177 @@
 {
-    "meta": {
-        "name": "trae-unlock-patches",
-        "version": "1.0.0",
-        "target_version": "Trae v3.4.x (2026-04-20 update)",
-        "target_file": "D:/apps/Trae CN/resources/app/node_modules/@byted-icube/ai-modules-chat/dist/index.js",
-        "target_file_display": "ai-modules-chat/dist/index.js",
-        "file_size_mb": "~10.73MB"
+  "meta": {
+    "name": "trae-unlock-patches",
+    "version": "1.0.0",
+    "target_version": "Trae v3.4.x (2026-04-20 update)",
+    "target_file": "D:/apps/Trae CN/resources/app/node_modules/@byted-icube/ai-modules-chat/dist/index.js",
+    "target_file_display": "ai-modules-chat/dist/index.js",
+    "file_size_mb": "~10.73MB"
+  },
+  "patches": [
+    {
+      "id": "auto-confirm-commands",
+      "name": "命令自动确认 (精准过滤v4)",
+      "description": "自动确认高风险命令，无需手动点击确认弹窗。修改 PlanItemStreamParser 中的 confirm_status 检查逻辑，在检测到 unconfirmed 时立即调用 provideUserResponse 自动确认。v4: 黑名单扩展为完整版(response_to_user+AskUserQuestion+ExitPlanMode)，NotifyUser 已移除以支持 spec 模式自动确认。",
+      "find_original": "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName});return}this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)})}",
+      "replace_with": "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName})}else if(e?.toolName!==\"response_to_user\"&&e?.toolName!==\"AskUserQuestion\"&&e?.toolName!==\"ExitPlanMode\"){this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)}),e.confirm_info&&(e.confirm_info.confirm_status=\"confirmed\")}}",
+      "offset_hint": "~7507671",
+      "check_fingerprint": "e?.toolName!==\"AskUserQuestion\"&&e?.toolName!==\"ExitPlanMode\"){this._taskService.provideUserResponse",
+      "enabled": true,
+      "added_at": "2026-04-19"
     },
-    "patches": [
-        {
-            "id": "auto-confirm-commands",
-            "name": "命令自动确认 (精准过滤v4)",
-            "description": "自动确认高风险命令，无需手动点击确认弹窗。修改 PlanItemStreamParser 中的 confirm_status 检查逻辑，在检测到 unconfirmed 时立即调用 provideUserResponse 自动确认。v4: 黑名单扩展为完整版(response_to_user+AskUserQuestion+ExitPlanMode)，NotifyUser 已移除以支持 spec 模式自动确认。",
-            "find_original": "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName});return}this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)})}",
-            "replace_with": "e?.confirm_info?.confirm_status===\"unconfirmed\"){if(s){let r=e.planItemId||e.id||e.toolCallId||\"\";if(this._logService.info(\"[PlanItemStreamParser] auto-confirming knowledges background toolcall\",{sessionId:t.sessionId,toolName:e.toolName,planItemId:e.planItemId||e.id,toolCallId:e.toolCallId,confirmToolcallId:r}),!r){this._logService.warn(\"[PlanItemStreamParser] auto-confirm skipped because toolcall id is missing\",{sessionId:t.sessionId,toolName:e.toolName})}else if(e?.toolName!==\"response_to_user\"&&e?.toolName!==\"AskUserQuestion\"&&e?.toolName!==\"ExitPlanMode\"){this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:r,tool_name:e.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm failed:\",e)}),e.confirm_info&&(e.confirm_info.confirm_status=\"confirmed\")}}",
-            "offset_hint": "~7507671",
-            "check_fingerprint": "e?.toolName!==\"AskUserQuestion\"&&e?.toolName!==\"ExitPlanMode\"){this._taskService.provideUserResponse",
-            "enabled": true,
-            "added_at": "2026-04-19"
-        },
-        {
-            "id": "guard-clause-bypass",
-            "name": "Guard Clause 循环检测放行 (v1)",
-            "description": "修复 stopStreaming() 将消息状态从 bQ.Warning 覆盖为 bQ.Canceled，导致 efp 组件的 guard clause if(!n||!q||et) 拦截了循环检测错误。修改为 if(!n||(!q&&!J)||et)，当 J=true（可续接错误码）时即使 q=false（状态被 Canceled 覆盖）也放行到 if(V&&J)。这是 auto-continue-thinking v4 的前置依赖——没有这个修复，v4 的 setTimeout 永远不会执行。",
-            "find_original": "if(!n||!q||et)return null;",
-            "replace_with": "if(!n||(!q&&!J)||et)return null;",
-            "offset_hint": "~8706067",
-            "check_fingerprint": "!q&&!J)||et)return null",
-            "enabled": true,
-            "added_at": "2026-04-21"
-        },
-        {
-            "id": "auto-continue-thinking",
-            "name": "自动续接思考上限 (v10 - L1+L2双层/后台不冻结)",
-            "description": "L1+L2双层自动续接。L1(v7): if(V&&J)内5秒冷却+resumeChat+2秒监控+sendChatMessage降级。L2(v10): ErrorStreamParser.parse()中检测可恢复错误码，通过uj.getInstance().resolve(Di)获取_aiAgentChatService.resumeChat()续接。L1+L2共享window.__traeAC冷却机制防重复。",
-            "find_original": "if(V&&J){let e=M.localize(\"continue\",{},\"Continue\");console.log(\"[v7-auto] if(V&&J) ENTERED, o=\"+o+\" h=\"+h);queueMicrotask(()=>{console.log(\"[v7-auto] queueMicrotask FIRED, o=\"+o+\" h=\"+h);try{if(o&&h){console.log(\"[v7-auto] o&&h=true, calling resumeChat...\");try{D.resumeChat({messageId:o,sessionId:h});console.log(\"[v7-auto] resumeChat RETURNED (may be async)\")}catch(err){console.log(\"[v7-auto] resumeChat THREW:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}else{console.log(\"[v7-auto] o||h=empty, fallback sendChatMessage\");D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}catch(err){console.log(\"[v7-auto] OUTER catch:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}});return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:\"warning\",message:ef,actionText:e,onActionClick:ec})}",
-            "replace_with": "if(V&&J){let e=M.localize(\"continue\",{},\"Continue\");var _acT=Date.now();if(!window.__traeAC||_acT-window.__traeAC>5000){window.__traeAC=_acT;console.log(\"[v7] triggering auto-continue, o=\"+o+\" h=\"+h);queueMicrotask(()=>{console.log(\"[v7] microtask fired\");try{var _s=b.getCurrentSession(),_ml=_s?.messages?.length||0;if(o&&h){try{D.resumeChat({messageId:o,sessionId:h});console.log(\"[v7] resumeChat called, monitoring...\");setTimeout(()=>{var _s2=b.getCurrentSession(),_ml2=_s2?.messages?.length||0;if(_ml2<=_ml){console.log(\"[v7] resumeChat no effect after 2s, fallback sendChatMessage\");try{D.sendChatMessage({message:e,sessionId:_s2?.sessionId})}catch(_e){console.log(\"[v7] fallback failed:\",_e)}}else{console.log(\"[v7] resumeChat worked! messages:\"+_ml2)}},2000)}catch(err){console.log(\"[v7] resumeChat error:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}else{console.log(\"[v7] o||h empty, direct sendChatMessage\");D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}catch(err){console.log(\"[v7] outer catch:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}})}return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:\"warning\",message:ef,actionText:e,onActionClick:ec})}",
-            "offset_hint": "~8706660",
-            "check_fingerprint": "console.log(\"[v7] triggering auto-continue",
-            "enabled": true,
-            "added_at": "2026-04-18"
-        },
-        {
-            "id": "auto-continue-l2-parse",
-            "name": "L2层自动续接 (v10 - ErrorStreamParser.parse/后台不冻结)",
-            "description": "在ErrorStreamParser(zU类)的parse方法中添加自动续接。思考上限等错误通过SSE正常消息流(Ot.Error事件)传递到parse方法，不经过_onError。parse方法在SSE回调链中同步执行(L2层)，不受React冻结影响。通过uj.getInstance().resolve(Di)获取_aiAgentChatService，调用resumeChat({message_id:t.agentMessageId})续接。与L1共享window.__traeAC冷却机制。错误码: 4000002(思考上限)/4000009(重复工具)/4000012(内容循环)/2000000(DEFAULT)/987(输出过长)/4008(高级限制)/977(配额耗尽)。",
-            "find_original": "parse(e,t){e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR&&t.osStatus&&t.osStatus.get(b3.Suspend)&&(e.code=kg.OS_SUSPEND_TIMEOUT);let i=this._aiChatRequestErrorService.getErrorInfoWithError(e),r={status:\"warn\"===i.level?bQ.Warning:bQ.Error,exception:{code:e.code,message:i.message,data:e.data,model_call_chain:e.data?.model_call_chain}};return this.chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenError(e,r,t),r}",
-            "replace_with": "parse(e,t){var _acT=Date.now();if(!window.__traeAC||_acT-window.__traeAC>5000){var _rc=e&&e.code;if(_rc&&[4000002,4000009,4000012,2000000,987,4008,977].indexOf(_rc)>=0){window.__traeAC=_acT;try{var _svc=uj.getInstance().resolve(Di);_svc&&queueMicrotask(()=>{_svc.resumeChat({message_id:t.agentMessageId}).catch(e=>{console.warn(\"[v10-bg] resumeChat failed:\",e)})})}catch(_e){console.warn(\"[v10-bg] DI resolve failed:\",_e)}}}e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR&&t.osStatus&&t.osStatus.get(b3.Suspend)&&(e.code=kg.OS_SUSPEND_TIMEOUT);let i=this._aiChatRequestErrorService.getErrorInfoWithError(e),r={status:\"warn\"===i.level?bQ.Warning:bQ.Error,exception:{code:e.code,message:i.message,data:e.data,model_call_chain:e.data?.model_call_chain}};return this.chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenError(e,r,t),r}",
-            "offset_hint": "~7513080",
-            "check_fingerprint": "[v10-bg]",
-            "enabled": true,
-            "added_at": "2026-04-23"
-        },
-        {
-            "id": "efh-resume-list",
-            "name": "可恢复错误列表扩展 (v3 - 含循环检测+DEFAULT)",
-            "description": "将TASK_TURN_EXCEEDED_ERROR、LLM_STOP_DUP_TOOL_CALL、LLM_STOP_CONTENT_LOOP、DEFAULT加入efh可恢复错误列表，使思考次数上限、循环检测和未知错误都能触发resumeChat自动恢复。v3: 新增kg.DEFAULT(2000000)，配合bypass-loop-detection v4的J数组含DEFAULT，确保ec()回调中的'v3'===p&&e.includes(_)条件在DEFAULT错误时也能满足。",
-            "find_original": "efg=[kg.SERVER_CRASH,kg.CONNECTION_ERROR,kg.NETWORK_ERROR,kg.NETWORK_ERROR_INTERNAL,kg.CLIENT_NETWORK_ERROR,kg.NETWORK_CHANGED,kg.NETWORK_DISCONNECTED,kg.CLIENT_NETWORK_ERROR_INTERNAL,kg.REQUEST_TIMEOUT_ERROR,kg.REQUEST_TIMEOUT_ERROR_INTERNAL,kg.MODEL_RESPONSE_TIMEOUT_ERROR,kg.MODEL_RESPONSE_FAILED_ERROR,kg.MODEL_AUTO_SELECTION_FAILED,kg.MODEL_FAIL]",
-            "replace_with": "efg=[kg.SERVER_CRASH,kg.CONNECTION_ERROR,kg.NETWORK_ERROR,kg.NETWORK_ERROR_INTERNAL,kg.CLIENT_NETWORK_ERROR,kg.NETWORK_CHANGED,kg.NETWORK_DISCONNECTED,kg.CLIENT_NETWORK_ERROR_INTERNAL,kg.REQUEST_TIMEOUT_ERROR,kg.REQUEST_TIMEOUT_ERROR_INTERNAL,kg.MODEL_RESPONSE_TIMEOUT_ERROR,kg.MODEL_RESPONSE_FAILED_ERROR,kg.MODEL_AUTO_SELECTION_FAILED,kg.MODEL_FAIL,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT]",
-            "offset_hint": "~8702075",
-            "check_fingerprint": "kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT]",
-            "enabled": true,
-            "added_at": "2026-04-18"
-        },
-        {
-            "id": "bypass-runcommandcard-redlist",
-            "name": "绕过 RunCommandCard 全模式弹窗 (v2)",
-            "description": "getRunCommandCardBranch 方法在所有模式下都可能弹窗。v2: 让所有模式(WHITELIST+ALWAYS_RUN+default)都返回P8.Default，彻底消除UI层弹窗竞态。配合服务层补丁使用。",
-            "find_original": "case Cr.AutoRunMode.WHITELIST:switch(i){case Cr.BlockLevel.RedList:return P7.V2_Sandbox_RedList;case Cr.BlockLevel.SandboxNotBlockCommand:return n?P7.V2_Sandbox_NotBlocking_RedList:P7.V2_Sandbox_NotBlocking;case Cr.BlockLevel.SandboxExecuteFailure:return n?P7.V2_Sandbox_Execute_Failure_RedList:P7.V2_Sandbox_Execute_Failure;case Cr.BlockLevel.SandboxToRecovery:return n?P7.V2_Sandbox_To_Recovery_RedList:P7.V2_Sandbox_To_Recovery;case Cr.BlockLevel.SandboxUnavailable:return n?P7.V2_Sandbox_Unavailable_RedList:P7.V2_Sandbox_Unavailable;default:return P7.Default}case Cr.AutoRunMode.ALWAYS_RUN:if(i===Cr.BlockLevel.RedList||n)return P7.V2_Manual_RedList;return P7.Default;default:if(i===Cr.BlockLevel.RedList||n)return P7.V2_Manual_RedList;return P7.V2_Manual",
-            "replace_with": "case Cr.AutoRunMode.WHITELIST:return P7.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P7.Default;default:return P7.Default",
-            "offset_hint": "~8076936",
-            "check_fingerprint": "case Cr.AutoRunMode.WHITELIST:return P7.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P7.Default;default:return P7.Default",
-            "enabled": true,
-            "added_at": "2026-04-18"
-        },
-        {
-            "id": "force-auto-confirm",
-            "name": "强制自动确认 (根因修复)",
-            "description": "根因修复! egR组件中 auto_confirm=false 时命令卡住不执行。ew.confirm()只是日志函数,必须额外调用eE(Confirmed)才能触发真正的状态更新和命令执行。此补丁在检测到 unconfirmed 状态时直接调用 eE(xc.Confirmed) 强制确认执行。",
-            "find_original": "!e&&er===Ck.Unconfirmed&&ew.confirm(!0)",
-            "replace_with": "!e&&er===Ck.Unconfirmed&&(ew.confirm(!0),eE(xc.Confirmed))",
-            "offset_hint": "~8640019",
-            "check_fingerprint": "er===Ck.Unconfirmed&&(ew.confirm(!0),eE(xc.Confirmed))",
-            "enabled": false,
-            "added_at": "2026-04-18"
-        },
-        {
-            "id": "sync-force-confirm",
-            "name": "同步强制确认 (修复切窗口失效)",
-            "description": "修复切换AI会话窗口后自动确认卡住的问题。原因: useEffect在窗口不可见时延迟执行。方案: 直接修改ey的useMemo同步计算逻辑(~8636941)，让er===Unconfirmed时立即返回Ck.Confirmed，不依赖useEffect异步时机。",
-            "find_original": "ey=(0,sK.useMemo)(()=>er===Ck.Unconfirmed?Ck.Confirmed:en?Ck.Confirmed:e&&er===Ck.Unconfirmed?Ck.Canceled:er,[en,er,e])",
-            "replace_with": "ey=(0,sK.useMemo)(()=>{var _r=er===Ck.Unconfirmed?Ck.Confirmed:en?Ck.Confirmed:e&&er===Ck.Unconfirmed?Ck.Canceled:er;if(_r===Ck.Confirmed&&er===Ck.Unconfirmed){try{eE(xc.Confirmed)}catch(_){}}return _r},[en,er,e])",
-            "offset_hint": "~8636941",
-            "check_fingerprint": "try{eE(xc.Confirmed)}catch(_){}}return _r",
-            "enabled": false,
-            "added_at": "2026-04-18"
-        },
-        {
-            "id": "data-source-auto-confirm",
-            "name": "数据源强制auto_confirm (v3 - NotifyUser 白名单)",
-            "description": "在DG.parse服务端响应解析阶段(~7318521)，当confirm_status为unconfirmed时直接设置auto_confirm=true+confirm_status=\"confirmed\"。这是最底层的拦截点：数据在进入任何React组件之前就已经被修改。v3: 黑名单精简为AskUserQuestion+ExitPlanMode（NotifyUser已移除，支持spec模式自动确认）。",
-            "find_original": "i.name!==CS.ViewFiles||\"object\"!=typeof _||Array.isArray(_)||(_.files=_.files&&Array.isArray(_.files)?_.files.map(e=>(e.start_line_one_indexed&&e.start_line_one_indexed>0&&(e.start_line=e.start_line_one_indexed",
-            "replace_with": "i.name!==CS.ViewFiles||\"object\"!=typeof _||Array.isArray(_)||(_.files=_.files&&Array.isArray(_.files)?_.files.map(e=>(e.start_line_one_indexed&&e.start_line_one_indexed>0&&(e.start_line=e.start_line_one_indexed,o?.confirm_status===\"unconfirmed\"&&i.name!==CS.AskUserQuestion&&i.name!==CS.ExitPlanMode&&(o.auto_confirm=!0,o.confirm_status=\"confirmed\")",
-            "offset_hint": "~7323241",
-            "check_fingerprint": "o?.confirm_status===\"unconfirmed\"&&i.name!==CS.AskUserQuestion&&i.name!==CS.ExitPlanMode&&(o.auto_confirm=!0,o.confirm_status=\"confirmed\")",
-            "enabled": true,
-            "added_at": "2026-04-18"
-        },
-        {
-            "id": "service-layer-runcommand-confirm",
-            "name": "服务层自动确认+状态同步 (v8)",
-            "description": "合并原service-layer-runcommand-confirm和service-layer-confirm-status-update。在else分支追加: 1)黑名单过滤(response_to_user+AskUserQuestion+ExitPlanMode) 2)confirm_status防重复守卫 3)provideUserResponse调用(箭头函数) 4)confirm_status同步更新。v8: 黑名单精简，NotifyUser已移除以支持spec模式自动确认。",
-            "find_original": "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status)",
-            "replace_with": "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)&&(e?.toolName!==\"response_to_user\"&&e?.toolName!==\"AskUserQuestion\"&&e?.toolName!==\"ExitPlanMode\")&&(e?.confirm_info?.confirm_status!==\"confirmed\")&&(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info&&(e.confirm_info.confirm_status=\"confirmed\"))",
-            "offset_hint": "~7508254",
-            "check_fingerprint": "e?.toolName!==\"ExitPlanMode\")&&(e?.confirm_info?.confirm_status!==\"confirmed\")&&(this._taskService.provideUserResponse",
-            "enabled": true,
-            "added_at": "2026-04-19"
-        },
-        {
-            "id": "bypass-whitelist-sandbox-blocks",
-            "name": "绕过 WHITELIST 模式沙箱确认弹窗",
-            "description": "WHITELIST模式下，各种沙箱block_level(SandboxExecuteFailure/SandboxUnavailable等)都会触发确认弹窗。此补丁让WHITELIST模式也直接返回P8.Default，彻底消除沙箱确认弹窗。注意：配合service-layer-runcommand-confirm补丁使用才能真正自动执行。",
-            "find_original": "case Cr.AutoRunMode.WHITELIST:switch(i){case Cr.BlockLevel.RedList:return P8.V2_Sandbox_RedList;case Cr.BlockLevel.SandboxNotBlockCommand:return n?P8.V2_Sandbox_NotBlocking_RedList:P8.V2_Sandbox_NotBlocking;case Cr.BlockLevel.SandboxExecuteFailure:return n?P8.V2_Sandbox_Execute_Failure_RedList:P8.V2_Sandbox_Execute_Failure;case Cr.BlockLevel.SandboxToRecovery:return n?P8.V2_Sandbox_To_Recovery_RedList:P8.V2_Sandbox_To_Recovery;case Cr.BlockLevel.SandboxUnavailable:return n?P8.V2_Sandbox_Unavailable_RedList:P8.V2_Sandbox_Unavailable;default:return P8.Default}",
-            "replace_with": "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
-            "offset_hint": "~8069700",
-            "check_fingerprint": "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
-            "enabled": false,
-            "added_at": "2026-04-19"
-        },
-        {
-            "id": "bypass-loop-detection",
-            "name": "绕过循环检测警告 (v4 - J数组+DEFAULT)",
-            "description": "将循环检测错误码加入J数组，使if(V&&J)分支能捕获循环检测并显示可续接Alert。v4: 新增kg.DEFAULT(2000000)，防止二次DEFAULT错误导致J=false跳出if(V&&J)。v3的J数组不含DEFAULT，当4000009后被2000000覆盖时J变false，Alert从黄色'继续'变为红色'系统未知错误'。",
-            "find_original": "J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR].includes(_)",
-            "replace_with": "J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)",
-            "offset_hint": "~8701180",
-            "check_fingerprint": "kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)",
-            "enabled": true,
-            "added_at": "2026-04-18"
-        },
-        {
-            "id": "service-layer-confirm-status-update",
-            "name": "[已合并] 服务层确认状态同步更新",
-            "description": "已合并到service-layer-runcommand-confirm v5中，此补丁不再单独使用。保留定义仅为历史记录。",
-            "find_original": "DISABLED_MERGED_INTO_service-layer-runcommand-confirm",
-            "replace_with": "DISABLED",
-            "offset_hint": "~0",
-            "check_fingerprint": "DISABLED",
-            "enabled": false,
-            "added_at": "2026-04-19"
-        },
-        {
-            "id": "ec-debug-log",
-            "name": "手动点击续接路径调试日志 (v7-debug)",
-            "description": "在ec()回调函数（Alert的onActionClick）中添加详细console.log调试日志，追踪手动点击'继续'按钮的完整执行流程。覆盖关键分支：(1)函数入口参数(a/h/p/_) (2)!a||!h守卫拦截 (3)v3===p&&efg.includes(_)条件判断 (4)resumeChat调用 vs retryChatByUserMessageId fallback (5)异常捕获。与auto-continue-thinking v7-debug形成双路径诊断链路。",
-            "find_original": "ec=(0,Ir.Z)(()=>{console.log(\"[v7-manual] ec() CALLED, a=\"+a+\" h=\"+h+\" p=\"+p+\" _=\"+_+\" efg.includes(_)=\"+(Array.isArray(efg)&&efg.includes(_)));if(!a||!h){console.log(\"[v7-manual] BLOCKED: !a||!h, a=\"+a+\" h=\"+h);return}let e=[...efg];console.log(\"[v7-manual] passed !a||!h guard, p=\"+p+\" efg.includes(_)=\"+(e!==undefined&&e.includes(_)));try{if(\"v3\"===p&&e.includes(_)){console.log(\"[v7-manual] v3 MATCH! calling resumeChat o=\"+o+\" h=\"+h);D.resumeChat({messageId:o,sessionId:h});let e2=b.getCurrentSession();A.teaEventChatRetry(g,e2,{isResume:!0})}else{console.log(\"[v7-manual] NO v3 match or _ not in efg, p=\"+p+\" _=\"+_);b.retryChatByUserMessageId(a)}}catch(err){console.log(\"[v7-manual] ec() THROW:\",err);S.event({name:A_.ICubeAIAgentRetryError,componentName:\"ICubeAIChat\",extra:{error:err?.message||String(err),chatRetryType:0,errorCode:_,isV3Mode:\"v3\"===p,errorMessage:ef}})}})",
-            "replace_with": "ec=(0,Ir.Z)(()=>{console.log(\"[v7-manual] ec() CALLED, a=\"+a+\" h=\"+h+\" p=\"+p+\" _=\"+_+\" efg.includes(_)=\"+(Array.isArray(efg)&&efg.includes(_)));if(!a||!h){console.log(\"[v7-manual] BLOCKED: !a||!h, a=\"+a+\" h=\"+h);return}let e=[...efg];console.log(\"[v7-manual] passed !a||!h guard, p=\"+p+\" efg.includes(_)=\"+(e!==undefined&&e.includes(_)));try{if(\"v3\"===p&&e.includes(_)){console.log(\"[v7-manual] v3 MATCH! calling resumeChat o=\"+o+\" h=\"+h);D.resumeChat({messageId:o,sessionId:h});let e2=b.getCurrentSession();A.teaEventChatRetry(g,e2,{isResume:!0})}else{console.log(\"[v7-manual] NO v3 match or _ not in efg, p=\"+p+\" _=\"+_);b.retryChatByUserMessageId(a)}}catch(err){console.log(\"[v7-manual] ec() THROW:\",err);S.event({name:A_.ICubeAIAgentRetryError,componentName:\"ICubeAIChat\",extra:{error:err?.message||String(err),chatRetryType:0,errorCode:_,isV3Mode:\"v3\"===p,errorMessage:ef}})}})",
-            "offset_hint": "~8703863",
-            "check_fingerprint": "console.log(\"[v7-manual] ec() CALLED\"",
-            "enabled": true,
-            "added_at": "2026-04-22"
-        }
-    ]
+    {
+      "id": "guard-clause-bypass",
+      "name": "Guard Clause 循环检测放行 (v1)",
+      "description": "修复 stopStreaming() 将消息状态从 bQ.Warning 覆盖为 bQ.Canceled，导致 efp 组件的 guard clause if(!n||!q||et) 拦截了循环检测错误。修改为 if(!n||(!q&&!J)||et)，当 J=true（可续接错误码）时即使 q=false（状态被 Canceled 覆盖）也放行到 if(V&&J)。这是 auto-continue-thinking v4 的前置依赖——没有这个修复，v4 的 setTimeout 永远不会执行。",
+      "find_original": "if(!n||!q||et)return null;",
+      "replace_with": "if(!n||(!q&&!J)||et)return null;",
+      "offset_hint": "~8706067",
+      "check_fingerprint": "!q&&!J)||et)return null",
+      "enabled": true,
+      "added_at": "2026-04-21"
+    },
+    {
+      "id": "auto-continue-thinking",
+      "name": "自动续接思考上限 (v10 - L1+L2双层/后台不冻结)",
+      "description": "L1+L2双层自动续接。L1(v7): if(V&&J)内5秒冷却+resumeChat+2秒监控+sendChatMessage降级。L2(v10): ErrorStreamParser.parse()中检测可恢复错误码，通过uj.getInstance().resolve(Di)获取_aiAgentChatService.resumeChat()续接。L1+L2共享window.__traeAC冷却机制防重复。",
+      "find_original": "if(V&&J){let e=M.localize(\"continue\",{},\"Continue\");console.log(\"[v7-auto] if(V&&J) ENTERED, o=\"+o+\" h=\"+h);queueMicrotask(()=>{console.log(\"[v7-auto] queueMicrotask FIRED, o=\"+o+\" h=\"+h);try{if(o&&h){console.log(\"[v7-auto] o&&h=true, calling resumeChat...\");try{D.resumeChat({messageId:o,sessionId:h});console.log(\"[v7-auto] resumeChat RETURNED (may be async)\")}catch(err){console.log(\"[v7-auto] resumeChat THREW:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}else{console.log(\"[v7-auto] o||h=empty, fallback sendChatMessage\");D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}catch(err){console.log(\"[v7-auto] OUTER catch:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}});return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:\"warning\",message:ef,actionText:e,onActionClick:ec})}",
+      "replace_with": "if(V&&J){let e=M.localize(\"continue\",{},\"Continue\");var _acT=Date.now();if(!window.__traeAC||_acT-window.__traeAC>5000){window.__traeAC=_acT;console.log(\"[v7] triggering auto-continue, o=\"+o+\" h=\"+h);queueMicrotask(()=>{console.log(\"[v7] microtask fired\");try{var _s=b.getCurrentSession(),_ml=_s?.messages?.length||0;if(o&&h){try{D.resumeChat({messageId:o,sessionId:h});console.log(\"[v7] resumeChat called, monitoring...\");setTimeout(()=>{var _s2=b.getCurrentSession(),_ml2=_s2?.messages?.length||0;if(_ml2<=_ml){console.log(\"[v7] resumeChat no effect after 2s, fallback sendChatMessage\");try{D.sendChatMessage({message:e,sessionId:_s2?.sessionId})}catch(_e){console.log(\"[v7] fallback failed:\",_e)}}else{console.log(\"[v7] resumeChat worked! messages:\"+_ml2)}},2000)}catch(err){console.log(\"[v7] resumeChat error:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}else{console.log(\"[v7] o||h empty, direct sendChatMessage\");D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}catch(err){console.log(\"[v7] outer catch:\",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}})}return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:\"warning\",message:ef,actionText:e,onActionClick:ec})}",
+      "offset_hint": "~8706660",
+      "check_fingerprint": "console.log(\"[v7] triggering auto-continue",
+      "enabled": true,
+      "added_at": "2026-04-18"
+    },
+    {
+      "id": "auto-continue-l2-parse",
+      "name": "L2层自动续接 (v10 - ErrorStreamParser.parse/后台不冻结)",
+      "description": "在ErrorStreamParser(zU类)的parse方法中添加自动续接。思考上限等错误通过SSE正常消息流(Ot.Error事件)传递到parse方法，不经过_onError。parse方法在SSE回调链中同步执行(L2层)，不受React冻结影响。通过uj.getInstance().resolve(Di)获取_aiAgentChatService，调用resumeChat({message_id:t.agentMessageId})续接。与L1共享window.__traeAC冷却机制。错误码: 4000002(思考上限)/4000009(重复工具)/4000012(内容循环)/2000000(DEFAULT)/987(输出过长)/4008(高级限制)/977(配额耗尽)。",
+      "find_original": "parse(e,t){e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR&&t.osStatus&&t.osStatus.get(b3.Suspend)&&(e.code=kg.OS_SUSPEND_TIMEOUT);let i=this._aiChatRequestErrorService.getErrorInfoWithError(e),r={status:\"warn\"===i.level?bQ.Warning:bQ.Error,exception:{code:e.code,message:i.message,data:e.data,model_call_chain:e.data?.model_call_chain}};return this.chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenError(e,r,t),r}",
+      "replace_with": "parse(e,t){var _acT=Date.now();if(!window.__traeAC||_acT-window.__traeAC>5000){var _rc=e&&e.code;if(_rc&&[4000002,4000009,4000012,2000000,987,4008,977].indexOf(_rc)>=0){window.__traeAC=_acT;try{var _svc=uj.getInstance().resolve(Di);_svc&&queueMicrotask(()=>{_svc.resumeChat({message_id:t.agentMessageId}).catch(e=>{console.warn(\"[v10-bg] resumeChat failed:\",e)})})}catch(_e){console.warn(\"[v10-bg] DI resolve failed:\",_e)}}}e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR&&t.osStatus&&t.osStatus.get(b3.Suspend)&&(e.code=kg.OS_SUSPEND_TIMEOUT);let i=this._aiChatRequestErrorService.getErrorInfoWithError(e),r={status:\"warn\"===i.level?bQ.Warning:bQ.Error,exception:{code:e.code,message:i.message,data:e.data,model_call_chain:e.data?.model_call_chain}};return this.chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenError(e,r,t),r}",
+      "offset_hint": "~7513080",
+      "check_fingerprint": "[v10-bg]",
+      "enabled": true,
+      "added_at": "2026-04-23"
+    },
+    {
+      "id": "auto-continue-v11-store-subscribe",
+      "name": "自动续接 v11 - store.subscribe 模块级监听 (绕过React冻结)",
+      "description": "在模块级 async function FR() 末尾（现有 subscribe #8 旁边）注入 store.subscribe 监听器。当 currentSession 新增消息的 exception.code 匹配白名单时，直接调用 uj.getInstance().resolve(BR).resumeChat() 续接。完全绕过 React Scheduler 后台冻结——与命令确认/DG.parse/沙箱useMemo 同款'数据驱动'模式。根因: v7/v10 的 if(V&J) 在 sX().memo() render body 中被 React 冻结。",
+      "find_original": "d!==t.currentSessionId)&&a()})}async function FP(e){let t=uj.getInstance(),i=t.resolve(k1),{currentAgent:r}=t.resolve(xC).getState()",
+      "replace_with": "d!==t.currentSessionId)&&a()});try{var _v11s=n;_v11s.subscribe(function(_p,_c){var _m=_c?.currentSession?.messages||[],_o=_p?.currentSession?.messages||[];if(_m.length<=_o.length)return;var _x=_m[_m.length-1],_cd=_x?.exception?.code;if(!_cd||[4000002,4000009,4000012,987].indexOf(_cd)<0)return;var _tn=Date.now();if(window.__traeAC11&&_tn-window.__traeAC11<5000)return;window.__traeAC11=_tn;console.log(\"[v11-bg] detected error\",_cd,\"calling resumeChat\");try{var _svc=uj.getInstance().resolve(BR);_svc.resumeChat({messageId:_x.agentMessageId,sessionId:_c.currentSession.sessionId});console.log(\"[v11-bg] resumeChat OK\")}catch(_err){console.log(\"[v11-bg] error:\",_err)}});console.log(\"[v11-bg] store.subscribe installed\")}catch(_e2){console.log(\"[v11-bg] setup error:\",_e2)}\"}async function FP(e){let t=uj.getInstance(),i=t.resolve(k1),{currentAgent:r}=t.resolve(xC).getState()",
+      "offset_hint": "~7588590",
+      "check_fingerprint": "[v11-bg] store.subscribe installed",
+      "enabled": true,
+      "added_at": "2026-04-23"
+    },
+    {
+      "id": "efh-resume-list",
+      "name": "可恢复错误列表扩展 (v3 - 含循环检测+DEFAULT)",
+      "description": "将TASK_TURN_EXCEEDED_ERROR、LLM_STOP_DUP_TOOL_CALL、LLM_STOP_CONTENT_LOOP、DEFAULT加入efh可恢复错误列表，使思考次数上限、循环检测和未知错误都能触发resumeChat自动恢复。v3: 新增kg.DEFAULT(2000000)，配合bypass-loop-detection v4的J数组含DEFAULT，确保ec()回调中的'v3'===p&&e.includes(_)条件在DEFAULT错误时也能满足。",
+      "find_original": "efg=[kg.SERVER_CRASH,kg.CONNECTION_ERROR,kg.NETWORK_ERROR,kg.NETWORK_ERROR_INTERNAL,kg.CLIENT_NETWORK_ERROR,kg.NETWORK_CHANGED,kg.NETWORK_DISCONNECTED,kg.CLIENT_NETWORK_ERROR_INTERNAL,kg.REQUEST_TIMEOUT_ERROR,kg.REQUEST_TIMEOUT_ERROR_INTERNAL,kg.MODEL_RESPONSE_TIMEOUT_ERROR,kg.MODEL_RESPONSE_FAILED_ERROR,kg.MODEL_AUTO_SELECTION_FAILED,kg.MODEL_FAIL]",
+      "replace_with": "efg=[kg.SERVER_CRASH,kg.CONNECTION_ERROR,kg.NETWORK_ERROR,kg.NETWORK_ERROR_INTERNAL,kg.CLIENT_NETWORK_ERROR,kg.NETWORK_CHANGED,kg.NETWORK_DISCONNECTED,kg.CLIENT_NETWORK_ERROR_INTERNAL,kg.REQUEST_TIMEOUT_ERROR,kg.REQUEST_TIMEOUT_ERROR_INTERNAL,kg.MODEL_RESPONSE_TIMEOUT_ERROR,kg.MODEL_RESPONSE_FAILED_ERROR,kg.MODEL_AUTO_SELECTION_FAILED,kg.MODEL_FAIL,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT]",
+      "offset_hint": "~8702075",
+      "check_fingerprint": "kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT]",
+      "enabled": true,
+      "added_at": "2026-04-18"
+    },
+    {
+      "id": "bypass-runcommandcard-redlist",
+      "name": "绕过 RunCommandCard 全模式弹窗 (v2)",
+      "description": "getRunCommandCardBranch 方法在所有模式下都可能弹窗。v2: 让所有模式(WHITELIST+ALWAYS_RUN+default)都返回P8.Default，彻底消除UI层弹窗竞态。配合服务层补丁使用。",
+      "find_original": "case Cr.AutoRunMode.WHITELIST:switch(i){case Cr.BlockLevel.RedList:return P7.V2_Sandbox_RedList;case Cr.BlockLevel.SandboxNotBlockCommand:return n?P7.V2_Sandbox_NotBlocking_RedList:P7.V2_Sandbox_NotBlocking;case Cr.BlockLevel.SandboxExecuteFailure:return n?P7.V2_Sandbox_Execute_Failure_RedList:P7.V2_Sandbox_Execute_Failure;case Cr.BlockLevel.SandboxToRecovery:return n?P7.V2_Sandbox_To_Recovery_RedList:P7.V2_Sandbox_To_Recovery;case Cr.BlockLevel.SandboxUnavailable:return n?P7.V2_Sandbox_Unavailable_RedList:P7.V2_Sandbox_Unavailable;default:return P7.Default}case Cr.AutoRunMode.ALWAYS_RUN:if(i===Cr.BlockLevel.RedList||n)return P7.V2_Manual_RedList;return P7.Default;default:if(i===Cr.BlockLevel.RedList||n)return P7.V2_Manual_RedList;return P7.V2_Manual",
+      "replace_with": "case Cr.AutoRunMode.WHITELIST:return P7.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P7.Default;default:return P7.Default",
+      "offset_hint": "~8076936",
+      "check_fingerprint": "case Cr.AutoRunMode.WHITELIST:return P7.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P7.Default;default:return P7.Default",
+      "enabled": true,
+      "added_at": "2026-04-18"
+    },
+    {
+      "id": "force-auto-confirm",
+      "name": "强制自动确认 (根因修复)",
+      "description": "根因修复! egR组件中 auto_confirm=false 时命令卡住不执行。ew.confirm()只是日志函数,必须额外调用eE(Confirmed)才能触发真正的状态更新和命令执行。此补丁在检测到 unconfirmed 状态时直接调用 eE(xc.Confirmed) 强制确认执行。",
+      "find_original": "!e&&er===Ck.Unconfirmed&&ew.confirm(!0)",
+      "replace_with": "!e&&er===Ck.Unconfirmed&&(ew.confirm(!0),eE(xc.Confirmed))",
+      "offset_hint": "~8640019",
+      "check_fingerprint": "er===Ck.Unconfirmed&&(ew.confirm(!0),eE(xc.Confirmed))",
+      "enabled": false,
+      "added_at": "2026-04-18"
+    },
+    {
+      "id": "sync-force-confirm",
+      "name": "同步强制确认 (修复切窗口失效)",
+      "description": "修复切换AI会话窗口后自动确认卡住的问题。原因: useEffect在窗口不可见时延迟执行。方案: 直接修改ey的useMemo同步计算逻辑(~8636941)，让er===Unconfirmed时立即返回Ck.Confirmed，不依赖useEffect异步时机。",
+      "find_original": "ey=(0,sK.useMemo)(()=>er===Ck.Unconfirmed?Ck.Confirmed:en?Ck.Confirmed:e&&er===Ck.Unconfirmed?Ck.Canceled:er,[en,er,e])",
+      "replace_with": "ey=(0,sK.useMemo)(()=>{var _r=er===Ck.Unconfirmed?Ck.Confirmed:en?Ck.Confirmed:e&&er===Ck.Unconfirmed?Ck.Canceled:er;if(_r===Ck.Confirmed&&er===Ck.Unconfirmed){try{eE(xc.Confirmed)}catch(_){}}return _r},[en,er,e])",
+      "offset_hint": "~8636941",
+      "check_fingerprint": "try{eE(xc.Confirmed)}catch(_){}}return _r",
+      "enabled": false,
+      "added_at": "2026-04-18"
+    },
+    {
+      "id": "data-source-auto-confirm",
+      "name": "数据源强制auto_confirm (v3 - NotifyUser 白名单)",
+      "description": "在DG.parse服务端响应解析阶段(~7318521)，当confirm_status为unconfirmed时直接设置auto_confirm=true+confirm_status=\"confirmed\"。这是最底层的拦截点：数据在进入任何React组件之前就已经被修改。v3: 黑名单精简为AskUserQuestion+ExitPlanMode（NotifyUser已移除，支持spec模式自动确认）。",
+      "find_original": "i.name!==CS.ViewFiles||\"object\"!=typeof _||Array.isArray(_)||(_.files=_.files&&Array.isArray(_.files)?_.files.map(e=>(e.start_line_one_indexed&&e.start_line_one_indexed>0&&(e.start_line=e.start_line_one_indexed",
+      "replace_with": "i.name!==CS.ViewFiles||\"object\"!=typeof _||Array.isArray(_)||(_.files=_.files&&Array.isArray(_.files)?_.files.map(e=>(e.start_line_one_indexed&&e.start_line_one_indexed>0&&(e.start_line=e.start_line_one_indexed,o?.confirm_status===\"unconfirmed\"&&i.name!==CS.AskUserQuestion&&i.name!==CS.ExitPlanMode&&(o.auto_confirm=!0,o.confirm_status=\"confirmed\")",
+      "offset_hint": "~7323241",
+      "check_fingerprint": "o?.confirm_status===\"unconfirmed\"&&i.name!==CS.AskUserQuestion&&i.name!==CS.ExitPlanMode&&(o.auto_confirm=!0,o.confirm_status=\"confirmed\")",
+      "enabled": true,
+      "added_at": "2026-04-18"
+    },
+    {
+      "id": "service-layer-runcommand-confirm",
+      "name": "服务层自动确认+状态同步 (v8)",
+      "description": "合并原service-layer-runcommand-confirm和service-layer-confirm-status-update。在else分支追加: 1)黑名单过滤(response_to_user+AskUserQuestion+ExitPlanMode) 2)confirm_status防重复守卫 3)provideUserResponse调用(箭头函数) 4)confirm_status同步更新。v8: 黑名单精简，NotifyUser已移除以支持spec模式自动确认。",
+      "find_original": "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status)",
+      "replace_with": "t?.sessionId===o||e?.confirm_info?.auto_confirm||this.storeService.setBadgesBySessionId(t.sessionId,e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)&&(e?.toolName!==\"response_to_user\"&&e?.toolName!==\"AskUserQuestion\"&&e?.toolName!==\"ExitPlanMode\")&&(e?.confirm_info?.confirm_status!==\"confirmed\")&&(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info&&(e.confirm_info.confirm_status=\"confirmed\"))",
+      "offset_hint": "~7508254",
+      "check_fingerprint": "e?.toolName!==\"ExitPlanMode\")&&(e?.confirm_info?.confirm_status!==\"confirmed\")&&(this._taskService.provideUserResponse",
+      "enabled": true,
+      "added_at": "2026-04-19"
+    },
+    {
+      "id": "bypass-whitelist-sandbox-blocks",
+      "name": "绕过 WHITELIST 模式沙箱确认弹窗",
+      "description": "WHITELIST模式下，各种沙箱block_level(SandboxExecuteFailure/SandboxUnavailable等)都会触发确认弹窗。此补丁让WHITELIST模式也直接返回P8.Default，彻底消除沙箱确认弹窗。注意：配合service-layer-runcommand-confirm补丁使用才能真正自动执行。",
+      "find_original": "case Cr.AutoRunMode.WHITELIST:switch(i){case Cr.BlockLevel.RedList:return P8.V2_Sandbox_RedList;case Cr.BlockLevel.SandboxNotBlockCommand:return n?P8.V2_Sandbox_NotBlocking_RedList:P8.V2_Sandbox_NotBlocking;case Cr.BlockLevel.SandboxExecuteFailure:return n?P8.V2_Sandbox_Execute_Failure_RedList:P8.V2_Sandbox_Execute_Failure;case Cr.BlockLevel.SandboxToRecovery:return n?P8.V2_Sandbox_To_Recovery_RedList:P8.V2_Sandbox_To_Recovery;case Cr.BlockLevel.SandboxUnavailable:return n?P8.V2_Sandbox_Unavailable_RedList:P8.V2_Sandbox_Unavailable;default:return P8.Default}",
+      "replace_with": "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
+      "offset_hint": "~8069700",
+      "check_fingerprint": "case Cr.AutoRunMode.WHITELIST:return P8.Default;",
+      "enabled": false,
+      "added_at": "2026-04-19"
+    },
+    {
+      "id": "bypass-loop-detection",
+      "name": "绕过循环检测警告 (v4 - J数组+DEFAULT)",
+      "description": "将循环检测错误码加入J数组，使if(V&&J)分支能捕获循环检测并显示可续接Alert。v4: 新增kg.DEFAULT(2000000)，防止二次DEFAULT错误导致J=false跳出if(V&&J)。v3的J数组不含DEFAULT，当4000009后被2000000覆盖时J变false，Alert从黄色'继续'变为红色'系统未知错误'。",
+      "find_original": "J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR].includes(_)",
+      "replace_with": "J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)",
+      "offset_hint": "~8701180",
+      "check_fingerprint": "kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)",
+      "enabled": true,
+      "added_at": "2026-04-18"
+    },
+    {
+      "id": "service-layer-confirm-status-update",
+      "name": "[已合并] 服务层确认状态同步更新",
+      "description": "已合并到service-layer-runcommand-confirm v5中，此补丁不再单独使用。保留定义仅为历史记录。",
+      "find_original": "DISABLED_MERGED_INTO_service-layer-runcommand-confirm",
+      "replace_with": "DISABLED",
+      "offset_hint": "~0",
+      "check_fingerprint": "DISABLED",
+      "enabled": false,
+      "added_at": "2026-04-19"
+    },
+    {
+      "id": "ec-debug-log",
+      "name": "手动点击续接路径调试日志 (v7-debug)",
+      "description": "在ec()回调函数（Alert的onActionClick）中添加详细console.log调试日志，追踪手动点击'继续'按钮的完整执行流程。覆盖关键分支：(1)函数入口参数(a/h/p/_) (2)!a||!h守卫拦截 (3)v3===p&&efg.includes(_)条件判断 (4)resumeChat调用 vs retryChatByUserMessageId fallback (5)异常捕获。与auto-continue-thinking v7-debug形成双路径诊断链路。",
+      "find_original": "ec=(0,Ir.Z)(()=>{console.log(\"[v7-manual] ec() CALLED, a=\"+a+\" h=\"+h+\" p=\"+p+\" _=\"+_+\" efg.includes(_)=\"+(Array.isArray(efg)&&efg.includes(_)));if(!a||!h){console.log(\"[v7-manual] BLOCKED: !a||!h, a=\"+a+\" h=\"+h);return}let e=[...efg];console.log(\"[v7-manual] passed !a||!h guard, p=\"+p+\" efg.includes(_)=\"+(e!==undefined&&e.includes(_)));try{if(\"v3\"===p&&e.includes(_)){console.log(\"[v7-manual] v3 MATCH! calling resumeChat o=\"+o+\" h=\"+h);D.resumeChat({messageId:o,sessionId:h});let e2=b.getCurrentSession();A.teaEventChatRetry(g,e2,{isResume:!0})}else{console.log(\"[v7-manual] NO v3 match or _ not in efg, p=\"+p+\" _=\"+_);b.retryChatByUserMessageId(a)}}catch(err){console.log(\"[v7-manual] ec() THROW:\",err);S.event({name:A_.ICubeAIAgentRetryError,componentName:\"ICubeAIChat\",extra:{error:err?.message||String(err),chatRetryType:0,errorCode:_,isV3Mode:\"v3\"===p,errorMessage:ef}})}})",
+      "replace_with": "ec=(0,Ir.Z)(()=>{console.log(\"[v7-manual] ec() CALLED, a=\"+a+\" h=\"+h+\" p=\"+p+\" _=\"+_+\" efg.includes(_)=\"+(Array.isArray(efg)&&efg.includes(_)));if(!a||!h){console.log(\"[v7-manual] BLOCKED: !a||!h, a=\"+a+\" h=\"+h);return}let e=[...efg];console.log(\"[v7-manual] passed !a||!h guard, p=\"+p+\" efg.includes(_)=\"+(e!==undefined&&e.includes(_)));try{if(\"v3\"===p&&e.includes(_)){console.log(\"[v7-manual] v3 MATCH! calling resumeChat o=\"+o+\" h=\"+h);D.resumeChat({messageId:o,sessionId:h});let e2=b.getCurrentSession();A.teaEventChatRetry(g,e2,{isResume:!0})}else{console.log(\"[v7-manual] NO v3 match or _ not in efg, p=\"+p+\" _=\"+_);b.retryChatByUserMessageId(a)}}catch(err){console.log(\"[v7-manual] ec() THROW:\",err);S.event({name:A_.ICubeAIAgentRetryError,componentName:\"ICubeAIChat\",extra:{error:err?.message||String(err),chatRetryType:0,errorCode:_,isV3Mode:\"v3\"===p,errorMessage:ef}})}})",
+      "offset_hint": "~8703863",
+      "check_fingerprint": "console.log(\"[v7-manual] ec() CALLED\"",
+      "enabled": true,
+      "added_at": "2026-04-22"
+    }
+  ]
 }

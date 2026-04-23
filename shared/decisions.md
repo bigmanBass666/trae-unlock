@@ -136,3 +136,21 @@ format: registry
 4. 补丁中的代码越少依赖外部变量越好
 
 **教训**: 错误码是**数字枚举**（`kg.XXX = 数字`），不是字符串。`MODEL_PREMIUM_EXHAUSTED` 在源码中不存在！之前 spec 中的字符串白名单完全错误。
+
+### [2026-04-23 08:35] v11 方案决策 — store.subscribe 模块级监听
+
+**背景**: v10 L2 两次失败(_onError和parse位置都不对)。用户指出三个成功案例(命令确认/DG.parse/沙箱)都解决了冻结问题。
+
+**决策**: 采用 store.subscribe() 方案(v11), 放弃 React 组件内方案。
+
+**理由**:
+1. 成功案例共同模式: 全部在React渲染管线外执行(数据驱动)
+2. Zustand store.subscribe基于MessageChannel, 后台tab正常工作
+3. 已有subscribe #8先例证明此模式可行
+4. 完全绕过React Scheduler, 无后台节流问题
+
+**技术约束**:
+- 必须用箭头函数 `.catch(e=>{})` 避免strict mode this=undefined
+- 5秒防重复窗口 window.__traeAC11
+- try-catch包裹防崩溃
+- 错误码白名单: [4000002,4000009,4000012,987]
