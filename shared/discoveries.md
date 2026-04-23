@@ -995,3 +995,33 @@ Bs 类区域 (7520000-7560000) 中 kg. 的使用次数: 0
 - v11注入: offset 7588639, find_original以 `d!==t.currentSessionId)&&a()})}async function FP(e)` 结尾
 - sX().memo(): offset ~8707000, 包含全部JP.Sz选择器和V/J计算
 - efc函数: offset 8701488, 返回{hub,errorInfo,chatConfirmPopUp} from commercial activity config
+
+### [2026-04-23 09:00] v11.1 Bug修复 — Zustand subscribe 参数顺序反了 ⭐⭐
+
+**症状**: v11 注入成功(node --check通过, fingerprint存在), 但 `[v11-bg]` 日志完全不出现。
+
+**根因**: Zustand `store.subscribe((state, prevState) => {})` 的参数顺序理解错误。
+- 第1个参数 `_p` = state = **NEW/CURRENT** 状态 (包含新错误消息)
+- 第2个参数 `_c` = prevState = **OLD/PREV** 状态 (无错误)
+
+**Bug代码**:
+```javascript
+// 错误: _m取了prevState, _o取了currentState
+var _m=_c?.currentSession?.messages||[],  // OLD messages
+    _o=_p?.currentSession?.messages||[];   // NEW messages  
+if(_m.length<=_o.length)return;  // 只在消息减少时触发! 完全反了!
+```
+
+**修复后**:
+```javascript
+// 正确: _m取currentState(新), _o取prevState(旧)
+var _m=_p?.currentSession?.messages||[],  // NEW messages (有新错误)
+    _o=_c?.currentSession?.messages||[];   // OLD messages
+if(_m.length<=_o.length)return;  // 无新消息时跳过 ✅
+// 用 _m[last] 检查新消息的错误码 ✅
+// sessionId 从 _p.currentSession 获取 ✅
+```
+
+**次要发现**: "store.subscribe installed" 日志未出现 — FR() 在启动早期执行，可能在日志捕获前完成。这不影响功能(subscribe已安装), 只是调试日志缺失。
+
+**经验教训**: 写 subscribe 回调时必须明确标注 `(curr, prev)` 参数含义!

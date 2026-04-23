@@ -154,3 +154,10 @@ format: registry
 - 5秒防重复窗口 window.__traeAC11
 - try-catch包裹防崩溃
 - 错误码白名单: [4000002,4000009,4000012,987]
+
+### [2026-04-23 09:00] v11.1 修复决策 — subscribe 参数顺序修正
+
+**问题**: 首次测试失败, 日志中完全无 v11 输出。
+**原因**: subscribe 回调的 prevState/currentState 搞反 + 条件逻辑反转。
+**修复**: 交换 _m/_o 变量来源, 条件不变(因为语义也变了)。
+**验证**: node --check 通过, fingerprint 存在, 待用户重新测试。
