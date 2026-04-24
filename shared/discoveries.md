@@ -1121,3 +1121,913 @@ v11.2 diagnostic(30次回调) → 发现exception=undefined(属性变异)
 v11.3 setInterval(检测到了!) → 但与v7同时触发(后台节流)
 v11.4 MessageChannel(FR()内) → 零输出(FR没执行完)
 v11.5 MessageChannel(模块级) → 待测试 ✨✨
+
+### [2026-04-23 13:00] v11.6 挂钩subscribe #8 — 彻底解决执行位置问题 ⭐⭐⭐
+
+**v11.5零输出的真正根因** (花括号平衡分析):
+- 文件起始到v11.5位置: Open=71595, Close=71604, **Delta=-9**
+- **v11.5在函数内部9层深度!** 不是真正的模块级!
+- 上下文: ...async function FD(){...}let FO=null,FL=!1;; [IIFE定义但外层函数未调用]
+- 这也解释了v11.4(FR()内)零输出: FR()卡在await o()
+
+**关键教训**: 在压缩JS中找"模块级"注入点极其困难
+- 不能靠视觉判断代码是否在顶层函数内
+- 必须用花括号/圆括号计数验证实际嵌套深度
+- async function FR(){ 前面的代码可能在完全不同的作用域链中
+
+**v11.6最终方案**: 挂钩到已证明有效的subscribe #8回调
+- 位置: n.subscribe((e,t)=>{...}) 回调体末尾 (offset ~7588518)
+- 为什么这次应该能工作:
+  1. subscribe #8 是Trae原始代码(非我们添加的)
+  2. v11.2诊断证明它在后台触发30次回调 ✅
+  3. 我们只是在已执行的回调中追加逻辑
+  4. 不需要找新的执行位置/不依赖FR()/模块加载时机
+
+**完整演进链(终版)**:
+v11.0 store.subscribe(独立新subscribe,参数反了) → 不触发
+v11.2 diagnostic(30次回调✅,exception=undefined) → 发现属性变异
+v11.3 setInterval(检测到4000002✅, 但与v7同时触发) → 后台节流
+v11.4 MC轮询(FR()内) → 零输出(FR未执行完)
+v11.5 MC轮询("模块级") → 零输出(实际在函数内9层深)
+v11.6 挂钩sub#8(追加到已证明的回调) → 检测到但延迟253行(~30秒,依赖其他状态变化触发)
+```
+
+### [2026-04-23 14:00] v12 变异源头追踪 — TaskAgentMessageParser.parse() ⭐⭐⭐⭐⭐
+
+**这是本项目的突破性发现 — 回答了"前面几次是怎么解决的？"**
+
+#### 核心问题回顾
+
+用户提问: "奇怪了, 那前面几次我们是怎么解决的呢? '沙箱问题', '自动确认命令'等等"
+
+**答案: 成功补丁都在数据管道的活跃通道上拦截新数据，而思考上限错误通过属性变异静默写入，没有通知通道。**
+
+#### 成功案例 vs 失败案例 — 根本差异
+
+| 补丁 | 层 | 数据到达方式 | 为什么能后台工作 |
+|------|-----|------------|----------------|
+| 命令确认 | L2 PlanItemStreamParser | SSE **回调主动推送** confirm_status | 回调不受React冻结 |
+| DG.parse | L3 DG.parse() | 解析函数**同步处理**原始响应 | React前拦截 |
+| 沙箱useMemo | L1 useMemo | React render**同步计算** | render时立即执行 |
+| v7/v10/v11 | L1 sX().memo() render body | **属性变异**(无通知) | ❌ React Scheduler冻结 |
+
+#### 🔥🔥🔥 变异源头找到了！全局唯一的 `.exception=` 赋值
+
+**位置**: `TaskAgentMessageParser.parse()` @ offset **7615777**
+**模式**: `h.exception={code:t,message:i.message,data:e.error.data}`
+**唯一性**: 全文件仅此1处 `.exception={` 赋值!
+
+#### 完整调用链 (从服务端到Store)
+
+```
+服务端返回含 error 的 task-type agent message (SSE data)
+  ↓
+asyncConvertAgentMessageToAssistantChatMessage(e)  ← 消息路由 (@7618345)
+  switch(e.message_type):
+    case xa.Task:
+      TaskAgentMessageParser.parse(e, t)           ← 🎯 v12 注入点! L2数据层!
+        e = 原始服务端响应 {error:{code:4000002,...}, content, ...}
+        t = ParserContext {sessionId, sceneLocation, ...}
+        
+        h = {
+          ...i,                                      // base message
+          content: r,                                // parsed content
+          role: bZ.Assistant,
+          userMessageId: e.reply_to_message_id,
+          agentTaskContent: {...},
+          // ... other fields
+        };
+        
+        if (e.error) {
+          let t = e.error.code;                      // ← 错误码 (shadowed!)
+          i = this.aiChatRequestErrorService.getErrorInfo(t, {...});
+          h.status = "warn" === i.level ? bQ.Warning : bQ.Error;
+          h.exception = {code:t, message:i.message, data:e.error.data};  ← 🎯 唯一变异点!
+        }
+        return h;                                    // ← 返回含exception的消息对象
+      ↓
+    handleHistoryResult(e, h)                        // 后处理
+  ↓
+ErrorStreamParser.handleSideChat(h, context)         // 分发
+  context.agentMessageId 
+    ? storeService.updateMessage(sessionId, agentMessageId, h)  // 写入Store!
+    : storeService.updateLastMessage(sessionId, h)
+  ↓
+Zustand Store 更新 → React re-render → if(V&&J) → v7 L1续接
+```
+
+#### 为什么这个位置能工作（与成功案例同款模式）
+
+1. **L2 数据层**: 在消息解析管道中，不在 React render 内
+2. **SSE 回调链路触发**: parse() 由 SSE onMessage → eventHandlerFactory.handle(Ot.Error/Error?) 调用
+3. **同步执行**: parse() 是同步函数，不依赖 async/await
+4. **错误码直接可用**: `t` (shadowed) = `e.error.code` 精确的错误码数字
+5. **queueMicrotask 延迟**: resumeChat 通过 queueMicrotask 延迟到 store update 完成后执行
+
+#### v12 设计：检测 + 延迟执行
+
+```javascript
+// 在 h.exception={...} 之后注入:
+if(t===4000002||t===4000009||t===4000012||t===987){
+  var _n=Date.now();
+  if(!window.__traeAC12||_n-window.__traeAC12>5000){
+    window.__traeAC12=_n;
+    console.log("[v12-bg]",t);
+    queueMicrotask(function(){
+      // 此时 Store 已更新完成, 可以读取 agentMessageId
+      var _s=uj.getInstance().resolve(xC).getState(),
+          _cs=_s.currentSession,
+          _m=_cs?.messages;
+      if(_m&&_m.length){
+        var _last=_m[_m.length-1];
+        if(_last?.agentMessageId&&_cs?.sessionId){
+          uj.getInstance().resolve(BR).resumeChat({
+            messageId:_last.agentMessageId,
+            sessionId:_cs.sessionId
+          });
+          console.log("[v12-bg] OK")
+        }
+      }
+    })
+  }
+}
+```
+
+**queueMicrotask 的作用**: parse()返回后→handleHistoryResult()→handleSideChat()→updateMessage()→Store更新, 全部在当前同步执行栈中完成。queueMicrotask 将 resumeChat 推到下一个微任务队列, 确保 Store 中已有完整的消息(含agentMessageId)。
+
+#### TaskAgentMessageParser 类结构
+
+```
+位置: ~7614800-7619000 区域
+DI 注入:
+  this.aiChatRequestErrorService   (注意: 无下划线前缀!)
+  this.agentService
+  this.logService
+  this.storageFacade
+  this.feeUsageParser
+  this.notificationParser
+  this.planItemParser
+  
+方法:
+  parse(e, t)                          ← 🎯 v12 注入点
+  handleHistoryResult(e, t)            // 后处理
+  parseTaskContent(e)                  // 任务内容解析
+  parseProposal(e)                     // 提案解析
+```
+
+**与 Bs(ChatStreamService) 的区别**: Bs 用 `this._aiChatRequestErrorService`(有下划线), TaskAgentMessageParser 用 `this.aiChatRequestErrorService`(无下划线)。这是两个不同的类实例!
+
+#### teaEventChatFail 调用链完整映射
+
+从日志已知 teaEventChatFail 在 index.js:3861 被调用。完整路径:
+1. **定义**: @7458678 — `teaEventChatFail(e,t,i)` 方法体, 参数: errorObj, userMsgId, session
+2. **调用点1**: @7505837 — `this._codeCompEventService.teaEventChatFail(t.userMessageId, i, e)`
+3. **调用点2**: @7505954 — 类似 #1
+4. **调用点3**: @7542473 — Bs.onError: `this.chatStreamBizReporter.teaEventChatFail(e,r)`
+5. **调用点4**: @7546037 — 另一个 onError 方法类似 #3
+
+**handleCommonError** (@7300455): 定义在 `_aiChatRequestErrorService` 中, 处理特殊错误码(ABNORMAL_ACCOUNT_LOGOUT等), 被 Bs.onError 调用。
+
+#### 关键变量可用性 (v12 注入点)
+
+| 变量 | 类型 | 来源 | 可用性 |
+|------|------|------|--------|
+| t (shadowed) | number | let t=e.error.code | ✅ 错误码 4000002/4000009/4000012/987 |
+| h | object | 构建中的消息对象 | ✅ 含 exception 字段 |
+| e | object | 原始SSE响应数据 | ✅ e.reply_to_message_id 等 |
+| uj | DI container | 模块级全局 | ✅ 始终可用 |
+| BR | DI token | 模块级常量 | ✅ _sessionServiceV2 |
+| xC | DI token | 模块级常量 | ✅ Zustand store |
+| agentMessageId | string | ❌ 不在此作用域 | ⚠️ 通过 queueMicrotask + Store 读取 |
+| sessionId | string | t.sessionId (被shadow!) | ⚠️ 同上, 通过 Store 读取 |
+
+**注意**: parse()的第2个参数名也是 `t`, 在 if(e.error) 内部被 `let t=e.error.code` 遮蔽(shadow)。所以不能用 `t.sessionId` 获取 sessionId, 必须通过 Store 读取。
+
+### [2026-04-23 14:30] v12 测试失败 — TaskAgentMessageParser.parse() 不被调用! ⭐⭐⭐⭐
+
+**测试日志** (vscode-app-1776957837393.log):
+```
+行7278: ERR exceeded maximum number of turns     ← 错误发生
+行7345: teaEventChatFail ×2                      ← 67行后!
+   ... (无 handleSideChat, 无 updateMessage, 无 .exception 相关日志) ...
+行7428: [Debug] currentSession                   ← 某状态变化
+行7429: [v11.6-bg] sub#8 error 4000002            ← 84行后(还是v11.6!)
+行7431: [v7] triggering auto-continue
+```
+
+**关键证据**: `[v12-bg]` 完全零输出！TaskAgentMessageParser.parse() 根本没被思考上限错误调用！
+
+#### 全文件 exception 写入模式穷举搜索
+
+搜索了所有可能的写入模式:
+| 模式 | 出现次数 | 位置 | 是否为思考上限路径? |
+|------|---------|------|-------------------|
+| `.exception=` (直接赋值) | **1** | @7615778 TaskAgentMessageParser.parse() | ❌ 不走这条路 |
+| `exception:` (对象字面量) | **3** | @7513727 ErrorStreamParser.parse(), @7881275, @8707548 | ❌ parse()也不被调用 |
+| `setErrorInfo` / `setException` / `withError` | **0** | — | N/A |
+| immer `produce()` 中写 exception | **0** | — | N/A |
+| `updateMessage(` 带 exception | 间接(通过展开) | 多处 | 可能,但updateMessage的参数来自外部 |
+
+#### 🔴 根本结论：exception 不在 index.js 中通过任何显式赋值写入！
+
+**真正的变异机制**（推断）:
+```
+主进程 workbench.desktop.main.js:
+  GZt.create("exceeded maximum number of turns")
+    → 构造完整消息对象 {...message, exception: {code: 4000002, ...}}
+      → IPC (postMessage/bridge) → 渲染进程
+        → 某处接收 IPC 消息
+          → storeService.updateMessage(sessionId, msgId, ipcMessage)  // exception 已在对象中!
+            → setCurrentSession({...session, messages: [...]})
+              → Store 更新完成
+                → teaEventChatFail(e, t, {code: 4000002, ...})  // 上报统计
+```
+
+**exception 是在主进程中构造好的，随 IPC 消息一起到达渲染进程。index.js 只是"转发"整个消息对象到 Store，不单独操作 exception 字段。**
+
+### [2026-04-23 14:45] v13 方案 — hook teaEventChatFail + queueMicrotask 轮询 ⭐⭐⭐⭐⭐
+
+**核心洞察**: 既然无法拦截变异源头（在主进程/index.js外），那就hook**最早的已知触发点**。
+
+#### 为什么选 teaEventChatFail?
+
+1. **时机最早**: 日志显示错误发生后仅 67 行就触发了（vs v11.6 的 253 行 / ~30 秒）
+2. **携带错误码**: 第 3 参数 `i` = `{code: 4000002, message: "...", level: "..."}`
+3. **后台可执行**: 从日志确认它在后台 tab 中正常执行
+4. **定义清晰**: offset 7458679, 签名稳定
+
+```javascript
+// teaEventChatFail 定义 (@7458679):
+teaEventChatFail(e, t, i){
+    // e = turnId?, t = userMessageId?
+    // i = {code: 4000002, message: "exceeded...", level: "error"}
+    let r = this.getAssistantMessageReportParamsByTurnId(e, t);
+    this._teaService.event(i4.CodeCompStep.fail, {
+        ...r,
+        error_code: i.code,       // ← 我们要的就是这个!
+        error_message: i.message,
+        error_level: i.level,
+        ...
+    })
+}
+```
+
+#### v13 设计
+
+```
+teaEventChatFail 触发
+  ↓
+检测 i.code ∈ [4000002, 4000009, 4000012, 987] ?
+  ↓ Yes
+启动 queueMicrotask 轮询循环 (最多3秒/约100次)
+  ↓ 每次 microtask:
+读取 uj.getInstance().resolve(xC).getState().currentSession.messages[last]
+  ↓
+messages[last].exception?.code 匹配?
+  ↓ Yes (Store已更新!)
+uj.getInstance().resolve(BR).resumeChat({messageId, sessionId})
+console.log("[v13-bg] OK") ✅
+  ↓ No 且未超时
+继续 _poll13() (下一个 queueMicrotask)
+  ↓ 超时
+console.log("[v13-bg] timeout")
+```
+
+**queueMicrotask vs setInterval 优势**:
+- queueMicrotask 基于 Promise microtask queue，**不受 Chromium 后台节流影响**
+- 每次事件循环迭代至少执行一次 microtask
+- 比 MessageChannel 更简单（不需要 port1/port2）
+
+#### 注入详情
+
+- **位置**: teaEventChatFail 方法体开头, `{` 之后, `let r=...` 之前
+- **find_original**: `teaEventChatFail(e,t,i){let r=this.getAssistantMessageReportParamsByTurnId(e,t)`
+- **fingerprint**: `[v13-bg]` at offset ~7458876
+- **可用变量**: `i`(错误码), `uj`(DI容器), `BR`(sessionServiceV2 token), `xC`(store token)
+- **不可用变量**: `agentMessageId`, `sessionId` — 通过 queueMicrotask 内读取 Store 获取
+
+### [2026-04-23 15:00] v13 测试结果 — 后台触发成功但 Store 轮询超时! ⭐⭐⭐⭐⭐
+
+**测试日志** (vscode-app-1776960852907.log) — **历史性突破!**
+```
+行7121: [v13-bg] teaEventChatFail 4000002    ← 🎉🎉🎉 在后台触发了!!!
+行7122: [v13-bg] timeout                    ← 轮询3秒超时(Store中没有exception!)
+行7123: ERR exceeded maximum number of turns  ← 错误在v13之后才发生?!
+行7190: teaEventChatFail @ index.js:3861     ← Trae原始的(第二次调用)
+行7309: [v11.6-bg] sub#8 error 4000002       ← 切回窗口后
+行7311: [v7] triggering auto-continue
+```
+
+#### 三个关键发现
+
+**发现 1: teaEventChatFail 被调用两次!**
+
+| 调用 | 行号 | 来源 | i.code | Store 状态 | 我们的处理 |
+|------|------|------|--------|-----------|-----------|
+| 第 1 次 | 7121 | workbench.desktop.main.js:619 (console.log位置) | 4000002 ✅ | **空**(未更新) | 触发hook → qMT轮询 → **timeout** |
+| 第 2 次 | 7190 | index.js:3861 (方法定义位置) | ? | 已更新 | ❌ 被5秒冷却**跳过** |
+
+- 第 1 次是"预上报"(telemetry)，在 GZt.create() **之前**就携带了 code=4000002
+- 第 2 次是真正的 thinking limit 错误处理
+- **我们的 5 秒冷却窗口阻塞了第 2 次！**
+
+**发现 2: Store 在后台 tab 中不更新!**
+
+v13 的 queueMicrotask 轮询在后台运行了 3 秒（~100 次 microtask），每次读取 Store 都得到 `messages[last].exception = undefined`。
+用户切回窗口后，v11.6 立刻（84 行日志内）就读到了 exception.code=4000002。
+
+**结论**: `storeService.updateMessage()` / `setCurrentSession()` 在后台 tab 中被**延迟/阻塞**，只有切回窗口后才执行。这不是 Chromium 定时器节流问题（qMT 不受影响），而是 **Trae 自身的某个机制**（可能是 SSE 断开后数据流中断，或 async handler 等待前台条件）。
+
+**发现 3: v13 证明了 teaEventChatFail 是可行的 hook 点**
+
+✅ teaEventChatFail 在后台正常执行
+✅ 第 3 参数 `i` 包含正确的错误码
+✅ 注入的代码不崩溃、不影响原有逻辑
+❌ 但不能在同一个调用中完成续接（Store 还没数据）
+
+### [2026-04-23 15:15] v14 Hybrid 方案 — 标志 + visibilitychange ⭐⭐⭐⭐⭐
+
+**核心思路**: 既然"检测"和"执行"必须分开（因为 Store 延迟更新），那就:
+1. **后台检测**: teaEventChatFail 触发时设标志 `window.__traeBGError = {code, time}`
+2. **前台执行**: visibilitychange → visible 时检查标志 + 读 Store → resumeChat
+
+这比纯 visibilitychange 方案好的地方:
+- **纯 VC 方案**: 不知道发生了什么错误，需要扫描所有消息猜测
+- **Hybrid 方案**: **确切知道**发生了可恢复错误（标志告诉你），只需等 Store 可读
+
+#### v14 架构
+
+```
+后台 (用户切走窗口):
+  AI 思考达到上限
+    ↓ 主进程 GZt.create()
+    ↓ IPC / 事件
+  teaEventChatFail(e, t, {code:4000002,...})  ← 第1次(预上报)
+    ↓ 我们的注入代码:
+  window.__traeBGError = {code:4000002, time:Date.now()}
+  console.log("[v14-bg] FLAG SET", 4000002)
+    ↓ (Store 此时还没有 exception!)
+
+  ... 用户切回窗口 ...
+
+前台 (visibilitychange → visible):
+  document.visibilitychange 事件触发
+    ↓ 我们的监听器:
+  window.__traeBGError 存在? 且 < 30秒前? → YES
+  window.__traeBGError = null (清除标志)
+  读取 Store → messages[last].exception.code = 4000002 ✅ (Store已更新!)
+  uj.getInstance().resolve(BR).resumeChat({messageId, sessionId})
+  console.log("[v14-bg] OK")
+```
+
+#### 与之前所有版本的对比
+
+| 版本 | 检测方式 | 续接时机 | 后台能工作? |
+|------|---------|---------|-----------|
+| v7 L1 | React render body | render 时 | ❌ Scheduler冻结 |
+| v10 L2 | ErrorStreamParser.parse() | parse 时 | ❌ 不走此路径 |
+| v11.0-11.5 | subscribe/polling/MC | 检测到时 | ❌ 无通知/节流/位置错 |
+| v11.6 | subscribe #8 回调 | 其他状态变化触发 | ⚠️ 延迟~30秒 |
+| v12 | TaskAgentMessageParser.parse() | 变异点 | ❌ 零输出(不走此路径) |
+| **v13** | **teaEventChatFail 参数** | qMT轮询Store | ⚠️ **触发成功但Store无数据** |
+| **v14** | **teaEventChatFail 设标志** | **visibilitychange→visible** | **✅ 最优解** |
+
+#### 注入详情 (两处)
+
+**PART1 — teaEventChatFail flag (@7458679)**:
+- find_original: `teaEventChatFail(e,t,i){let r=this.getAssistantMessageReportParamsByTurnId(e,t)`
+- 注入: 方法体 `{` 之后，仅设置 `window.__traeBGError` 标志 + console.log
+- 无冷却、无轮询、无 resumeChat — **极简**
+
+**PART2 — visibilitychange listener (文件末尾)**:
+- 追加到文件末尾（模块级 IIFE 外）
+- `if(!window.__traeVC14)` 防重复注册
+- 检查 `document.visibilityState === "visible"` + `window.__traeBGError`
+- 30 秒过期时间（防止旧标志误触发）
+- 读取 Store 获取 agentMessageId + sessionId → resumeChat
+
+### [2026-04-23 15:45] v14 测试结果 — FLAG 成功但 visibilitychange 不触发! ⭐⭐⭐⭐
+
+**测试日志** (vscode-app-1776995748083.log):
+```
+行7009: [v14-bg] FLAG SET 4000002    ← ✅ 后台标志设置成功!
+行7010: ERR exceeded maximum number of turns
+行7077: teaEventChatFail @ index.js:3861
+   ... (用户切回窗口) ...
+行7371: [v7] triggering auto-continue     ← v7 触发了
+```
+
+**关键发现**: `[v14-bg] VISIBLE` 和 `[v14-bg] OK` 完全没出现！
+
+visibilitychange 监听器可能失败的原因:
+1. **注入位置在 webpack IIFE 内部** — 文件末尾的代码可能仍在 `(function(){...})()` 内部，导致作用域问题（`uj`/`BR`/`xC` 未定义）
+2. **`document` 对象在代码执行时不可用** — Trae 的 index.js 可能在 DOM ready 前加载
+3. **Electron/VSCode 特殊行为** — visibilitychange 事件可能不按预期触发
+
+**结论**: 文件末尾追加代码的方式在 Trae 的 webpack bundle 环境中不可靠。需要使用**已证明有效的内部 hook 点**。
+
+### [2026-04-23 16:00] v15 Hybrid v2 — flag + 独立 store.subscribe watcher ⭐⭐⭐⭐⭐
+
+**核心改进**: 不用 visibilitychange（不可靠），改用在 **subscribe #8 之前注入独立的 store.subscribe() watcher**
+
+#### 为什么这个方案应该工作
+
+| 组件 | 证明来源 | 可靠性 |
+|------|---------|--------|
+| teaEventChatFail 后台执行 | v13 日志 `[v13-bg] teaEventChatFail 4000002` | ✅ 已验证 |
+| i.code 携带正确错误码 | 同上, code=4000002 | ✅ 已验证 |
+| store.subscribe 在切回窗口后触发 | v11.6 日志 sub#8 在切回后 84 行内触发 | ✅ 已验证 |
+| Store 切回后包含 exception | v11.6 读到 exception.code=4000002 | ✅ 已验证 |
+| 独立 subscribe 不影响原有逻辑 | 纯追加, 不修改任何现有代码 | ✅ 设计保证 |
+
+#### v15 架构 (最终版)
+
+```
+后台 (用户切走窗口):
+  AI 思考达到上限 → 主进程 GZt.create()
+    → IPC / 某事件机制
+  teaEventChatFail(e, t, {code:4000002,...})   ← 第1次(预上报)
+    ↓ 我们的 PART1 注入:
+  window.__traeBGError = {code:4000002, time:Date.now()}
+  console.log("[v15-bg] FLAG", 4000002)
+    ↓ (Store 此时还没有 exception! 后台不更新)
+
+  ... 用户切回窗口 ...
+
+前台 (Store 更新, subscribe 触发):
+  Store.setCurrentSession({...messages: [{...,exception:{code:4000002}}]})
+    ↓ Zustand 触发所有订阅者:
+  
+  【我们的 watcher】store.subscribe(function(e){...})     ← PART2 新增!
+    ↓ 检查:
+  window.__traeBGError 存在? 且 <30秒? → YES ✅
+  e.currentSession.messages[last].exception.code 匹配? → YES ✅
+  window.__traeBGError = null (清除标志)
+  sessionServiceV2.resumeChat({messageId, sessionId})
+  console.log("[v15-bg] OK", 4000002)                    ← 🎯
+  
+  【原有 sub#8】n.subscribe((e,t)=>{...})               ← 原有代码不变
+    ↓ (也会触发, 但我们的 watcher 已经处理了)
+
+  【v7 L1】if(V&&J) render body                        ← 保底, 如果上面都失败了
+```
+
+#### 注入详情 (两处, 都在 IIFE 内部, 变量可访问)
+
+**PART1 — teaEventChatFail flag (@7458876)**:
+```
+原始: teaEventChatFail(e,t,i){let r=this.getAssistantMessageReportParamsByTurnId(e,t)
+替换: teaEventChatFail(e,t,i){;try{if(i&&i.code&&[4000002,...].indexOf(i.code)>=0){
+        window.__traeBGError={code:i.code,time:Date.now()};
+        console.log("[v15-bg] FLAG",i.code)}}catch(_e){}}let r=this...
+```
+
+**PART2 — 独立 store watcher (@7588682)** — 在原有 `a(),n.subscribe((e,t)` 之前插入:
+```
+原始: a(),n.subscribe((e,t)=>{((...condition...)&&a())})
+替换: 
+  uj.getInstance().resolve(xC).subscribe(function(e){
+    try{
+      var _f=window.__traeBGError;
+      if(_f&&_f.code){
+        var _now=Date.now();
+        if(_now-_f.time<30000){
+          var _m=e.currentSession?.messages;
+          if(_m&&_m.length){
+            var _l=_m[_m.length-1];
+            if([4000002,...].indexOf(_l?.exception?.code)>=0 && _l?.agentMessageId && e.currentSession?.sessionId){
+              window.__traeBGError=null;
+              uj.getInstance().resolve(BR).resumeChat({messageId:_l.agentMessageId,sessionId:e.currentSession.sessionId});
+              console.log("[v15-bg] OK",_f.code)
+            }
+          }
+        }
+      }
+    }catch(_e){}
+  });
+  a(),n.subscribe((e,t)=>{((...condition...)&&a())})   // 原有代码不变!
+```
+
+#### 与所有之前版本的完整对比
+
+| 版本 | 检测方式 | 续接时机 | 后台检测? | Store可用? | 结果 |
+|------|---------|---------|----------|-----------|------|
+| v7 L1 | React render body | render 时 | ❌ 冻结 | ✅ | 仅前台 |
+| v10 L2 | ErrorStreamParser.parse() | parse 时 | ❌ 不走此路径 | N/A | 零输出 |
+| v11.0-11.5 | subscribe/polling/MC | 各异 | ❌ 各原因 | ⚠️ | 失败 |
+| v11.6 | sub#8 回调内读Store | 其他状态变化触发 | ⚠️ 被动 | ✅ 切回后 | 延迟~30秒 |
+| v12 | TaskAgentMessageParser.parse() | 变异点 | ❌ 不调用 | N/A | 零输出 |
+| **v13** | **teaEventChatFail 参数** | **qMT轮询Store** | **✅ 触发!** | **❌ 后台空** | timeout |
+| **v14** | **teaEventChatFail 设标志** | **visibilitychange** | **✅ FLAG成功!** | **❌ VC不触发** | VISIBLE缺失 |
+| **v17** | **teaEventChatFail 设标志** | **独立sub watcher** | ✅ 应该触发 |
+| **v17 final** | **teaEventChatFail + context参数直接resume** | **qMT轮询fallback** | **⚠️ 调用成功但效果延迟!** |
+
+### [2026-04-23 18:30] v17 Final v3 测试 — 历史性突破与遗留问题 ⭐⭐⭐⭐⭐
+
+**测试日志** (vscode-app-1777045914222.log):
+```
+行5986: [v17-bg] 4000002 sid aid           ← ✅ 后台触发!
+行5987: [v17-bg] OK-resume                  ← ✅ resumeChat调用成功(无异常!)
+行5988: [v17-bg] OK-resumed 14 new msgs     ← 🎉 qMT检测到Store消息增加!
+行5989: ERR exceeded maximum number of turns ← ⚠️ 紧接着又出现错误!
+   ... (无[v7]触发! v17处理了) ...
+```
+
+#### 三个正面发现
+
+1. **`[v17-bg] RESUMING` 在后台触发** — teaEventChatFail 后台执行已验证 6 次以上
+2. **`resumeChat()` 不抛异常** — 调用成功返回
+3. **Store 消息数确实增加了** — 从初始值增加到 +14 (qMT 轮询检测到)
+4. **`[v7]` 未触发** — v17 完全接管了，不需要 v7 保底
+
+#### 用户反馈的关键问题
+
+> "不，他在我切回窗口时才开始自动发'继续', 没切回去之前一直都是触发上限被中断的状态"
+
+**即：resumeChat 被调用了，Store 也更新了，但视觉上对话没有继续。**
+
+#### 根因分析 (待进一步验证)
+
+**假设 A: resumeChat 触发了新轮次，新轮次也超限**
+- 行 5988 检测到 14 new msgs（可能是 resume 触发的内部消息）
+- 行 5989 紧接着出现第二个 `ERR exceeded`
+- 说明续接后的回复也达到了思考上限
+- 但我们的冷却窗口阻止了第二次自动续接
+- 用户切回窗口后手动或 v7 的后续逻辑才真正打破循环
+
+**假设 B: resumeChat 内部操作被延迟到窗口可见**
+- resumeChat 可能通过 IPC 到主进程
+- 主进程在后台时排队处理渲染进程请求
+- 切回窗口后排队消息被批量处理
+- 那 14 new msgs 是窗口恢复时的批量更新
+
+**假设 C: 14 new msgs 是虚假检测**
+- t.messages (从 context 参数获取) 可能和 Store.messages 不是同一引用
+- 后台时 context 的 messages 数组可能是旧的快照
+- 切回窗口后 Store 才更新，此时 qMT 读到的是新的 Store（不是 context 的）
+
+**最可能的根因**: 结合 v13 的发现（Store 后台不更新）+ 本次发现（resumeChat 不报错但无视觉效果），**假设 B 或 C 最可能** —— resumeChat 的实际网络发送/处理在后台被某种机制阻塞。
+
+### [2026-04-23 18:45] v18 方向思考 — 绕过 resumeChat 阻塞
+
+既然 `resumeChat()` / `sendChatMessage()` 在后台的**实际效果被阻塞**，需要找到完全不同的路径：
+
+#### 已排除的方案
+| 方案 | 为什么不行 |
+|------|-----------|
+| React L1 render body (v7/v10) | Scheduler 冻结 |
+| store.subscribe 新建 (v11.0-11.5) | 无通知/节流 |
+| TaskAgentMessageParser.parse() (v12) | 不走此路径 |
+| qMT 轮询等待 Store (v13) | Store 后台空 |
+| visibilitychange 监听器 (v14) | 注入位置不可靠 |
+| 独立 subscribe watcher (v15) | 未注册(depth=2) |
+| sub#8 内部追加 (v16) | 需等切回窗口 |
+| resumeChat 直接调用 (v17) | **调用成功但效果阻塞!** |
+
+#### 待探索的方向
+
+1. **DOM 操作模拟点击**: 找到"继续"按钮的 DOM 元素，在 visibilitychange 时 click()
+   - 优点: 绕过所有 API 层面的限制
+   - 缺点: 需要定位按钮元素; 可能仍受 React 合成事件影响
+   
+2. **主进程侧拦截**: 修改 workbench.desktop.main.js 中 GZt.create() 的行为
+   - 优点: 完全绕过渲染进程所有限制
+   - 缺点: 需要修改另一个文件; 主进程代码可能更复杂
+
+3. **防止错误显示而非恢复**: 修改 exception 对象使其不被识别为可恢复错误
+   - 让 UI 不显示错误提示和继续按钮
+   - 但这不能真正"续接"对话
+
+4. **多次重试循环**: v17 已经触发了 resumeChat，只是效果延迟。如果在冷却窗口过期后再次尝试呢？
+   - 问题: 如果根本原因是后台阻塞，重试也没用 **✅ 切回后有** | **待测试** |
+
+## [2026-04-25 18:00] DI 容器系统完整映射 ⭐⭐⭐⭐⭐
+
+> 本发现是 Trae AI 模块 DI 系统的完整逆向工程。所有偏移量基于当前版本的 index.js。
+> 搜索模板可用于 Trae 更新后重新定位。
+
+---
+
+### 1. DI 核心架构
+
+| 组件 | 混淆名 | 类型 | 偏移量 | 说明 | 搜索模板 |
+|------|--------|------|--------|------|----------|
+| DI Container | `uj` | class | 6268469 | 单例容器，`uj.getInstance()` | `class uj` |
+| 注入装饰器 | `uX` | decorator | — | `@inject(TOKEN)` 等价物 | `uX(` (101次) |
+| 注册装饰器 | `uJ` | decorator | — | `@singleton({identifier:TOKEN})` | `uJ({identifier:` (51次) |
+| React Hook | `uB` | hook | 6270579 | `useInject(TOKEN)` 等价物 | `uB=(hX=` |
+| 容器快捷方式 | `hX` | ()=>uj | 6270579 | `hX=()=>uj.getInstance()` | `hX=()=>uj.getInstance()` |
+| 依赖注册表 | `uP` | class | — | `uj.getDependencyRegistry()` | `new uP` |
+| VS Code 服务标识 | `S2` | object | — | 包含 IEditorService, IFileService 等 | `S2.IEditorService` |
+
+**容器类定义** (@6268469):
+```javascript
+class uj {
+  static getInstance() { return uj.instance || (uj.instance = new uj), uj.instance }
+  constructor() { this.initialized = !1, this.bindings = new Map, this.singletons = new Map }
+  getDependencyRegistry() { return this._dependencyRegistry || (this._dependencyRegistry = new uP), this._dependencyRegistry }
+  initialize(e) { !this.initialized && (this.externalCreateDecorator = e?.nativeIDECreateDecorator, ...) }
+  resolve(token) { ... }  // 从容器获取服务实例
+  provide(token, impl) { ... }  // 注册服务实现
+  isInitialized() { ... }
+  hasIdentifier(token) { ... }
+}
+```
+
+**React Hook 定义** (@6270579):
+```javascript
+uB = (hX = () => uj.getInstance(), function(e) {
+  let t = useContext(uL),  // MockServiceContext
+  i = useMemo(() => i => {
+    if (!t.isEmpty && t.mockServices.get(e)) return () => {};
+    let n = hX();
+    if (n.isInitialized()) return () => {};
+    // ... polling until initialized
+  }, [e, t]),
+  n = useSyncExternalStore(i, r);
+  if (t.mockServices.get(e)) return t.mockServices.get(e);
+  let i = hX();
+  return i.isInitialized() ? i.resolve(e) : null;
+}, [e, t])
+```
+
+---
+
+### 2. DI Token 注册表
+
+#### 2a. Symbol.for() 全局 Token（跨模块共享，⭐⭐⭐⭐⭐ 稳定）
+
+| Token 变量 | Symbol.for 值 | 偏移量 | 服务描述 | 搜索模板 |
+|-----------|---------------|--------|----------|----------|
+| `bY` | `"aiAgent.ILogService"` | 6473533 | 日志服务 | `Symbol.for("aiAgent.ILogService")` |
+| `Ei` | `"aiAgent.ICredentialFacade"` | 7015771 | 凭证门面 | `Symbol.for("aiAgent.ICredentialFacade")` |
+| `Eh` | `"aiAgent.IStorageFacade"` | 7018237 | 存储门面 | `Symbol.for("aiAgent.IStorageFacade")` |
+| `ED` | `"aiAgent.IEnvironmentFacade"` | 7027572 | 环境门面 | `Symbol.for("aiAgent.IEnvironmentFacade")` |
+| `E$` | `"aiAgent.IFastApplyFacade"` | 7031258 | 快速应用门面 | `Symbol.for("aiAgent.IFastApplyFacade")` |
+| `Au` | `"aiAgent.IFileFacade"` | 7042224 | 文件门面 | `Symbol.for("aiAgent.IFileFacade")` |
+| `AM` | `"IUtilFacade"` | 7056752 | 工具门面 | `Symbol.for("IUtilFacade")` |
+| `Cv` | `"aiAgent.II18nService"` | 7075754 | 国际化服务 | `Symbol.for("aiAgent.II18nService")` |
+| `xL` | `"IWorkspaceFacade"` | 7097709 | 工作区门面 | `Symbol.for("IWorkspaceFacade")` |
+| `xJ` | `"IEditorFacade"` | ~7126296 | 编辑器门面 | `Symbol.for("IEditorFacade")` |
+| `Mr` | `"aiAgent.ISlardarFacade"` | ~7134171 | Slardar 监控门面 | `Symbol.for("aiAgent.ISlardarFacade")` |
+| `Ma` | `"ITeaFacade"` | ~7134895 | Tea 上报门面 | `Symbol.for("ITeaFacade")` |
+| `Mc` | `"aiAgent.IFpsRecordFacade"` | ~7135785 | FPS 记录门面 | `Symbol.for("aiAgent.IFpsRecordFacade")` |
+| `M0` | `"aiAgent.ISessionService"` | 7150072 | **会话服务（核心）** | `Symbol.for("aiAgent.ISessionService")` |
+| `M5` | `"aiAgent.IAiClientManagerService"` | ~7152097 | AI 客户端管理 | `Symbol.for("aiAgent.IAiClientManagerService")` |
+| `kv` | `"IModelService"` | 7177093 | 模型服务 | `Symbol.for("IModelService")` |
+| `kb` | `"IModelStorageService"` | ~7177093 | 模型存储服务 | `Symbol.for("IModelStorageService")` |
+| `kA` | `"aiAgent.IProductService"` | ~7179610 | 产品服务 | `Symbol.for("aiAgent.IProductService")` |
+| `Mz` | `"aiAgent.IContextKeyFacade"` | ~7145449 | 上下文键门面 | `Symbol.for("aiAgent.IContextKeyFacade")` |
+| `B3` | `"aiAgent.IPastChatExporter"` | 7566970 | 历史聊天导出 | `Symbol.for("aiAgent.IPastChatExporter")` |
+| `jN` | `"IPlanService"` | 7450318 | 计划服务 | `Symbol.for("IPlanService")` |
+| `Oe` | `"INotificationStreamParser"` | ~7322410 | 通知流解析器 | `Symbol.for("INotificationStreamParser")` |
+| `zS` | `"ITextMessageChatStreamParser"` | ~7497479 | 文本消息流解析器 | `Symbol.for("ITextMessageChatStreamParser")` |
+| `zz` | `"IErrorStreamParser"` | ~7508572 | 错误流解析器 | `Symbol.for("IErrorStreamParser")` |
+| `zJ` | `"IUserMessageStreamParser"` | ~7515007 | 用户消息流解析器 | `Symbol.for("IUserMessageStreamParser")` |
+| `z2` | `"ITokenUsageStreamParser"` | ~7516765 | Token 用量流解析器 | `Symbol.for("ITokenUsageStreamParser")` |
+| `z3` | `"IContextTokenUsageStreamParser"` | ~7517392 | 上下文 Token 流解析器 | `Symbol.for("IContextTokenUsageStreamParser")` |
+| `z8` | `"ISessionTitleMessageStreamParser"` | ~7518028 | 会话标题流解析器 | `Symbol.for("ISessionTitleMessageStreamParser")` |
+| `TL` | `"aiChat.ICustomRulesService"` | ~7244804 | 自定义规则服务 | `Symbol.for("aiChat.ICustomRulesService")` |
+| `kd` | `"aiChat.IAIChatRequestErrorService"` | ~7155260 | AI 请求错误服务 | `Symbol.for("aiChat.IAIChatRequestErrorService")` |
+| — | `"ai.IDocsetService"` | 3546087 | 文档集服务 | `Symbol.for("ai.IDocsetService")` |
+| `xI` | `"IEditorFacade"` (alt) | ~7126296 | 编辑器门面(变体) | `Symbol.for("IEditorFacade")` |
+| `k5` | `"IModeStorageService"` | ~7189229 | 模式存储服务 | `Symbol.for("IModeStorageService")` |
+| `BB` | (租户配置) | ~7591333 | 租户配置服务 | `resolve(BB)` |
+
+#### 2b. Symbol() 局部 Token（模块内，⭐⭐⭐⭐ 稳定）
+
+| Token 变量 | Symbol 值 | 偏移量 | 服务描述 | 搜索模板 |
+|-----------|-----------|--------|----------|----------|
+| `xC` | `"ISessionStore"` | ~7087490 | **会话存储（核心 Zustand）** | `Symbol("ISessionStore")` |
+| `D5` | `"IAgentService"` | 7321280 | Agent 服务 | `Symbol("IAgentService")` |
+| `D3` | `"IFeeUsageParser"` | 7321280 | 费用解析器 | `Symbol("IFeeUsageParser")` |
+| `BO` | `"ISessionServiceV2"` | 7545196 | 会话服务 V2 | `Symbol("ISessionServiceV2")` |
+| `k1` | `"IModelStore"` | 7186457 | 模型存储（Zustand） | `Symbol("IModelStore")` |
+| `IN` | `"ISessionRelationStoreInternal"` | ~7203850 | 会话关系存储 | `Symbol("ISessionRelationStoreInternal")` |
+| `DV` | `"IUserMessageContextParser"` | ~7314000 | 用户消息上下文解析器 | `Symbol("IUserMessageContextParser")` |
+| `DQ` | `"IMetadataParser"` | ~7314000 | 元数据解析器 | `Symbol("IMetadataParser")` |
+| `za` | `"IFeeUsageStreamParser"` | ~7482422 | 费用流解析器 | `Symbol("IFeeUsageStreamParser")` |
+| `zL` | `"IPlanItemStreamParser"` | ~7503299 | **计划项流解析器** | `Symbol("IPlanItemStreamParser")` |
+| `zW` | `"IDoneStreamParser"` | ~7511057 | 完成流解析器 | `Symbol("IDoneStreamParser")` |
+| `zV` | `"IQueueingStreamParser"` | ~7512721 | 排队流解析器 | `Symbol("IQueueingStreamParser")` |
+| `I2` | `"IInlineSessionStore"` | ~7221939 | 内联会话存储 | `Symbol("IInlineSessionStore")` |
+| `I6` | `"IMarkdownContextMenuStore"` | ~7223077 | Markdown 上下文菜单 | `Symbol("IMarkdownContextMenuStore")` |
+| `I7` | `"IProjectStore"` | ~7224039 | 项目存储 | `Symbol("IProjectStore")` |
+| `To` | `"IChatTurnImageMenuStore"` | ~7224870 | 聊天图片菜单存储 | `Symbol("IChatTurnImageMenuStore")` |
+| `TG` | `"IAgentExtensionStore"` | ~7248275 | Agent 扩展存储 | `Symbol("IAgentExtensionStore")` |
+| `T8` | `"ILintErrorAutoFixStore"` | ~7256181 | Lint 自动修复存储 | `Symbol("ILintErrorAutoFixStore")` |
+| `Na` | `"ISkillStore"` | ~7258315 | 技能存储 | `Symbol("ISkillStore")` |
+| `Nc` | `"IEntitlementStore"` | ~7259427 | 权限存储 | `Symbol("IEntitlementStore")` |
+| `Ci` | (会话服务标识) | ~7152097 | 会话服务（同 M0?） | `uJ({identifier:Ci})` |
+
+#### 2c. 未解析 Token 变量（⭐⭐⭐ 需进一步搜索）
+
+| Token 变量 | 用途推断 | resolve 调用偏移 | 搜索模板 |
+|-----------|---------|-----------------|----------|
+| `Di` | ChatService (resumeChat) | 7508810 | `resolve(Di)` |
+| `BB` | 租户配置服务 | 7591333 | `resolve(BB)` |
+| `BX` | 文件差异提供者 | 7601575 | `resolve(BX)` |
+| `FE` | 知识库服务 | 7599324 | `resolve(FE)` |
+| `etN` | 知识库特性开关 | 7599324 | `resolve(etN)` |
+| `etr` | DSL Agent 服务 | 10470403 | `resolve(etr)` |
+| `Wg` | 会话 Todo 服务 | 10469891 | `resolve(Wg)` |
+| `Dy` | 快速应用存储 | 7306295 | `resolve(Dy)` |
+| `eYH` | 用量限制服务 | 10465352 | `resolve(eYH)` |
+| `Jp` | 网络数据服务 | 10469447 | `resolve(Jp)` |
+| `ee4` | AI 代码贡献服务 | 10470055 | `resolve(ee4)` |
+| `M$` | 凭证存储 | ~7149840 | `resolve(M$)` |
+| `N7` | (forkSession 中使用) | 10475553 | `resolve(N7)` |
+| `B9` | (上传图片中使用) | 7578056 | `resolve(B9)` |
+| `ks` | AI 客户端服务变体 | ~7155260 | `uJ({identifier:ks})` |
+| `kS` | 动态配置存储 | ~7177763 | `uJ({identifier:kS})` |
+| `Ix` | 会话关系服务 | ~7203823 | `uJ({identifier:Ix})` |
+
+---
+
+### 3. ⚠️ 重要纠正：BR 和 FX 不是 DI Token
+
+**`BR`** = `s(72103)` = Node.js `path` 模块导入（@7551518）
+- `BR.relative()`, `BR.basename()` — 文件路径操作
+- 在 auto-continue 补丁中 `uj.getInstance().resolve(BR)` 是把 path 模块当作服务来 resolve，这是**错误的用法**（应该是 resolve 其他 token）
+- **之前 discoveries.md 中将 BR 标记为 _sessionServiceV2 的 DI token 是错误的！**
+
+**`FX`** = `findTargetAgent` 辅助函数（@7604449），**不是** DI 解构模式
+- `async function FX(e,t,i,r,n=!1,o)` — 按名称或 ID 查找 Agent
+- 在 sendToAgentBackground 中被调用：`await FX(o,r,t?.agentName,t?.agentId)`
+- 之前假设 `FX(i)` 是从容器解构服务是**错误的**！
+
+---
+
+### 4. uj.getInstance().resolve() 调用完整表（45 次 DI 专用）
+
+| # | 偏移量 | Token | 服务 | 上下文 |
+|---|--------|-------|------|--------|
+| 1 | 7137173 | `Cv` | II18nService | 历史列表图片占位符 |
+| 2 | 7306295 | `Dy` | FastApplyStore | 检查脏状态 |
+| 3 | 7306625 | `M0` | ISessionService | 获取当前会话 |
+| 4 | 7452910 | `BR` | ⚠️ path 模块 | auto-continue resumeChat |
+| 5 | 7508810 | `Di` | ChatService | auto-continue resumeChat |
+| 6 | 7583273 | `M0` | ISessionService | 创建新会话 |
+| 7 | 7583427 | `M0` | ISessionService | 确认处理待定差异 |
+| 8 | 7584554 | `M0` | ISessionService | 获取运行状态 |
+| 9 | 7585043 | `Au` | IFileFacade | 检查文件存在 |
+| 10 | 7585588 | `M0` | ISessionService | 获取当前会话 |
+| 11 | 7589023 | `Cv` | II18nService | 本地化 "Ready to build!" |
+| 12 | 7590109 | `jN` | IPlanService | 切换计划模式 |
+| 13 | 7590208 | `M0` | ISessionService | 切换历史列表可见 |
+| 14 | 7590888 | `M0` | ISessionService | 获取工作状态提示 |
+| 15 | 7590979 | `M0` | ISessionService | 删除会话 |
+| 16 | 7591104 | `kv` | IModelService | 刷新模型存储 |
+| 17 | 7591229 | `kv` | IModelService | 初始化操作 |
+| 18 | 7591333 | `BB` | TenantConfig | 获取租户用户配置 |
+| 19 | 7591798 | `M0` | ISessionService | 设置促销卡片标志 |
+| 20 | 7591982 | `xC`,`D5` | ISessionStore,IAgentService | 使用内置 Agent |
+| 21 | 7592370 | `xC` | ISessionStore | 按 worktree 路径获取会话标题 |
+| 22 | 7592511 | `S2.IStorageService` | VS Code 存储 | 重置聊天反馈 |
+| 23 | 7592768 | `S2.IStorageService` | VS Code 存储 | 重置满意度反馈 |
+| 24 | 7592943 | `S2.IStorageService` | VS Code 存储 | 重置解决反馈 |
+| 25 | 7593118 | `S2.IStorageService` | VS Code 存储 | 重置聊天反馈轮次 |
+| 26 | 7599006 | `WQ.IDocsetService` | 文档集服务 | 调试获取企业文档集 |
+| 27 | 7599215 | `B3` | IPastChatExporter | 导出当前聊天到文件 |
+| 28 | 7599324 | `etN`,`FE` | 知识库服务 | 初始化知识库 |
+| 29 | 7601575 | `BX` | FileDiffProvider | 获取文件差异提供者 |
+| 30 | 9799554 | `D5` | IAgentService | 获取 Agent 面板数据 |
+| 31 | 9799757 | `D5` | IAgentService | 获取 Agent 面板数据 |
+| 32 | 9799992 | `S2.IICubeAgentService` | VS Code Agent 服务 | 保存 Agent 面板数据 |
+| 33 | 9836993 | `S2.IICubeAgentService` | VS Code Agent 服务 | 获取 Agent 面板数据 |
+| 34 | 10466533 | (动态) | 注册适配器 | getRegisteredAdapter |
+| 35 | 10467510 | `S2.IViewsService` | VS Code 视图服务 | 打开视图容器 |
+| 36 | 10469314 | `eYH` | UsageLimit | 打开用量限制弹窗 |
+| 37 | 10469447 | `Jp` | NetworkData | 获取网络数据 |
+| 38 | 10469573 | `ED` | IEnvironmentFacade | 更新 Python 环境 |
+| 39 | 10469706 | `M0` | ISessionService | 更新 worktree |
+| 40 | 10469891 | `Wg` | SessionTodo | 接受会话 Todo |
+| 41 | 10470055 | `ee4` | AICodeContribution | 报告 AI 代码贡献 |
+| 42 | 10470403 | `etr` | DSLAgent | 启动全局日志流 |
+| 43 | 10470537 | `etr` | DSLAgent | 停止全局日志流 |
+| 44 | 10470666 | `etr`,`S2.IWebviewWorkbenchService`,`S2.IFileService`,`Au` | DSL 编辑器 | 打开 DSL 编辑器 |
+| 45 | 10473463 | `BO` | ISessionServiceV2 | 停止聊天会话 |
+
+**uj.getInstance().provide()** 仅 1 次 (@10466462):
+```javascript
+registerAdapter: function(e, t) { uj.getInstance().provide(e, t) }
+```
+
+---
+
+### 5. 服务注册（uJ 装饰器，51 个服务类）
+
+每个 `uJ({identifier:TOKEN})` 将一个类注册为 DI 单例服务：
+
+| # | 偏移量 | Token | 类名(混淆) | 服务描述 |
+|---|--------|-------|-----------|----------|
+| 1 | 7017457 | `Ei` | `Er` | CredentialFacade |
+| 2 | 7024823 | `Eh` | `E_` | StorageFacade |
+| 3 | 7030377 | `ED` | `ER` | EnvironmentFacade |
+| 4 | 7040640 | `E$` | `EJ` | FastApplyFacade |
+| 5 | 7051496 | `Au` | `Ad` | FileFacade |
+| 6 | 7058236 | `AM` | `Ak` | UtilFacade |
+| 7 | 7097170 | `xC` | `xI` | SessionStore (Zustand) |
+| 8 | 7097709 | `xL` | `xR` | WorkspaceFacade |
+| 9 | 7121088 | `xU` | `xW` | FileCommandFacade |
+| 10 | 7126296 | `xq` | `xK` | TerminalFacade |
+| 11 | 7128698 | `xJ` | `x0` | EditorFacade |
+| 12 | 7132284 | `x3` | `x6` | OutlineFacade |
+| 13 | 7134171 | `Me` | `Mt` | ChatPane |
+| 14 | 7134895 | `Mr` | `Mn` | SlardarFacade |
+| 15 | 7135785 | `Ma` | `Ms` | TeaFacade |
+| 16 | 7136260 | `Mc` | `Mu` | FpsRecordFacade |
+| 17 | 7141119 | `Mb` | `Mw` | PaneComposite 服务 |
+| 18 | 7141929 | `MA` | `MC` | Telemetry 服务 |
+| 19 | 7143044 | `MT` | `MN` | Theme 服务 |
+| 20 | 7145449 | `MR` | `MP` | DynamicConfig 服务 |
+| 21 | 7145912 | `Mz` | `MB` | ContextKeyFacade |
+| 22 | 7148272 | `MY` | `MV` | Keybinding 服务 |
+| 23 | 7148876 | `bY` | `MQ` | **LogService** |
+| 24 | 7149840 | `M$` | `MX` | CredentialStore |
+| 25 | 7152097 | `Ci` | `M4` | SessionService |
+| 26 | 7153584 | `M5` | `M7` | AiClientManagerService |
+| 27 | 7155260 | `ks` | `ku` | AI 客户端变体 |
+| 28 | 7177763 | `kS` | `kE` | DynamicConfigStore |
+| 29 | 7179610 | `kA` | `kM` | ProductService |
+| 30 | 7189229 | `k1` | `k2` | ModelStore (Zustand) |
+| 31 | 7190440 | `Ie` | `Ii` | SoloGuide 服务 |
+| 32 | 7203823 | `Ix` | `IM` | SessionRelation 服务 |
+| 33 | 7217424 | `IN` | `ID` | SessionRelationStore (Zustand) |
+| 34 | 7220298 | `IZ` | `IQ` | Storage 相关 |
+| 35 | 7221939 | `I$` | `IX` | Input 相关 |
+| 36 | 7223077 | `I2` | `I4` | InlineSessionStore |
+| 37 | 7224039 | `I6` | `I8` | MarkdownContextMenuStore |
+| 38 | 7224870 | `I7` | `Ti` | ProjectStore |
+| 39 | 7225729 | `To` | `Ta` | ChatTurnImageMenuStore |
+| 40 | 7228600 | `Td` | `Th` | Storage 相关 |
+| 41 | 7229095 | `Tm` | `Tm` | Tea+Log 组合服务 |
+| 42 | 7244804 | `TM` | `TD` | Tea+Log 组合服务 |
+| 43 | 7248275 | `Tz` | `TB` | Env 相关 |
+| 44 | 7249310 | `TG` | `TH` | AgentExtensionStore |
+| 45 | 7251505 | `TQ` | `Tq` | 某服务 |
+| 46 | 7256181 | `T5` | `T3` | Entitlement 相关 |
+| 47 | 7256739 | `T8` | `T9` | LintErrorAutoFixStore |
+| 48 | 7258315 | `Nr` | `Nn` | RulesMode 服务 |
+| 49 | 7259427 | `Na` | `Ns` | SkillStore |
+| 50 | 7260182 | `Nc` | `Nu` | EntitlementStore |
+
+---
+
+### 6. DI 依赖图（核心服务注入关系）
+
+```
+uj (DI Container Singleton)
+├── uX (inject) ─── 101 次装饰器调用
+├── uJ (register) ── 51 次服务注册
+├── uB (useInject) ── React Hook，内部用 hX
+└── hX (()=>uj.getInstance()) ── 容器快捷方式
+
+关键服务依赖链:
+xR (WorkspaceFacade)
+  ← uX(S2.IClipboardService, IFileService, IEditorService, ICodeEditorService,
+       ITextModelService, IOutlineModelService, IWorkspaceContextService,
+       ITextFileService, ILanguageService, IEditorService, ICodeEditorService,
+       IPathService, IModelService, IICubeAITeaService, IEnvironmentService,
+       IAiChatApiService, AM, xC, ED)
+
+xW (FileCommandFacade)
+  ← uX(S2.IClipboardService, IFileService, IEditorService, ICodeEditorService,
+       ITextFileService, IBulkEditService, IFileDialogService,
+       IWorkspaceContextService, ICommandService)
+
+xK (TerminalFacade)
+  ← uX(S2.IEditorService, IEditorGroupsService, IICubeSoloModeManagerService,
+       ITerminalEditorService, ICommandService, IFileService, ITerminalService,
+       ITerminalGroupService, IPathService, IOpenerService)
+
+x0 (EditorFacade)
+  ← uX(S2.ICodeEditorService, ITextFileService, IPathService)
+
+x6 (OutlineFacade)
+  ← uX(S2.IModelService, ILanguageService, IPathService)
+
+xI (SessionStore) ← uX(xC) [自引用? 或其他服务]
+MQ (LogService) ← uX(AM) [UtilFacade]
+M4 (SessionService) ← uX(Ci) [同 M0?]
+MX (CredentialStore) ← uX(M$)
+k2 (ModelStore) ← uX(k1) [自引用?]
+ID (SessionRelationStore) ← uX(Ix, ...)
+```
+
+---
+
+### 7. 对补丁开发的关键影响
+
+1. **服务层 > UI 层原则验证**: DI resolve 调用集中在 7583273-7601575 区间（FF 对象，API 层）和 10463462-10478629 区间（命令注册层）。这些是**服务层代码**，不受 React 冻结影响。
+
+2. **auto-continue 补丁中的 Token 问题**:
+   - `uj.getInstance().resolve(BR)` @7452910 — BR 是 path 模块，不是 DI token！
+   - `uj.getInstance().resolve(Di)` @7508810 — Di 是 ChatService，调用 `.resumeChat()`
+   - **建议**: auto-continue 应该 resolve `M0` (ISessionService) 或 `BO` (ISessionServiceV2) 而非 BR
+
+3. **容器初始化时序**: `hX()` 返回容器后先检查 `isInitialized()`，未初始化时轮询等待。这意味着在 React 组件外使用 `uj.getInstance().resolve()` 需确保容器已初始化。
+
+4. **Zustand Store 与 DI 的关系**: `xC` (ISessionStore), `k1` (IModelStore), `IN` (ISessionRelationStore) 都是 Zustand store，通过 DI 注册但用 `uB(token)` 在 React 中注入，用 `.getState()` 在服务层访问。
+
+5. **搜索模板稳定性**: `Symbol.for("...")` 字符串是**最稳定的搜索锚点**，跨版本不变。`uX(`, `uJ({identifier:` 等混淆名每次构建可能变化。
