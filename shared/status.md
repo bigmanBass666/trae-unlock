@@ -63,6 +63,9 @@ format: registry
 - **J 变量含义变化**: 旧版 J=可恢复错误标志，新版 J=思考上限+循环标志，K=可恢复错误标志
 - **find_original 精确性**: 必须与实际文件内容完全一致，括号顺序差异即可导致匹配失败
 - **脏备份残留**: 回滚到旧备份后 apply 只追加不删除 → 可能有多余 provideUserResponse 调用
+- **J→K 重命名未发生**: handoff 中的 "J→K 变量重命名" 报告有误，当前版本 J 仍是"显示继续按钮"变量
+- **付费限制错误码纠正**: PREMIUM_MODE_USAGE_LIMIT=4008(非1016), STANDARD_MODE_USAGE_LIMIT=4009(非1017), FIREWALL_BLOCKED=700(非1023)
+- **P8.Default 变量未找到**: bypass-whitelist-sandbox-blocks 补丁可能需要更新变量名
 
 ## 安全状态
 
@@ -75,6 +78,24 @@ format: registry
 ---
 
 ## 会话日志（仅保留最近）
+
+### [2026-04-25 23:50] 会话 #30 — v2 探索远征：版本适配 + 商业权限 + 新补丁目标
+
+**操作**:
+1. 执行探险家协议启动清单（auto-heal 9/10 PASS, 目标文件 10490354 chars）
+2. 补丁版本适配审计：6 已应用 + 5 可直接应用 + 3 BROKEN(已禁用)
+3. J→K 重命名评估：**纠正 handoff 错误**，J 仍是当前变量名
+4. Symbol.for→Symbol 迁移评估：54 个 Symbol.for + 40+ 个 Symbol，部分迁移
+5. 商业权限域深度映射：NS 类 6 方法 + Nu 类状态结构 + bJ 枚举
+6. 新补丁目标候选：6 个候选，bypass-commercial-permission 最推荐
+
+**关键发现**:
+- J→K 重命名未发生，现有补丁无需修改 J 引用
+- ICommercialPermissionService 无 isFreeUser() 方法
+- 付费限制错误码实际值与记录不同
+- bypass-commercial-permission 补丁可行性 5/5
+
+**P2 写入**: discoveries.md (+6 个发现), handoff.md (+50 行交接), status.md (更新已知问题)
 
 ### [2026-04-22 23:00] 会话 #25 — 项目全面重构 + v8 L1→L2 迁移
 

@@ -16,7 +16,7 @@ scripts/check-resumeChat*
 scripts/check-v1[45]*
 scripts/check-v19*
 scripts/inject-v*-fix.ps1
-scripts/analyze-*.ps1
+scripts/analyze-*.*
 scripts/find-*
 scripts/read-offset.ps1
 scripts/search-*.ps1
