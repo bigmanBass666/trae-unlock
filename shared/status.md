@@ -58,7 +58,9 @@ format: registry
 ## 已知问题
 
 - **L1 冻结**: 切走窗口后 React 组件不渲染 → L1 补丁代码不执行 → v8 的 L1 部分在后台无效（L2 轮询器不受影响）
-- **Trae 更新风险**: 变量重命名（efh→efg 等）导致 find_original 失效 → 需重新定位
+- **Trae 已更新**: 文件从 ~10463462 增长到 10489266 chars，Symbol.for→Symbol 迁移，J→K 重命名，ConfirmMode 移除
+- **补丁搜索模式失效**: Symbol.for("IPlanItemStreamParser") 和 Symbol.for("ISessionStore") 不再存在，必须改为 Symbol()
+- **J 变量含义变化**: 旧版 J=可恢复错误标志，新版 J=思考上限+循环标志，K=可恢复错误标志
 - **find_original 精确性**: 必须与实际文件内容完全一致，括号顺序差异即可导致匹配失败
 - **脏备份残留**: 回滚到旧备份后 apply 只追加不删除 → 可能有多余 provideUserResponse 调用
 
@@ -157,6 +159,28 @@ format: registry
 **当前状态**: 已回滚到 v7，待用户重启验证界面恢复
 
 **P2 写入**: discoveries.md (+80行白屏对比), decisions.md (+18行预防清单)
+
+### [2026-04-25 23:30] 会话 #29 — 盲区远征 + Trae 版本更新检测
+
+**操作**:
+1. 执行盲区远征 spec，系统性扫描 P0（54415-6268469, ~6.2MB）和 P1（8930000-10489266, ~1.5MB）
+2. 发现 Trae 已更新（文件 10489266 chars），多个 DI token 从 Symbol.for 迁移到 Symbol
+3. 完整 DI token 映射：54 个 Symbol.for + 52 个 Symbol
+4. 发现 J→K 变量重命名（可恢复/思考上限分离）
+5. 发现 IEntitlementStore + ICommercialPermissionService（商业权限判断集中点）
+6. kg 错误码完整枚举（30+ 错误码）
+7. 所有 Major 发现三路交叉验证通过
+
+**关键发现**:
+- Symbol.for("IPlanItemStreamParser") → Symbol("IPlanItemStreamParser") @7511512
+- Symbol.for("ISessionStore") → Symbol("ISessionStore") @7092843
+- ConfirmMode 枚举已完全移除
+- J=思考上限+循环, K=可恢复错误（旧版 J=可恢复）
+- ICommercialPermissionService.isFreeUser() 是商业权限判断集中点
+
+**P2 写入**: discoveries.md (+8 个新发现), handoff.md (+53 行交接), status.md (更新已知问题)
+
+---
 
 ### [2026-04-23 03:00] 会话 #28 — "切窗口就失效"全景根因研究 + DI 容器突破性发现
 

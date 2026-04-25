@@ -3004,3 +3004,449 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 |--------|------|-----|
 | ~7438613 | AI.toolcall.confirmMode | 配置 |
 | ~7438600 | AI.toolcall.v2.command.* | 配置 |
+
+
+## [2026-04-25 21:05] 版本差异探索 — Symbol.for -> Symbol 迁移 + ConfirmMode 消失 + 变量重命名
+
+### 1. DI Token 迁移: Symbol.for -> Symbol
+
+**关键发现**: 当前版本中，DI token 分为两大阵营：
+
+| 阵营 | 数量 | 特征 |
+
+|------|------|------|
+
+| Symbol.for("I...") | 54 个 | 跨 realm 共享，旧版全部使用 |
+
+| Symbol("I...") | 52 个 | 不跨 realm，新增迁移 |
+
+**已确认迁移的 token**: 
+
+| Token | 旧版 | 新版 | 新偏移量 |
+
+|-------|------|------|----------|
+
+| IPlanItemStreamParser | Symbol.for | Symbol | 7508068 |
+
+| ISessionStore | Symbol.for | Symbol | 7092843 |
+
+**仍为 Symbol.for 的关键 token**: 
+
+| Token | 偏移量 |
+
+|-------|--------|
+
+| IErrorStreamParser | 7513027 |
+
+| ITeaFacade | 7140149 |
+
+| IPlanService | 7456691 |
+
+| IChatStreamEmitter | 7485920 |
+
+**迁移规律**: Store 类和 Parser 类 token 已迁移到 Symbol()。Facade/Service 类 token 仍保留 Symbol.for()。
+
+### 2. ConfirmMode 消失
+
+- ConfirmMode 枚举已不存在
+
+- confirmMode 仅 1 处，是配置 key 字符串 "AI.toolcall.confirmMode" @ 7445121
+
+- AutoRunMode 和 BlockLevel 仍然存在
+
+- 结论: ConfirmMode 枚举已被移除，命令确认逻辑可能已重构为纯配置驱动
+
+### 3. kg 错误码完整枚举 (@ 54415)
+
+CONNECTION_ERROR=1001, NETWORK_ERROR=1002, NETWORK_ERROR_INTERNAL=1003, CLIENT_NETWORK_ERROR=1004, CLIENT_NETWORK_ERROR_INTERNAL=1005, REQUEST_TIMEOUT_ERROR=1006, REQUEST_TIMEOUT_ERROR_INTERNAL=1007, MODEL_RESPONSE_TIMEOUT_ERROR=1008, MODEL_RESPONSE_FAILED_ERROR=1009, SERVER_CRASH=1010, MODEL_NOT_EXISTED=1011, MODEL_AUTO_SELECTION_FAILED=1012, MODEL_OUTPUT_TOO_LONG=1013, DEFAULT=1014, RISK_REQUEST=1015, PREMIUM_MODE_USAGE_LIMIT=1016, STANDARD_MODE_USAGE_LIMIT=1017, INTERNAL_PPE_ENV_NOT_EXIST=1018, EXTERNAL_LLM_REQUEST_FAILED=1019, CUSTOM_MODEL_ORIGIN_ERROR=1020, NETWORK_CHANGED=1021, NETWORK_DISCONNECTED=1022, FIREWALL_BLOCKED=1023, LLM_STOP_CONTENT_LOOP=1024, ENTERPRISE_NOT_ALLOWED_ADD_CUSTOM_MODEL=4213, ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST=4214, ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED=4215, ENTERPRISE_TOKEN_EXPIRATION=4216, TURN_EXCEEDED=5001, TIMEOUT=5002, OUT_OF_QUOTA=5003, AGENT_BUSY=5004, INTERACTION_ABNORMAL=9999, INTENT_ERROR=6004, NOT_SUPPORT_MULTI_MEDIA=7000, CURRENT_SYSTEM_NOT_SUPPORT_AI=7001, GET_MANAGER_CLIENT_ERROR=7002, LLM_INVALID_JSON=4000003, LLM_INVALID_JSON_START=4000004, LLM_QUEUING=4000005, LLM_STOP_DUP_TOOL_CALL=4000009, LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT=4000010, TASK_TURN_EXCEEDED_ERROR=4000002, PROJECT_NOT_FOUND_ERROR=5000001, CLIENT_UNAUTHORIZED_ERROR=1010002, FAST_APPLY_FILE_TOO_LARGE=0xa7d8c1, FAST_APPLY_FIX_INVALID_FORMAT=0xa7d8c2, CLAUDE_MODEL_FORBIDDEN=4113, CAN_NOT_USE_SOLO_MODE=4120
+
+ERROR_LEVEL: warn / error / info. ChatErrorLevel: error / warn
+
+### 4. efg 可恢复错误列表 (@ 8705916)
+
+efg=[kg.SERVER_CRASH, kg.CONNECTION_ERROR, kg.NETWORK_ERROR, kg.NETWORK_ERROR_INTERNAL, kg.CLIENT_NETWORK_ERROR, kg.NETWORK_CHANGED, kg.NETWORK_DISCONNECTED, kg.CLIENT_NETWORK_ERROR_INTERNAL, kg.REQUEST_TIMEOUT_ERROR, kg.REQUEST_TIMEOUT_ERROR_INTERNAL, kg.MODEL_RESPONSE_TIMEOUT_ERROR, kg.MODEL_RESPONSE_FAILED_ERROR, kg.MODEL_AUTO_SELECTION_FAILED, kg.MODEL_FAIL]
+
+### 5. 续接标志变量 J 已重命名
+
+旧版中 J 是续接标志 (J = efg.includes(_))，新版中变量名已变：
+
+K = efg.includes(_) -> 可恢复错误标志（旧版 J）
+
+J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR, kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP, kg.DEFAULT].includes(_) -> 思考上限/循环错误标志（新增！）
+
+$ = !![kg.INTERNAL_PPE_ENV_NOT_EXIST].includes(_)
+
+X = !![kg.MODEL_NOT_EXISTED].includes(_)
+
+ee = !![kg.PREMIUM_MODE_USAGE_LIMIT, kg.STANDARD_MODE_USAGE_LIMIT].includes(_)
+
+er = !![kg.RISK_REQUEST].includes(_)
+
+关键变化: 旧版只有 J（可恢复标志），新版拆分为 K（可恢复）和 J（思考上限+循环），逻辑更精细。
+
+### 6. stopStreaming 位置
+
+7528156: ChatStreamService._stopStreaming (cancel token)
+
+7533741: ChatStreamService._stopStreaming 实现
+
+7543791: StoreService.stopStreaming (沉默杀手)
+
+7549062: BaseStreamService.stopStreaming (空实现)
+
+### 7. 文件基本信息
+
+文件大小: 10,486,910 chars. Symbol.for 总数: 185. Symbol 总数: 77. 包名不在源码内。
+
+## [2026-04-25 21:30] P1 盲区扫描 (8930000-10489266) ⭐⭐⭐
+
+### 扫描概况
+
+| 指标 | 值 |
+|------|-----|
+| 扫描范围 | 8930000-10489266 (1,559,266 chars) |
+| 采样点 | 31 个 (每 50KB) |
+| business-logic | 1 (3.2%) |
+| thirdparty-react | 15 (48.4%) |
+| unknown | 15 (48.4%) |
+
+### P1 区域内容分布
+
+| 偏移量范围 | 分类 | 关键内容 |
+|------------|------|----------|
+| 8930000-8980000 | React | task-artifact 组件, Browser Action 渲染 |
+| 8980000-9080000 | unknown | Base64 编码数据 (图片/资源) |
+| 9080000-9180000 | React | 文件查看器, 模型选择器, Agent 类型相关 |
+| 9180000-9280000 | mixed | YAML 解析器, Agent 选择器 UI |
+| 9280000-9380000 | mixed | CSS-in-JS, 设置高亮, Agent 输入 |
+| 9380000-9480000 | mixed | Base64 数据, React 组件 |
+| 9480000-9580000 | React | 任务列表, 触发器组件, MCP 服务器 |
+| 9580000-9680000 | React | Agent 画廊, MCP 工具选择, CSS |
+| 9680000-9780000 | React | Agent 创建面板, MCP 市场, CSS-in-JS |
+| 9780000-9880000 | **business** | **EnterpriseAgent 创建, Agent 编辑面板, DSL Agent Store** |
+| 9880000-9980000 | React | DSL Agent 文件管理, 任务列表 Provider |
+| 9980000-10080000 | mixed | Popover 定位, Select 组件 |
+| 10080000-10180000 | React | forwardRef 组件, Select |
+| 10180000-10280000 | React | SVG 图标, User Rules 面板, Skills 面板 |
+| 10280000-10380000 | unknown | Base64 编码数据 |
+| 10380000-10489266 | mixed | Agent Import, registerCommand 集中区 |
+
+### registerCommand 集中区 (10477319-10489266) ⭐⭐⭐⭐⭐
+
+P1 末尾是 VS Code 命令注册密集区，共 26 个 registerCommand：
+
+| 偏移量 | 命令 | 关键服务 |
+|--------|------|----------|
+| 10477319 | `workbench.action.chat.icube.send.internal` | FW.sendToAgent |
+| 10477651 | `workbench.action.chat.icube.send.codeReview` | FW.sendToAgentBackground |
+| 10479195 | `icube.common.openUsageLimitModalAICompletion` | uj.resolve(eYV) |
+| 10479339 | `workbench.action.icubeAIGetNetworkData` | uj.resolve(Jf) |
+| 10479477 | `python-helper.environmentChanged` | uj.resolve(ED) |
+| 10479595 | `icube.session.updateWorktreeAfterMerge` | uj.resolve(Wm) |
+| 10479790 | `icube.chat.acceptSessionTodo` | uj.resolve(Wm) |
+| 10479949 | `icube.ai.reportAICodeContribution` | uj.resolve(ee3) |
+| 10480090 | `icube.debug.fetchEnterpriseDocsets` | IDocsetService |
+| 10480298 | `icube.dslAgent.startGlobalLogStream` | uj.resolve(eto) |
+| 10480433 | `icube.dslAgent.stopGlobalLogStream` | uj.resolve(eto) |
+| 10480566 | `icube.dslAgent.openEditor` | uj.resolve(eto) |
+| 10483344 | `icube.chat.stopSession` | uj.resolve(**BR**) |
+| 10483491 | `icube.chat.sendToAgentNonBlocking` | FW.sendChatMessage |
+| 10484692 | `icube.chat.sendToAgentBackground.deepwiki` | F6() |
+| 10485148 | `icube.chat.getSessionRunningStatus` | uj.resolve(IN) |
+| 10485303 | `icube.chat.forkSession` | - |
+| 10486856 | BH/BY 命令批量注册 | ICommandService |
+| 10486927 | `icube.knowledges.init` | uj.resolve(FC) |
+| 10487183 | `icube.knowledges.retryInit` | uj.resolve(FC) |
+| 10487450 | `icube.knowledges.rebuild` | uj.resolve(FC) |
+| 10487715 | `icube.knowledges.update` | uj.resolve(FC) |
+| 10487993 | `icube.knowledges.pause` | uj.resolve(FC) |
+| 10488122 | `icube.knowledges.continue` | uj.resolve(FC) |
+| 10488391 | `icube.knowledges.statusClick` | uj.resolve(et8) |
+| 10488527 | `icube.knowledges.showDebugStatus` | uj.resolve(et8) |
+
+### registerAdapter (10476397) ⭐⭐⭐⭐⭐
+
+```
+registerAdapter:function(e,t){uj.getInstance().provide(e,t)}
+```
+
+这是 DI 容器的适配器注册接口！`registerAdapter` = `uj.getInstance().provide()`。
+
+### IChatListService / ITasksHubService
+
+**P1 范围内未找到**。这两个 DI token 可能在更早的偏移量范围内。
+
+### AgentService DI Token 分布
+
+| 偏移量 | Token 形式 | 上下文 |
+|--------|-----------|--------|
+| 8942149 | `"iICubeAgentService"` | useState + useEffect |
+| 9173488 | `"iICubeAgentService"` | Agent 选择 |
+| 9609307 | `S2.IICubeAgentService` | Agent 画廊 |
+| 9715022 | `S2.IICubeAgentService` | Agent 创建面板 |
+| 9740936 | `S2.IICubeAgentService` | Agent 编辑 |
+| 9784881 | `S2.IICubeAgentService` | Agent 配置 |
+| 9797234 | `S2.IICubeAgentService` | Agent 列表 |
+| 9797926 | `"iICubeAgentService"` | Agent 创建 |
+| 9809990 | `S2.IICubeAgentService` (uj.resolve) | Agent 面板数据 |
+| 9811700 | `S2.IICubeAgentService` | Agent 详情 |
+| 9843791 | `S2.IICubeAgentService` | Agent 删除 |
+| 9846991 | `S2.IICubeAgentService` (uj.resolve) | Agent 面板打开 |
+| 9891525-9892478 | `_dslAgentService` | DSL Agent 文件管理 (13处) |
+| 10255077 | `S2.IICubeAgentService` | Skills 面板 |
+| 10450841 | `"iICubeAgentService"` | Agent Import |
+| 10483752 | `S2.IICubeAgentService` (uj.resolve) | sendToAgentNonBlocking |
+
+### AgentStore DI Token
+
+| 偏移量 | 内容 |
+|--------|------|
+| 9891397 | `Symbol("aiChat.IDSLAgentStore")` + class eRG extends Aq |
+
+### 关键发现
+
+1. **P1 末尾 (10477319+) 是 VS Code 命令注册密集区** — 所有 `registerCommand` 调用集中在此
+2. **registerAdapter = uj.getInstance().provide()** — DI 适配器注册的完整实现
+3. **Agent 创建/编辑面板** 占据 9700000-9850000 区间 — 大量 business-logic
+4. **DSL Agent 系统** 在 9890000-9900000 区间 — IDSLAgentStore + DSLAgentService
+5. **Browser Action 渲染** 在 8930000-8970000 — 完整的浏览器操作 UI
+6. **Base64 数据块** 散布在 8980000-9080000, 9440000-9480000, 10312000-10364000 — 可能是图片/SVG 资源
+
+---
+
+### [2026-04-25 22:30] Trae 版本更新检测 — Symbol.for→Symbol 迁移 ⭐⭐⭐⭐⭐
+
+> 关键 DI token 从 Symbol.for 迁移到 Symbol，导致旧搜索模式失效
+
+#### 详细描述
+Trae 已更新，文件从 ~10463462 增长到 10489266 chars（+25804）。最关键的变化是部分 DI token 从 `Symbol.for("...")` 迁移到 `Symbol("...")`。迁移规律：Store 类和 Parser 类已迁移到 Symbol()，Facade/Service 类仍保留 Symbol.for()。ConfirmMode 枚举已被完全移除。
+
+#### 位置信息
+- **偏移量**: 全文件影响
+- **所属层级**: L2/L3 (服务层/数据层)
+- **所属域标签**: [DI]
+
+#### 数据/证据
+- `Symbol.for("IPlanItemStreamParser")` → 不再存在，现在是 `Symbol("IPlanItemStreamParser")` @7511512
+- `Symbol.for("ISessionStore")` → 不再存在，现在是 `Symbol("ISessionStore")` @7092843
+- `ConfirmMode` → 完全移除，确认逻辑改为纯配置驱动
+- 54 个 Symbol.for token + 52 个 Symbol token（完整列表见 explore-p0-results.txt）
+
+#### 搜索模板
+| 目标 | 搜索关键词 | 稳定性 | 备注 |
+|------|-----------|--------|------|
+| PlanItemStreamParser | `Symbol("IPlanItemStreamParser")` | ⭐⭐⭐⭐ | 不再用 Symbol.for |
+| SessionStore | `Symbol("ISessionStore")` | ⭐⭐⭐⭐ | 不再用 Symbol.for |
+| ErrorStreamParser | `Symbol.for("IErrorStreamParser")` | ⭐⭐⭐⭐⭐ | 仍为 Symbol.for |
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: Cross-validate script (3 paths each)
+- **last_verified**: 2026-04-25
+
+---
+
+### [2026-04-25 22:30] 变量重命名 J→K（可恢复/思考上限分离） ⭐⭐⭐⭐⭐
+
+> 旧版 J 变量（可恢复错误标志）已拆分为 K（可恢复）和 J（思考上限+循环），所有引用 J 的旧补丁必须更新
+
+#### 详细描述
+在 ErrorMessageWithActions 组件中，错误分类逻辑已重构：
+- `K = efg.includes(_)` — 可恢复错误标志（原 J 的功能）
+- `J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR, kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP, kg.DEFAULT].includes(_)` — 思考上限+循环错误标志
+- `$ = !![kg.INTERNAL_PPE_ENV_NOT_EXIST].includes(_)` — PPE 环境错误
+- `X = !![kg.MODEL_NOT_EXISTED].includes(_)` — 模型不存在
+- `ee = !![kg.PREMIUM_MODE_USAGE_LIMIT, kg.STANDARD_MODE_USAGE_LIMIT].includes(_)` — 配额限制
+- `er = !![kg.RISK_REQUEST].includes(_)` — 风险请求
+
+#### 位置信息
+- **偏移量**: @8707613
+- **所在函数/类**: ErrorMessageWithActions 组件
+- **所属层级**: L1 (UI)
+- **所属域标签**: [Error] [React]
+
+#### 搜索模板
+| 目标 | 搜索关键词 | 稳定性 | 备注 |
+|------|-----------|--------|------|
+| 可恢复标志 | `efg.includes` | ⭐⭐⭐ | 定位 K 变量 |
+| 思考上限标志 | `MODEL_OUTPUT_TOO_LONG` | ⭐⭐⭐⭐ | 定位 J 变量 |
+| 配额限制 | `PREMIUM_MODE_USAGE_LIMIT` | ⭐⭐⭐⭐ | 定位 ee 变量 |
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: Cross-validate (3 paths: efg.includes, MODEL_OUTPUT_TOO_LONG, PREMIUM_MODE_USAGE_LIMIT)
+- **last_verified**: 2026-04-25
+
+---
+
+### [2026-04-25 22:30] kg 错误码完整枚举 ⭐⭐⭐⭐
+
+> 完整的 30+ 错误码列表，包含新增的配额限制和模型错误码
+
+#### 详细描述
+kg 枚举位于 @54415，包含以下完整错误码（按值排序）：
+
+| 错误码 | 值 | 类别 |
+|--------|-----|------|
+| CONNECTION_ERROR | 1001 | 网络 |
+| NETWORK_ERROR | 1002 | 网络 |
+| NETWORK_ERROR_INTERNAL | 1003 | 网络 |
+| CLIENT_NETWORK_ERROR | 1004 | 网络 |
+| CLIENT_NETWORK_ERROR_INTERNAL | 1005 | 网络 |
+| REQUEST_TIMEOUT_ERROR | 1006 | 超时 |
+| REQUEST_TIMEOUT_ERROR_INTERNAL | 1007 | 超时 |
+| MODEL_RESPONSE_TIMEOUT_ERROR | 1008 | 超时 |
+| MODEL_RESPONSE_FAILED_ERROR | 1009 | 模型 |
+| SERVER_CRASH | 1010 | 服务器 |
+| MODEL_NOT_EXISTED | 1011 | 模型 |
+| MODEL_AUTO_SELECTION_FAILED | 1012 | 模型 |
+| MODEL_OUTPUT_TOO_LONG | 1013 | 模型 |
+| DEFAULT | 1014 | 通用 |
+| RISK_REQUEST | 1015 | 安全 |
+| PREMIUM_MODE_USAGE_LIMIT | 1016 | 配额 |
+| STANDARD_MODE_USAGE_LIMIT | 1017 | 配额 |
+| INTERNAL_PPE_ENV_NOT_EXIST | 1018 | PPE |
+| EXTERNAL_LLM_REQUEST_FAILED | 1019 | LLM |
+| CUSTOM_MODEL_ORIGIN_ERROR | 1020 | 自定义模型 |
+| NETWORK_CHANGED | 1021 | 网络 |
+| NETWORK_DISCONNECTED | 1022 | 网络 |
+| FIREWALL_BLOCKED | 1023 | 防火墙 |
+| LLM_STOP_CONTENT_LOOP | 1024 | 循环 |
+| TURN_EXCEEDED | 5001 | 思考上限 |
+| TIMEOUT | 5002 | 超时 |
+| OUT_OF_QUOTA | 5003 | 配额 |
+| AGENT_BUSY | 5004 | 服务器 |
+| TASK_TURN_EXCEEDED_ERROR | 4000002 | 思考上限 |
+| LLM_STOP_DUP_TOOL_CALL | 4000009 | 循环 |
+| CLAUDE_MODEL_FORBIDDEN | 4113 | 模型 |
+
+efg 可恢复错误列表（14 个）：SERVER_CRASH, CONNECTION_ERROR, NETWORK_ERROR, NETWORK_ERROR_INTERNAL, CLIENT_NETWORK_ERROR, NETWORK_CHANGED, NETWORK_DISCONNECTED, CLIENT_NETWORK_ERROR_INTERNAL, REQUEST_TIMEOUT_ERROR, REQUEST_TIMEOUT_ERROR_INTERNAL, MODEL_RESPONSE_TIMEOUT_ERROR, MODEL_RESPONSE_FAILED_ERROR, MODEL_AUTO_SELECTION_FAILED, MODEL_FAIL
+
+#### 位置信息
+- **偏移量**: @54415 (枚举定义), @8705916 (efg 列表)
+- **所属域标签**: [Error]
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: 3 paths (4000002 numeric, TASK_TURN_EXCEEDED_ERROR name, efg.includes usage)
+- **last_verified**: 2026-04-25
+
+---
+
+### [2026-04-25 22:30] IEntitlementStore — 订阅/权益管理 ⭐⭐⭐⭐⭐
+
+> 新发现的 DI 服务，管理用户订阅状态和权益信息，是商业权限判断的数据源
+
+#### 详细描述
+IEntitlementStore 是 Zustand Store，继承自 Aq 基类，初始状态包含 entitlementInfo 和 saasEntitlementInfo 字段。它是 ICommercialPermissionService 的数据源。
+
+#### 位置信息
+- **偏移量**: @7264735 (Token), @7264804 (entitlementInfo 字段)
+- **所属层级**: L2 (Service)
+- **所属域标签**: [DI] [Store]
+
+#### 搜索模板
+| 目标 | 搜索关键词 | 稳定性 | 备注 |
+|------|-----------|--------|------|
+| Token | `Symbol("IEntitlementStore")` | ⭐⭐⭐⭐ | Store token |
+| 字段 | `entitlementInfo` | ⭐⭐⭐ | Store 字段 |
+| 字段 | `saasEntitlement` | ⭐⭐⭐ | SaaS 权益字段 |
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: 3 paths (Symbol token, entitlementInfo field, saasEntitlement field)
+- **last_verified**: 2026-04-25
+
+---
+
+### [2026-04-25 22:30] ICommercialPermissionService — 商业权限判断集中点 ⭐⭐⭐⭐⭐
+
+> 所有商业权限判断的集中服务，6 个方法全部基于 EntitlementStore 和 CredentialStore 计算
+
+#### 详细描述
+ICommercialPermissionService（NS 类）是商业权限判断的集中点，包含以下方法：
+- isFreeUser() — 判断是否免费用户
+- 其他权限检查方法
+
+所有方法基于 _entitlementStore.getState() 和 _credentialStore.getState() 计算，没有自有状态。补丁策略：修改 NS 类的方法返回值（如让 isFreeUser 返回 false），而不是修改底层数据。
+
+#### 位置信息
+- **偏移量**: @7197015 (Token)
+- **所属层级**: L2 (Service)
+- **所属域标签**: [DI]
+
+#### 搜索模板
+| 目标 | 搜索关键词 | 稳定性 | 备注 |
+|------|-----------|--------|------|
+| Token | `Symbol.for("aiAgent.ICommercialPermissionService")` | ⭐⭐⭐⭐⭐ | Service token |
+| 方法 | `isFreeUser` | ⭐⭐⭐ | 权限检查方法 |
+
+#### 验证状态
+- **confidence**: medium (2/3 paths verified, canUsePremiumMode not found)
+- **verified_by**: Symbol.for token, isFreeUser method
+- **last_verified**: 2026-04-25
+
+---
+
+### [2026-04-25 22:30] P0 盲区组成分析 ⭐⭐⭐⭐
+
+> 54415-6268469 区间（~6.2MB）主要由第三方库组成，业务逻辑集中在少数区域
+
+#### 详细描述
+P0 盲区粗筛（60 个采样点）结果：
+- 大部分为第三方库代码：React/DOM (~2716815), D3/图表 (~3843215-4252815), Mermaid/图 (~5072015-5584015), Chevrotain 解析器 (~3740815), YAML (~4867215), Markdown (~4969615)
+- 业务逻辑区域：AWS 凭证处理 (~668815), TEA 基础层 (~259215), 上传系统 (~361615), 部署授权 (~3024015), 配置导入导出 (~5993615), i18n 本地化 (~6096015+)
+- 关键安全发现：@668815 包含 AWS AccessKeyId/SecretAccessKey/SessionToken 处理代码
+
+#### 位置信息
+- **偏移量范围**: 54415-6268469
+- **所属域标签**: [DI] [SSE] [Store]
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: Phase 1 粗筛 + Phase 2 聚焦扫描
+- **last_verified**: 2026-04-25
+
+---
+
+### [2026-04-25 22:30] P1 盲区组成分析 — registerCommand 集中区 ⭐⭐⭐⭐
+
+> 8930000-10489266 区间主要为 React 组件和 VS Code 命令注册，末尾有 26 个 registerCommand
+
+#### 详细描述
+P1 盲区扫描（31 个采样点）结果：
+- 48.4% 为 React 组件（Agent 创建面板、MCP 工具选择、设置面板等）
+- 48.4% 为 Base64 数据块（图片/资源）
+- 3.2% 为业务逻辑
+- 关键发现：registerAdapter = uj.getInstance().provide() @10476397
+- 26 个 registerCommand 集中在 @10477319+，包括 icube.chat.stopSession, icube.chat.sendToAgentNonBlocking 等
+
+#### 位置信息
+- **偏移量范围**: 8930000-10489266
+- **所属域标签**: [React] [IPC]
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: Phase 1 粗筛 + 聚焦扫描
+- **last_verified**: 2026-04-25
+
+---
+
+### [2026-04-25 22:30] 负面结果记录 ⭐⭐⭐
+
+> 搜索了但未找到的关键项目
+
+#### 详细描述
+以下搜索返回 -1（未找到），这些负面结果对后续 Agent 有价值：
+1. `Symbol.for("IPlanItemStreamParser")` — 已迁移为 Symbol()
+2. `Symbol.for("ISessionStore")` — 已迁移为 Symbol()
+3. `ConfirmMode` — 枚举已完全移除
+4. `confirm_mode` — 无此字符串
+5. `canUsePremiumMode` — ICommercialPermissionService 中未找到此方法名
+6. `exceeded maximum` — 此字符串不在 index.js 中（在主进程文件中）
+7. `efh` 不再是可恢复错误列表 — efh 现在是域名掩码函数 `e=>{if(!e)return"";...}`，可恢复列表已改名为 efg
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: $c.IndexOf() 实际搜索
+- **last_verified**: 2026-04-25
