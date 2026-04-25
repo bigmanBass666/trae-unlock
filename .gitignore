@@ -2,7 +2,7 @@
 tmp_*
 
 unpacked/
-tools/node_modules/
+tools/
 
 scripts/explore-output*.txt
 scripts/explore-*-results.txt
