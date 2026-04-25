@@ -2031,3 +2031,976 @@ ID (SessionRelationStore) ← uX(Ix, ...)
 4. **Zustand Store 与 DI 的关系**: `xC` (ISessionStore), `k1` (IModelStore), `IN` (ISessionRelationStore) 都是 Zustand store，通过 DI 注册但用 `uB(token)` 在 React 中注入，用 `.getState()` 在服务层访问。
 
 5. **搜索模板稳定性**: `Symbol.for("...")` 字符串是**最稳定的搜索锚点**，跨版本不变。`uX(`, `uJ({identifier:` 等混淆名每次构建可能变化。
+
+---
+
+## [2026-04-25 18:30] SSE 流管道完整拓扑 ⭐⭐⭐⭐⭐
+
+> SSE 流是 Trae AI 聊天的核心数据管道。本节完整映射了从服务端到 UI 的所有路径。
+
+### 1. SSE 事件枚举 (D7)
+
+**注意**: 变量名 `D7` 随 webpack 构建变化。稳定搜索锚点是 `Symbol.for("IPlanItemStreamParser")` 等注册 token。
+
+| 事件类型 | 枚举值 | 说明 | Parser 类 | DI Token |
+|---------|--------|------|-----------|----------|
+| Metadata | `"metadata"` | 元数据 | DQ (MetadataParser) | `Symbol("IMetadataParser")` |
+| UserMessage | `"userMessage"` | 用户消息 | DV (UserMessageContextParser) | `Symbol("IUserMessageContextParser")` |
+| Notification | `"notification"` | 通知 | — | `Symbol.for("INotificationStreamParser")` |
+| TextMessage | `"textMessage"` | 文本消息 | — | `Symbol.for("ITextMessageChatStreamParser")` |
+| PlanItem | `"planItem"` | 计划项/工具调用 | zL (PlanItemStreamParser) | `Symbol("IPlanItemStreamParser")` |
+| Error | `"error"` | 错误 | zU (ErrorStreamParser) | `Symbol.for("IErrorStreamParser")` |
+| UserMessageStream | `"userMessageStream"` | 用户消息流 | zJ | `Symbol.for("IUserMessageStreamParser")` |
+| TokenUsage | `"tokenUsage"` | Token 用量 | z2 | `Symbol.for("ITokenUsageStreamParser")` |
+| ContextTokenUsage | `"contextTokenUsage"` | 上下文 Token | z3 | `Symbol.for("IContextTokenUsageStreamParser")` |
+| FeeUsage | `"feeUsage"` | 费用 | za | `Symbol("IFeeUsageStreamParser")` |
+| SessionTitle | `"sessionTitle"` | 会话标题 | z8 | `Symbol.for("ISessionTitleMessageStreamParser")` |
+| Done | `"done"` | 完成 | zW | `Symbol("IDoneStreamParser")` |
+| Queueing | `"queueing"` | 排队 | zV | `Symbol("IQueueingStreamParser")` |
+
+### 2. EventHandlerFactory (Bt) — 中央调度器
+
+```
+位置: ~7300000 区域
+模式: handle(event, payload, context) → parse(event, payload, context) → handleSteamingResult(result, context)
+```
+
+每个事件类型注册一个 Parser，handle() 调用 Parser.parse() 然后分发结果。
+
+### 3. ChatStreamService 层级
+
+```
+Bo (ChatStreamService 基类, Template Method 模式)
+├── Bv (SideChatStreamService) — 侧边栏聊天，完整事件分发
+└── BE (InlineChatStreamService) — 内联聊天，简化版
+```
+
+**关键**: `Bs` 不是 ChatStreamService！`Bs` 是 ChatParserContext（数据类）。
+
+### 4. SSE 流生命周期
+
+```
+SSE 连接建立
+  → onMetadata → MetadataParser.parse()
+  → onMessage → EventHandlerFactory.handle(eventType, payload, context)
+    → Parser.parse() → handleSteamingResult() → handleSideChat()/handleInlineError()
+      → storeService.updateMessage() → Zustand Store → React re-render
+  → onError(e, t, i) → 仅 t=true 时分发到 ErrorStreamParser
+  → onComplete → DoneParser.parse()
+  → onCancel → 清理
+```
+
+### 5. 15 个 Parser 类完整列表
+
+| Parser | 混淆名 | 偏移量 | DI Token | 处理事件 |
+|--------|--------|--------|----------|---------|
+| MetadataParser | DQ | ~7314000 | IMetadataParser | Metadata |
+| UserMessageContextParser | DV | ~7314000 | IUserMessageContextParser | UserMessage |
+| NotificationStreamParser | — | ~7322410 | INotificationStreamParser | Notification |
+| TextMessageChatStreamParser | — | ~7497479 | ITextMessageChatStreamParser | TextMessage |
+| PlanItemStreamParser | — | ~7503299 | IPlanItemStreamParser | PlanItem |
+| ErrorStreamParser | zU | ~7508572 | IErrorStreamParser | Error |
+| UserMessageStreamParser | zJ | ~7515007 | IUserMessageStreamParser | UserMessageStream |
+| TokenUsageStreamParser | z2 | ~7516765 | ITokenUsageStreamParser | TokenUsage |
+| ContextTokenUsageStreamParser | z3 | ~7517392 | IContextTokenUsageStreamParser | ContextTokenUsage |
+| FeeUsageStreamParser | za | ~7482422 | IFeeUsageStreamParser | FeeUsage |
+| SessionTitleMessageStreamParser | z8 | ~7518028 | ISessionTitleMessageStreamParser | SessionTitle |
+| DoneStreamParser | zW | ~7511057 | IDoneStreamParser | Done |
+| QueueingStreamParser | zV | ~7512721 | IQueueingStreamParser | Queueing |
+| TaskAgentMessageParser | — | ~7614800 | (非 SSE 管道) | (IPC 消息) |
+| DZ/Dq (预解析器) | DZ, Dq | ~7300000 | — | 预处理 |
+
+**关键发现**: TaskAgentMessageParser 不在 SSE 管道中！它处理 IPC 来源的消息，这就是 v12 补丁零输出的原因。
+
+### 6. 错误分发的关键条件
+
+```javascript
+// Bo.onError(e, t, i):
+// t=true → SSE 流错误 → eventHandlerFactory.handle(D7.Error, e, r) → ErrorStreamParser
+// t=false → 其他异常 → 仅日志记录
+// 思考上限错误不经过此路径！
+```
+
+### 7. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| SSE 事件枚举 | `Symbol.for("IPlanItemStreamParser")` | ⭐⭐⭐⭐⭐ |
+| EventHandlerFactory | `eventHandlerFactory` | ⭐⭐⭐ |
+| ChatStreamService | `class Bo` | ⭐⭐ |
+| ErrorStreamParser | `Symbol.for("IErrorStreamParser")` | ⭐⭐⭐⭐⭐ |
+| PlanItemStreamParser | `Symbol("IPlanItemStreamParser")` | ⭐⭐⭐⭐ |
+
+---
+
+## [2026-04-25 18:45] Zustand Store 架构完整映射 ⭐⭐⭐⭐⭐
+
+> Store 是 Trae AI 聊天的状态中枢。本节完整映射了所有 Store 操作。
+
+### 1. Store 实例
+
+| Store | DI Token | 混淆名 | 偏移量 | 说明 |
+|-------|----------|--------|--------|------|
+| SessionStore | `xC` = Symbol("ISessionStore") | xI | ~7087490 | 主聊天会话存储 |
+| InlineSessionStore | `I2` = Symbol("IInlineSessionStore") | I4 | ~7221939 | 内联聊天会话存储 |
+| ModelStore | `k1` = Symbol("IModelStore") | k2 | ~7186457 | 模型配置存储 |
+| SessionRelationStore | `IN` = Symbol("ISessionRelationStoreInternal") | ID | ~7203850 | 会话关系存储 |
+| ProjectStore | `I7` | Ti | ~7224039 | 项目存储 |
+| AgentExtensionStore | `TG` | TH | ~7248275 | Agent 扩展存储 |
+| SkillStore | `Na` | Ns | ~7258315 | 技能存储 |
+| EntitlementStore | `Nc` | Nu | ~7259427 | 权限存储 |
+
+### 2. 两种 currentSession 模式
+
+**SessionStore (主聊天)**:
+- `currentSession` 是**计算属性**: 从 `sessions[]` + `currentSessionId` 派生
+- `updateMessage()` 操作 `sessions[]` 数组
+- `updateLastMessage()` 操作 `sessions[]` 数组
+
+**InlineSessionStore (内联聊天)**:
+- `currentSession` 是**直接字段**
+- `updateMessage()` 和 `updateLastMessage()` 都调用 `setCurrentSession({...i, messages:[...]})`
+
+**影响**: 补丁目标不同，策略不同。
+
+### 3. setCurrentSession 调用点
+
+| 偏移量 | 上下文 | Store |
+|--------|--------|-------|
+| ~7087490 | Store 定义 | SessionStore |
+| ~7221939 | Store 定义 | InlineSessionStore |
+| ~7584046 | subscribe #8 回调 | SessionStore |
+| ~7605848 | runningStatusMap subscribe | SessionStore |
+
+### 4. 关键 subscribe 调用
+
+| 偏移量 | 监听内容 | 用途 |
+|--------|---------|------|
+| ~7584046 | `currentSession.messages.length` + `currentSessionId` | 更新全局上下文 |
+| ~7605848 | `runningStatusMap` | 解析 waitForResponseComplete promise |
+| ~7588518 | subscribe #8 (已有) | 消息数量变化检测 |
+
+### 5. 无 Immer
+
+代码库使用**展开运算符**进行不可变更新，不使用 Immer 的 `produce()`。
+- `setCurrentSession({...i, messages:[...]})` — 标准展开
+- 这简化了补丁设计——不需要担心 draft proxy
+
+### 6. Store-React 连接
+
+```javascript
+// uB(token) — React Hook 注入 Store
+// 等价于: const store = useSyncExternalStore(subscribe, getSnapshot)
+// 返回: store 实例，可调用 .getState() / .subscribe() / .setState()
+```
+
+### 7. confirm_info 流经 PlanItemStreamParser
+
+```
+SSE PlanItem 事件 → PlanItemStreamParser._handlePlanItem() (~7504035)
+  → 检查 confirm_info.confirm_status
+  → 调用 provideUserResponse() (自动确认补丁)
+  → 更新 confirm_info.confirm_status = "confirmed"
+  → storeService.updateMessage() → Store 更新 → React re-render
+```
+
+### 8. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| SessionStore | `Symbol("ISessionStore")` | ⭐⭐⭐⭐ |
+| InlineSessionStore | `Symbol("IInlineSessionStore")` | ⭐⭐⭐⭐ |
+| setCurrentSession | `setCurrentSession` | ⭐⭐⭐ |
+| subscribe | `.subscribe(` | ⭐⭐⭐ |
+| getState | `.getState()` | ⭐⭐⭐ |
+| useStore | `N.useStore` | ⭐⭐ |
+
+## [2026-04-25 19:15] 错误处理系统完整映射 ⭐⭐⭐⭐⭐
+
+> 错误系统是 Trae AI 聊天的"免疫系统"。本节完整映射了所有错误码、传播路径和恢复策略。
+
+### 1. 错误码枚举 (kg) 完整列表
+
+#### LLM/Agent 错误 (4000xxx 范围)
+
+| 错误码 | 枚举名 | 含义 | 分类 |
+|--------|--------|------|------|
+| 4000002 | TASK_TURN_EXCEEDED_ERROR | 思考轮次超限 | 可续接 |
+| 4000009 | LLM_STOP_DUP_TOOL_CALL | 重复工具调用 | 可续接 |
+| 4000012 | LLM_STOP_CONTENT_LOOP | 内容循环检测 | 可续接 |
+| 4008 | (未命名) | 工具调用错误 | 可恢复 |
+| 4027 | (未命名) | 请求被拒绝 | 可恢复 |
+| 4113 | (未命名) | 模型限制 | 不可恢复 |
+
+#### 网络/服务错误 (efh 列表, 14 个)
+
+| 错误码 | 含义 | 分类 |
+|--------|------|------|
+| SERVER_CRASH | 服务器崩溃 | 可恢复(resumeChat) |
+| (13个其他网络错误) | 连接超时/重置等 | 可恢复(resumeChat) |
+
+#### 特殊错误码
+
+| 错误码 | 枚举名 | 含义 | 分类 |
+|--------|--------|------|------|
+| 987 | MODEL_OUTPUT_TOO_LONG | 输出过长 | 不可恢复 |
+| 977 | (未命名) | 上下文过长 | 不可恢复 |
+| 2000000 | DEFAULT | 默认错误 | 视情况 |
+
+### 2. 错误传播路径
+
+```
+PATH A: 主进程 IPC (思考上限等)
+  服务端 → Electron 主进程 → YTr.emit() → IPC → TaskAgentMessageParser.parse() @7615777
+    → 写入 exception={code:t, ...} → Store 更新 → React 渲染
+
+PATH B: SSE 流错误 (连接断开等)
+  服务端 → SSE Error 事件 → ChatStreamService._onError(e,t,i) @7528742
+    → eventHandlerFactory.handle(D7.Error, ...) → ErrorStreamParser.parse() @7508572
+      → getErrorInfoWithError(e) → Store 更新 → React 渲染
+
+PATH C: 通用错误 (账户/权限等)
+  服务端 → Bs.onError → handleCommonError() @7300455
+    → _aiChatRequestErrorService 处理 → 可能弹窗/重定向
+```
+
+**关键**: 思考上限错误走 PATH A，不经过 SSE ErrorStreamParser！
+
+### 3. 错误码→消息映射
+
+- `getErrorInfoWithError(e)` @7513080 — ErrorStreamParser 中使用
+- `getErrorInfo(t, {...})` @7615777 — TaskAgentMessageParser 中使用
+- 两者都映射数字码 → `{level, message}`，level 决定 bQ.Warning vs bQ.Error
+
+### 4. stopStreaming — "沉默杀手"
+
+```
+位置: ~7538139
+行为: 将 bQ.Warning 覆盖为 bQ.Canceled
+影响: if(V&&J) 守卫条件中 J 检查 status===Warning，被覆盖后守卫失败
+修复: guard-clause-bypass 补丁
+```
+
+### 5. agentProcess "v3"
+
+```
+只有 agentProcess==="v3" 的会话才支持 resumeChat()
+其他版本回退到 retryChatByUserMessageId()（可能丢失上下文）
+```
+
+### 6. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| 错误码枚举 | `4000002` | ⭐⭐⭐⭐⭐ |
+| ErrorStreamParser | `Symbol.for("IErrorStreamParser")` | ⭐⭐⭐⭐⭐ |
+| TaskAgentMessageParser | `Symbol("ITaskAgentMessageParser")` | ⭐⭐⭐⭐ |
+| handleCommonError | `handleCommonError` | ⭐⭐⭐ |
+| stopStreaming | `_stopStreaming` | ⭐⭐ |
+| resumeChat | `resumeChat` | ⭐⭐⭐ |
+
+## [2026-04-25 19:30] React 组件层级完整映射 ⭐⭐⭐⭐⭐
+
+> React 组件是 Trae AI 聊天的 UI 表现层。本节完整映射了组件树、Store 连接和冻结行为。
+
+### 1. 三层架构 (核心设计原则)
+
+```
+L1 UI 层 (React 组件) ~8000000+     → 后台标签页冻结！
+L2 服务层 (SSE 解析器) ~7500000     → 始终活跃
+L3 数据层 (DG.parse)    ~7318521     → 始终活跃
+```
+
+### 2. 组件树
+
+```
+AMD Module Entry
+├── L3 数据层
+│   ├── DG.parse() @7318521
+│   └── data-source-auto-confirm 补丁 @7323241
+├── L2 服务层
+│   ├── EventHandlerFactory (Bt) @~7300000
+│   │   ├── PlanItemStreamParser @7502500 [自动确认补丁]
+│   │   ├── ErrorStreamParser @7508572
+│   │   └── (13 个 Parser)
+│   ├── ChatStreamService (Bo) @~7520000
+│   │   ├── SideChatStreamService (Bv)
+│   │   └── InlineChatStreamService (BE)
+│   ├── teaEventChatFail() @7458679 [最早错误信号]
+│   └── sendToAgentBackground (F3) @7610443
+├── L1 UI 层 → 后台冻结！
+│   ├── egR (RunCommandCard) @8635000
+│   │   ├── confirm_info 解构 @8637300
+│   │   ├── ey useMemo (有效确认状态) @8636941
+│   │   ├── _ useMemo (需要确认弹窗) @8629200
+│   │   ├── 自动确认 useEffect @8640019
+│   │   ├── ew.confirm() [仅遥测！] @~8635000+
+│   │   └── eE(Ck.Confirmed) [真正执行] @~8635000+
+│   ├── sX().memo(Jj) @~8709284 [自动续接宿主]
+│   │   ├── JP.Sz 选择器 (status/exception/agentMessageId/sessionId)
+│   │   ├── V = 最后一条助手消息匹配
+│   │   ├── J = 可续接错误标志 @8696378
+│   │   ├── if(V&&J) 分支 @8702300 [自动续接补丁]
+│   │   ├── ec useCallback (重试/续接) @8697580
+│   │   ├── ed useCallback ("继续"按钮) @8697620
+│   │   └── efh 可恢复错误列表 @8695303
+│   └── ErrorMessageWithActions @8700000-8930000
+│       └── 17+ Alert 渲染点
+├── DI 容器 (uj) @6268469
+│   ├── uX(token) 注入装饰器 (101 次)
+│   ├── uJ({identifier:token}) 注册装饰器 (51 服务)
+│   └── uB(token) React Hook useInject @6270579
+└── Zustand Stores (8 个)
+    ├── SessionStore (xC) @~7087490
+    ├── InlineSessionStore (I2) @~7221939
+    └── (6 个其他 Store)
+```
+
+### 3. 17+ Alert 渲染点
+
+| # | 偏移量 | 错误码/条件 | 类型 | 有按钮? |
+|---|--------|-----------|------|--------|
+| 1 | ~8700219 | ENTERPRISE_QUOTA_CONFIG_INVALID | warning | No |
+| 2 | ~8701000 | MODEL_PREMIUM_EXHAUSTED | warning | No |
+| 3 | ~8701454 | PAYMENT_METHOD_INVALID | warning | No |
+| 4 | ~8701681 | INTERNAL_USAGE_LIMIT | warning | No |
+| 5 | ~8702300 | **if(V&&J) 可恢复错误** | **warning** | **Yes** |
+| 6 | ~8702410 | RISK_REQUEST_V2 | error/warning | No |
+| 7 | ~8703141 | CONTENT_SECURITY_BLOCKED | warning | No |
+| 8 | ~8703913 | FREE_ACTIVITY_QUOTA_EXHAUSTED | warning | No |
+| 9 | ~8704548 | CAN_NOT_USE_SOLO_AGENT | warning | No |
+| 10 | ~8705020 | CLAUDE_MODEL_FORBIDDEN | error | No |
+| 11 | ~8705534 | REPO_LEVEL_MODEL_UNAVAILABLE | warning | No |
+| 12 | ~8705889 | FIREWALL_BLOCKED | error | No |
+| 13 | ~8706759 | EXTERNAL_LLM_REQUEST_FAILED | error | Yes |
+| 14 | ~8707685 | PREMIUM_USAGE_LIMIT | error | No |
+| 15 | ~8708073 | STANDARD_MODE_USAGE_LIMIT | error | No |
+| 16 | ~8708463 | INVALID_TOOL_CALL | error | No |
+| 17 | ~8709130 | TOOL_CALL_RETRY_LIMIT | error | Yes |
+
+### 4. 冻结行为
+
+| 组件 | 层 | 后台行为 |
+|------|---|---------|
+| sX().memo(Jj) | L1 | 冻结 — React Scheduler 停止重渲染 |
+| egR (RunCommandCard) | L1 | 冻结 — useEffect/useMemo 暂停 |
+| PlanItemStreamParser | L2 | 活跃 — SSE 回调运行 |
+| teaEventChatFail | L2 | 活跃 — 遥测触发 |
+| store.subscribe | L2/L3 | 部分活跃 — 回调触发但浅比较遗漏 |
+
+### 5. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| RunCommandCard | `getRunCommandCardBranch` | ⭐⭐⭐ |
+| 自动续接宿主 | `if(V&&J)` → 向上追溯到 `sX().memo(` | ⭐ |
+| efh 列表 | `kg.SERVER_CRASH` | ⭐⭐⭐ |
+| 确认状态 | `"unconfirmed"` | ⭐⭐⭐⭐ |
+| BlockLevel 枚举 | `"redlist"` | ⭐⭐⭐⭐ |
+
+## [2026-04-25 19:45] 事件总线与遥测系统完整映射 ⭐⭐⭐⭐⭐
+
+> 事件系统是 Trae AI 聊天的"神经系统"。本节完整映射了所有事件通道和遥测机制。
+
+### 1. TEA 遥测事件
+
+| 方法名 | 偏移量 | 用途 | 稳定性 |
+|--------|--------|------|--------|
+| teaEventChatFail | ~7458679 | 报告聊天失败(最早错误信号) | ⭐⭐⭐⭐ |
+| teaEventChatShown | (推断) | 报告聊天显示 | ⭐⭐⭐ |
+| teaEventChatRetry | (推断) | 报告聊天重试 | ⭐⭐⭐ |
+
+**DI Token**: `Ma` = `Symbol.for("ITeaFacade")` @~7135785
+
+### 2. SSE 事件总线 (EventHandlerFactory)
+
+```
+EventHandlerFactory (Bt) @~7300000
+  handle(eventType, payload, context) → Parser.parse() → handleSteamingResult()
+  
+13 个事件类型注册:
+  Metadata → DQ.parse()
+  PlanItem → PlanItemStreamParser._handlePlanItem()  ← 补丁 hook 点
+  Error → ErrorStreamParser.parse()                  ← 补丁 hook 点
+  Done → zW.parse()
+  ... (完整列表见 SSE 拓扑节)
+```
+
+### 3. Zustand Store 订阅
+
+| # | 偏移量 | 监听内容 | 用途 |
+|---|--------|---------|------|
+| 1 | ~7584046 | currentSession.messages.length + currentSessionId | 更新全局上下文 |
+| 2 | ~7588518 | subscribe #8 | 消息数量变化检测 |
+| 3 | ~7605848 | runningStatusMap | 解析 waitForResponseComplete |
+
+### 4. DOM 事件监听
+
+| # | 偏移量 | 事件 | 目标 | 用途 |
+|---|--------|------|------|------|
+| 1 | ~7610443 | cancelEventKey (动态) | window | 取消聊天流 |
+| 2 | (补丁注入) | visibilitychange | document | 窗口焦点恢复 |
+
+### 5. 无 Node.js EventEmitter
+
+代码库**不使用** `.on()`/`.emit()` 模式。使用自定义 EventHandlerFactory 的 `handle()`/`register()` 方法。
+
+### 6. 补丁 Hook 点可行性评估
+
+| Hook 点 | 偏移量 | 稳定性 | 可访问性 | 后台可用 | 信息量 | 综合 |
+|---------|--------|--------|---------|---------|--------|------|
+| **teaEventChatFail** | ~7458679 | 4 | 5 | **5** | 4 | **4.5** |
+| **PlanItemStreamParser** | ~7502500 | 5 | 4 | **5** | 5 | **4.75** |
+| **ErrorStreamParser** | ~7508572 | 5 | 3 | **5** | 4 | **4.25** |
+| DI resolve | 任意 | 5 | 3 | **5** | 3 | **4.0** |
+| store.subscribe | ~7588518 | 3 | 4 | 3 | 3 | **3.25** |
+| if(V&&J) Alert | ~8702300 | 2 | 5 | **1** | 5 | **3.25** |
+
+**Top 3 推荐 Hook 点**:
+1. PlanItemStreamParser._handlePlanItem — 命令确认最佳点
+2. teaEventChatFail — 后台错误检测最佳点
+3. DI Container resolve — 服务访问最佳点
+
+### 7. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| TEA 服务 | `Symbol.for("ITeaFacade")` | ⭐⭐⭐⭐⭐ |
+| teaEventChatFail | `teaEventChatFail` | ⭐⭐⭐⭐ |
+| EventHandlerFactory | `eventHandlerFactory.handle(` | ⭐⭐⭐ |
+| visibilitychange | `visibilitychange` | ⭐⭐⭐⭐⭐ |
+| MessageChannel | `MessageChannel` | ⭐⭐⭐⭐⭐ |
+
+## [2026-04-25 20:15] IPC 进程间通信完整映射 ⭐⭐⭐⭐⭐
+
+> IPC 是 Trae 多进程架构的通信骨干。本节完整映射了所有通信通道。
+
+### 1. 三层 IPC 架构
+
+```
+Server → SSE Stream → Main Process (YTr Event Bus) → Renderer Process (Parsers)
+Renderer → VS Code Commands → Extension Host (ShellExec Service)
+Extension Host → EventEmitters → Renderer (Output/Status Updates)
+```
+
+### 2. Shell 执行命令 (icube.shellExec.*)
+
+| 命令 ID | 用途 |
+|---------|------|
+| `icube.shellExec.initShell` | 初始化登录 Shell 快照 |
+| `icube.shellExec.runCommand` | 执行命令 |
+| `icube.shellExec.checkStatus` | 检查命令状态 |
+| `icube.shellExec.killCommand` | 终止运行中命令 |
+| `icube.shellExec.getRunningCommands` | 获取 Agent 运行中命令 |
+| `icube.shellExec.getAllRunningCommands` | 获取所有运行中命令 |
+| `icube.shellExec.getTerminalHistory` | 获取终端历史 |
+| `icube.shellExec.getCommandOutput` | 获取命令输出 |
+| `icube.shellExec.getCommandIdByToolCallId` | toolCallId → commandId 映射 |
+
+### 3. 主进程事件总线 (workbench.desktop.main.js)
+
+| 类 | 方法 | 用途 |
+|----|------|------|
+| YTr | `.emit()` | 发射事件到流 |
+| YTr | `.enqueueData()` | 入队流数据 |
+| YTr | `.drain()` | 排队数据到客户端 |
+| GZt | `.create()` | 创建错误对象 (如 "exceeded maximum number of turns") |
+
+### 4. 取消机制 (cancelEventKey)
+
+```
+位置: ~7610443 (F3/sendToAgentBackground)
+模式: window.addEventListener(t.cancelEventKey, () => { s.stopChat(f.sessionId) })
+```
+
+### 5. 关键发现: 无 ipcRenderer
+
+index.js **不使用** Electron 的 `ipcRenderer` API。所有主进程通信通过:
+1. VS Code 命令系统 (`vscode.commands.executeCommand`)
+2. SSE 流 (服务端→渲染进程数据)
+3. DI 容器服务方法 (渲染进程内部通信)
+4. `window.addEventListener` 动态键 (取消事件)
+
+### 6. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| Shell 执行 | `icube.shellExec.` | ⭐⭐⭐⭐⭐ |
+| 取消事件 | `cancelEventKey` | ⭐⭐⭐⭐ |
+| 错误工厂 | `GZt.create` | ⭐⭐ |
+| 事件总线 | `YTr.drain` | ⭐⭐ |
+
+## [2026-04-25 20:30] 设置系统完整映射 ⭐⭐⭐⭐⭐
+
+> 设置系统控制着 Trae AI 的行为边界。本节完整映射了所有设置键和监听机制。
+
+### 1. AI 工具调用设置
+
+| 设置键 | 类型 | 默认值 | 偏移量 | 用途 |
+|--------|------|--------|--------|------|
+| `AI.toolcall.confirmMode` | string | `"alwaysAsk"` | ~7438613 | 确认模式 |
+| `AI.toolcall.v2.command.mode` | string | — | ~7438600 | 命令执行模式 |
+| `AI.toolcall.v2.command.allowList` | array | — | ~7438600 | 允许列表 |
+| `AI.toolcall.v2.command.denyList` | array | — | ~7438600 | 拒绝列表 |
+
+### 2. 聊天工具设置
+
+| 设置键 | 类型 | 用途 |
+|--------|------|------|
+| `chat.tools.terminal.autoApprove` | boolean | 终端命令自动批准 |
+| `chat.tools.terminal.ignoreDefaultAutoApproveRules` | boolean | 忽略默认自动批准规则 |
+| `chat.tools.edits.autoApproveEdits` | boolean | 编辑操作自动批准 |
+
+### 3. 全局设置
+
+| 设置键 | 类型 | 用途 |
+|--------|------|------|
+| `GlobalAutoApprove` | boolean | 全局自动批准 (YOLO 模式) |
+
+### 4. ConfirmMode 枚举 (偏移 ~8069382)
+
+| 枚举值 | 字符串 | 行为 |
+|--------|--------|------|
+| ALWAYS_ASK | `"alwaysAsk"` | 每次命令需确认 |
+| WHITELIST | `"whitelist"` | 白名单内自动执行 |
+| BLACKLIST | `"blacklist"` | 非黑名单自动执行 |
+| ALWAYS_RUN | `"alwaysRun"` | 全部自动执行 (RedList 仍弹窗!) |
+
+### 5. 关键发现: 无 onDidChangeConfiguration
+
+index.js 中**没有** `onDidChangeConfiguration` 监听器。设置在服务构造时读取，变更需服务重新初始化。
+
+### 6. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| 确认模式 | `AI.toolcall.confirmMode` | ⭐⭐⭐⭐⭐ |
+| 命令设置 | `AI.toolcall.v2.command.` | ⭐⭐⭐⭐⭐ |
+| 聊天工具 | `chat.tools.` | ⭐⭐⭐⭐⭐ |
+| YOLO 模式 | `GlobalAutoApprove` | ⭐⭐⭐⭐ |
+| ConfirmMode 值 | `"alwaysAsk"` | ⭐⭐⭐⭐⭐ |
+
+## [2026-04-25 20:45] 沙箱与命令执行管道完整映射 ⭐⭐⭐⭐⭐
+
+> 沙箱系统是 Trae AI 的安全防线。本节完整映射了命令执行管道和安全规则。
+
+### 1. BlockLevel 枚举 (偏移 ~8069382)
+
+| 枚举值 | 字符串 | 含义 | 需确认? |
+|--------|--------|------|---------|
+| RedList | `"redlist"` | 危险命令 | 始终弹窗 |
+| Blacklist | `"blacklist"` | 企业策略阻止 | 始终弹窗 |
+| SandboxNotBlockCommand | `"sandbox_not_block_command"` | 无法在沙箱运行 | 视模式 |
+| SandboxExecuteFailure | `"sandbox_execute_failure"` | 沙箱执行失败 | 视模式 |
+| SandboxToRecovery | `"sandbox_to_recovery"` | 沙箱需恢复 | 视模式 |
+| SandboxUnavailable | `"sandbox_unavailable"` | 沙箱不可用 | 视模式 |
+
+### 2. AutoRunMode 枚举
+
+| 枚举值 | 字符串 | 含义 |
+|--------|--------|------|
+| Auto | `"auto"` | 自动模式 |
+| Manual | `"manual"` | 手动确认 |
+| Allowlist | `"allowlist"` | 白名单模式 |
+| InSandbox | `"in_sandbox"` | 沙箱内运行 |
+| OutSandbox | `"out_sandbox"` | 沙箱外运行 |
+
+### 3. getRunCommandCardBranch 决策矩阵
+
+```
+WHITELIST 模式:
+  + RedList → V2_Sandbox_RedList (弹窗)
+  + 其他 → P8.Default (自动执行)
+
+ALWAYS_RUN 模式:
+  + RedList → V2_Manual_RedList (弹窗!) ← 即使 ALWAYS_RUN + RedList 仍弹窗!
+  + 其他 → P8.Default (自动执行)
+
+默认 (Ask/Blacklist):
+  + RedList → V2_Manual_RedList (弹窗)
+  + 其他 → V2_Manual (弹窗)
+```
+
+**关键**: 只有 `P8.Default` = 真正自动执行。即使 `ALWAYS_RUN + RedList` 仍弹窗。
+
+### 4. 命令执行管道
+
+```
+AI 生成 tool_call → SSE PlanItem 事件 → DG.parse() @7318521
+  → PlanItemStreamParser._handlePlanItem() @7502500
+    → provideUserResponse({decision:"confirm"}) [自动确认补丁]
+    → 服务器接收决策 → icube.shellExec.runCommand
+      → ExtHostShellExecService.runCommand()
+        → ShellExecutor.spawn*Command()
+          → child_process 执行
+            → 输出捕获 → 状态快照 → SSE 回传结果
+```
+
+### 5. SAFE_RM 沙箱安全规则
+
+| 环境变量 | 用途 |
+|----------|------|
+| `SAFE_RM_ALLOWED_PATH` | 允许删除/修改的路径白名单 |
+| `SAFE_RM_DENIED_PATH` | 禁止操作的路径黑名单 |
+| `SAFE_RM_SCRIPT_DIR` | safe_rm 脚本目录 |
+| `SAFE_RM_AUTO_ADD_TEMP` | 自动添加临时目录到白名单 |
+
+拦截的命令: Remove-Item, Move-Item, Copy-Item, Out-File, Set-Content (PowerShell)
+拦截的命令: del, erase, rd, rmdir (CMD)
+
+### 6. provideUserResponse 调用点
+
+| # | 位置 | 调用者 | 决策 |
+|---|--------|--------|------|
+| 1 | ~7502574 | PlanItemStreamParser (知识分支) | `"confirm"` |
+| 2 | ~7503319 | PlanItemStreamParser (其他分支) | `"confirm"` |
+| 3 | ~8635000+ | egR 组件 (用户确认) | `"confirm"` |
+| 4 | ~8635000+ | egR 组件 (用户拒绝) | `"reject"` |
+
+### 7. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| BlockLevel | `"redlist"` | ⭐⭐⭐⭐⭐ |
+| AutoRunMode | `"allowlist"` | ⭐⭐⭐⭐⭐ |
+| ConfirmMode | `"alwaysAsk"` | ⭐⭐⭐⭐⭐ |
+| 决策函数 | `getRunCommandCardBranch` | ⭐⭐⭐ |
+| 确认 API | `provideUserResponse` | ⭐⭐⭐⭐ |
+| 确认类型 | `"tool_confirm"` | ⭐⭐⭐⭐⭐ |
+| SAFE_RM | `SAFE_RM_ALLOWED_PATH` | ⭐⭐⭐⭐⭐ |
+
+## [2026-04-25 21:00] MCP/工具调用系统完整映射 ⭐⭐⭐⭐⭐
+
+> MCP/工具调用系统是 Trae AI 的能力扩展层。本节完整映射了工具调用生命周期。
+
+### 1. ToolCallName 枚举 (80+ 工具, 偏移 ~41400/~7076154)
+
+#### 命令执行类
+
+| 枚举值 | 字符串 | 用途 |
+|--------|--------|------|
+| RunCommand | `"run_command"` | Shell 命令执行 |
+| MCPCall | `"run_mcp"` | MCP 工具调用 |
+| check_command_status | `"check_command_status"` | 检查命令状态 |
+
+#### 文件操作类
+
+| 枚举值 | 字符串 | 用途 |
+|--------|--------|------|
+| Read | `"Read"` | 读取文件 |
+| Write | `"Write"` | 写入文件 |
+| Edit | `"Edit"` | 编辑文件 |
+| MultiEdit | `"MultiEdit"` | 多处编辑 |
+| Glob | `"Glob"` | Glob 模式搜索 |
+| Grep | `"Grep"` | Grep 搜索 |
+| LS | `"LS"` | 列出目录 |
+| SearchReplace | `"SearchReplace"` | 搜索替换 |
+| SearchCodebase | `"SearchCodebase"` | 代码库搜索 |
+
+#### 用户交互类 (排除自动确认)
+
+| 枚举值 | 字符串 | 用途 |
+|--------|--------|------|
+| response_to_user | `"response_to_user"` | 询问用户 |
+| AskUserQuestion | `"AskUserQuestion"` | 提问用户 |
+| NotifyUser | `"NotifyUser"` | 通知用户 |
+| ExitPlanMode | `"ExitPlanMode"` | 退出计划模式 |
+
+#### 浏览器操作类 (20+ 工具)
+- `browser_*` 系列 (navigate, click, screenshot 等)
+
+### 2. 工具调用生命周期
+
+```
+1. 发起: AI 模型生成 tool_call (tool_name, tool_input, toolcall_id)
+2. 传输: SSE "planItem" 事件 + confirm_info
+3. 解析: DG.parse() @7318521 → 结构化对象
+4. 处理: PlanItemStreamParser._handlePlanItem() @7502500
+   → 检查 confirm_status → provideUserResponse()
+5. 决策: getRunCommandCardBranch() @8069620 → UI 分支
+6. 执行: 服务器 → icube.shellExec.runCommand → child_process
+7. 结果: 命令输出 → SSE 回传 → 聊天显示
+8. 完成: DoneStreamParser.parse() → 标记轮次完成
+```
+
+### 3. confirm_info 数据结构
+
+```javascript
+confirm_info = {
+    confirm_status: "unconfirmed" | "confirmed" | "canceled" | "skipped",
+    auto_confirm: true | false,
+    hit_red_list: ["Remove-Item", ...],
+    hit_blacklist: [...],
+    block_level: "redlist" | "blacklist" | "sandbox_*",
+    run_mode: "auto" | "manual" | "allowlist" | "in_sandbox" | "out_sandbox",
+    now_run_mode: "in_sandbox" | "out_sandbox" | ...
+}
+```
+
+### 4. MCP 集成
+
+MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自动确认补丁覆盖 MCP 调用，因为它们确认所有 `toolName !== "response_to_user"` 的调用。
+
+### 5. 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| MCP 调用 | `"run_mcp"` | ⭐⭐⭐⭐⭐ |
+| 工具枚举 | `"ToolCallName"` | ⭐⭐ |
+| 确认信息 | `"confirm_info"` | ⭐⭐⭐⭐ |
+| 确认状态 | `"unconfirmed"` | ⭐⭐⭐⭐⭐ |
+| 工具确认 | `"tool_confirm"` | ⭐⭐⭐⭐⭐ |
+
+---
+
+# 偏移量索引与交叉引用
+
+> 以下索引按域、偏移量范围和功能组织，方便快速定位代码。
+
+## 按探索域索引
+
+### [DI] 依赖注入
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~6268469 | DI 容器类 (uj) | ⭐⭐ |
+| ~6270579 | uB useInject Hook + hX 快捷方式 | ⭐⭐ |
+| ~6473533 | bY = Symbol.for("aiAgent.ILogService") | ⭐⭐⭐⭐⭐ |
+| ~7015771 | Ei = Symbol.for("aiAgent.ICredentialFacade") | ⭐⭐⭐⭐⭐ |
+| ~7087490 | xC = Symbol("ISessionStore") | ⭐⭐⭐⭐ |
+| ~7097170 | SessionStore 注册 | ⭐⭐⭐⭐ |
+| ~7135785 | Ma = Symbol.for("ITeaFacade") | ⭐⭐⭐⭐⭐ |
+| ~7150072 | M0 = Symbol.for("aiAgent.ISessionService") | ⭐⭐⭐⭐⭐ |
+| ~7152097 | SessionService 注册 (Ci) | ⭐⭐⭐⭐ |
+| ~7186457 | k1 = Symbol("IModelStore") | ⭐⭐⭐⭐ |
+| ~7203850 | IN = Symbol("ISessionRelationStoreInternal") | ⭐⭐⭐⭐ |
+| ~7221939 | I2 = Symbol("IInlineSessionStore") | ⭐⭐⭐⭐ |
+| ~7224039 | I7 ProjectStore | ⭐⭐⭐ |
+| ~7248275 | TG AgentExtensionStore | ⭐⭐⭐ |
+| ~7258315 | Na SkillStore | ⭐⭐⭐ |
+| ~7259427 | Nc EntitlementStore | ⭐⭐⭐ |
+| ~7545196 | BO = Symbol("ISessionServiceV2") | ⭐⭐⭐⭐ |
+
+### [SSE] 流管道
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~7300000 | EventHandlerFactory (Bt) | ⭐⭐⭐ |
+| ~7314000 | MetadataParser (DQ) + UserMessageContextParser (DV) | ⭐⭐⭐⭐ |
+| ~7318521 | DG.parse() 服务端响应解析器 | ⭐⭐⭐⭐ |
+| ~7322410 | NotificationStreamParser | ⭐⭐⭐⭐⭐ |
+| ~7323241 | data-source-auto-confirm 补丁位置 | ⭐⭐⭐ |
+| ~7482422 | FeeUsageStreamParser (za) | ⭐⭐⭐⭐ |
+| ~7497479 | TextMessageChatStreamParser | ⭐⭐⭐⭐⭐ |
+| ~7502500 | PlanItemStreamParser._handlePlanItem() | ⭐⭐⭐⭐ |
+| ~7503299 | PlanItemStreamParser DI Token | ⭐⭐⭐⭐ |
+| ~7508572 | ErrorStreamParser (zU) | ⭐⭐⭐⭐⭐ |
+| ~7511057 | DoneStreamParser (zW) | ⭐⭐⭐⭐ |
+| ~7512721 | QueueingStreamParser (zV) | ⭐⭐⭐⭐ |
+| ~7513080 | getErrorInfoWithError(e) | ⭐⭐⭐ |
+| ~7513727 | SSE path exception 写入点 | ⭐⭐ |
+| ~7515007 | UserMessageStreamParser (zJ) | ⭐⭐⭐⭐⭐ |
+| ~7516765 | TokenUsageStreamParser (z2) | ⭐⭐⭐⭐⭐ |
+| ~7517392 | ContextTokenUsageStreamParser (z3) | ⭐⭐⭐⭐⭐ |
+| ~7518028 | SessionTitleMessageStreamParser (z8) | ⭐⭐⭐⭐⭐ |
+| ~7524723 | Bs class (ChatParserContext) | ⭐⭐ |
+| ~7528742 | _onError(e,t,i) | ⭐⭐ |
+| ~7533176 | _onStreamingStop → WaitingInput | ⭐⭐ |
+| ~7538139 | stopStreaming — "沉默杀手" | ⭐⭐ |
+| ~7540700 | createStream() + resumeChat 蓝图 | ⭐⭐⭐ |
+| ~7540953 | _aiAgentChatService.resumeChat() | ⭐⭐⭐ |
+| ~7610443 | F3/sendToAgentBackground (DI 蓝图) | ⭐⭐⭐ |
+| ~7614717 | ResumeChat 服务端方法调用 | ⭐⭐⭐ |
+| ~7615777 | TaskAgentMessageParser.parse() — IPC exception 写入 | ⭐⭐⭐⭐ |
+
+### [Store] 状态架构
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~3211326 | needConfirm Zustand store | ⭐⭐⭐ |
+| ~7584046 | subscribe #1 (消息数+会话ID) | ⭐⭐⭐ |
+| ~7588518 | subscribe #8 (消息数变化) | ⭐⭐⭐ |
+| ~7605848 | runningStatusMap subscribe | ⭐⭐⭐ |
+
+### [Error] 错误系统
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~54000 | kg 错误码枚举 (第一段) | ⭐⭐⭐ |
+| ~54269 | LLM_STOP_DUP_TOOL_CALL=4000009 | ⭐⭐⭐⭐⭐ |
+| ~54415 | TASK_TURN_EXCEEDED_ERROR=4000002 | ⭐⭐⭐⭐⭐ |
+| ~7161400 | kg 错误码枚举 (第二段) | ⭐⭐⭐ |
+| ~7161547 | LLM_STOP_CONTENT_LOOP=4000012 | ⭐⭐⭐⭐⭐ |
+| ~7169408 | 错误码→消息映射 | ⭐⭐⭐ |
+| ~7300455 | handleCommonError() | ⭐⭐⭐ |
+| ~7458679 | teaEventChatFail() | ⭐⭐⭐⭐ |
+| ~8695303 | efh 可恢复错误列表 | ⭐⭐⭐ |
+| ~8696378 | J 变量 (可续接错误标志) | ⭐⭐ |
+
+### [React] UI 层
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~2796260 | Pause/Send 按钮 (ei) | ⭐⭐ |
+| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举 | ⭐⭐⭐⭐⭐ |
+| ~8069620 | getRunCommandCardBranch() | ⭐⭐⭐ |
+| ~8070328 | bypass-runcommandcard-redlist 补丁 | ⭐⭐ |
+| ~8629200 | UI 确认状态检查 | ⭐⭐ |
+| ~8635000 | egR (RunCommandCard) 组件 | ⭐⭐ |
+| ~8636941 | ey useMemo (有效确认状态) | ⭐⭐ |
+| ~8637300 | confirm_info 解构 | ⭐⭐ |
+| ~8640019 | 自动确认 useEffect | ⭐⭐ |
+| ~8697580 | ec callback (retry/resume) | ⭐⭐ |
+| ~8697620 | ed callback ("继续"按钮) | ⭐⭐ |
+| ~8700000 | ErrorMessageWithActions 开始 | ⭐⭐ |
+| ~8702300 | if(V&&J) Alert 分支 | ⭐ |
+| ~8709284 | sX().memo(Jj) 组件 | ⭐ |
+| ~8930000 | ErrorMessageWithActions 结束 | ⭐ |
+| ~9910446 | DEFAULT 错误组件 | ⭐⭐ |
+
+### [IPC] 进程间通信
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~7610443 | cancelEventKey (window.addEventListener) | ⭐⭐⭐⭐ |
+
+### [Setting] 设置系统
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~7438613 | AI.toolcall.confirmMode | ⭐⭐⭐⭐⭐ |
+| ~7438600 | AI.toolcall.v2.command.* | ⭐⭐⭐⭐⭐ |
+
+### [Sandbox] 沙箱
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举定义 | ⭐⭐⭐⭐⭐ |
+| ~8069620 | getRunCommandCardBranch() 决策函数 | ⭐⭐⭐ |
+| ~7502574 | provideUserResponse (知识分支) | ⭐⭐⭐⭐ |
+| ~7503319 | provideUserResponse (其他分支) | ⭐⭐⭐⭐ |
+
+### [MCP] 工具调用
+
+| 偏移量 | 内容 | 稳定性 |
+|--------|------|--------|
+| ~41400 | ToolCallName 枚举 (第一段) | ⭐⭐ |
+| ~7076154 | ToolCallName 枚举 (第二段) | ⭐⭐ |
+
+## 按偏移量范围索引
+
+### 0-1M (枚举 + 工具定义)
+
+| 偏移量 | 域 | 内容 |
+|--------|-----|------|
+| ~41400 | MCP | ToolCallName 枚举 |
+| ~44403 | React | Ck.Unconfirmed="unconfirmed" |
+| ~46816 | Store | RunningStatus 枚举 (Io) |
+| ~47202 | Error | ChatTurnStatus 枚举 (bQ) |
+| ~54000 | Error | kg 错误码枚举 (第一段) |
+
+### 1M-5M (UI 组件)
+
+| 偏移量 | 域 | 内容 |
+|--------|-----|------|
+| ~2665348 | React | AI.NEED_CONFIRM 枚举 |
+| ~2796260 | React | Pause/Send 按钮 |
+| ~3211326 | Store | needConfirm 状态 |
+
+### 5M-8M (核心服务层 — 最密集区域)
+
+| 偏移量 | 域 | 内容 |
+|--------|-----|------|
+| ~6268469 | DI | DI 容器类 (uj) |
+| ~6270579 | DI | uB useInject Hook |
+| ~6473533 | DI | bY LogService Token |
+| ~7015771 | DI | Ei CredentialFacade Token |
+| ~7076154 | MCP | ToolCallName 枚举 (第二段) |
+| ~7087490 | DI/Store | xC SessionStore Token |
+| ~7135785 | DI | Ma TeaFacade Token |
+| ~7150072 | DI | M0 SessionService Token |
+| ~7161400 | Error | kg 错误码枚举 (第二段) |
+| ~7186457 | DI/Store | k1 ModelStore Token |
+| ~7221939 | DI/Store | I2 InlineSessionStore Token |
+| ~7300000 | SSE | EventHandlerFactory (Bt) |
+| ~7318521 | SSE | DG.parse() |
+| ~7438613 | Setting | AI.toolcall.confirmMode |
+| ~7458679 | Error | teaEventChatFail() |
+| ~7502500 | SSE | PlanItemStreamParser._handlePlanItem() |
+| ~7508572 | SSE | ErrorStreamParser (zU) |
+| ~7524723 | SSE | Bs class (ChatParserContext) |
+| ~7545196 | DI | BO SessionServiceV2 Token |
+| ~7584046 | Store | subscribe #1 |
+| ~7588518 | Store | subscribe #8 |
+| ~7605848 | Store | runningStatusMap subscribe |
+| ~7610443 | IPC | F3/sendToAgentBackground |
+| ~7615777 | Error | TaskAgentMessageParser.parse() |
+
+### 8M-10M (UI 层)
+
+| 偏移量 | 域 | 内容 |
+|--------|-----|------|
+| ~8069382 | Sandbox | BlockLevel/AutoRunMode/ConfirmMode 枚举 |
+| ~8069620 | Sandbox | getRunCommandCardBranch() |
+| ~8635000 | React | egR (RunCommandCard) |
+| ~8695303 | Error | efh 可恢复错误列表 |
+| ~8696378 | Error | J 变量 (可续接错误标志) |
+| ~8700000 | React | ErrorMessageWithActions |
+| ~8702300 | React | if(V&&J) 分支 |
+| ~8709284 | React | sX().memo(Jj) 组件 |
+
+## 按功能索引
+
+### 自动确认 (Auto-Confirm)
+
+| 偏移量 | 内容 | 层 |
+|--------|------|-----|
+| ~7323241 | data-source-auto-confirm 补丁 | L3 |
+| ~7502500 | PlanItemStreamParser._handlePlanItem() | L2 |
+| ~7502574 | knowledge 分支 provideUserResponse | L2 |
+| ~7503319 | else 分支 provideUserResponse | L2 |
+| ~8069620 | getRunCommandCardBranch() | L1 |
+| ~8070328 | bypass-runcommandcard-redlist 补丁 | L1 |
+| ~8635000 | egR (RunCommandCard) | L1 |
+| ~8640019 | 自动确认 useEffect | L1 |
+
+### 自动续接 (Auto-Continue)
+
+| 偏移量 | 内容 | 层 |
+|--------|------|-----|
+| ~7458679 | teaEventChatFail() | L2 |
+| ~7538139 | stopStreaming — "沉默杀手" | L2 |
+| ~7540953 | _aiAgentChatService.resumeChat() | L2 |
+| ~7588518 | subscribe #8 | L2 |
+| ~8695303 | efh 可恢复错误列表 | L1 |
+| ~8696378 | J 变量 | L1 |
+| ~8702300 | if(V&&J) 分支 | L1 |
+
+### 沙箱/命令执行
+
+| 偏移量 | 内容 | 层 |
+|--------|------|-----|
+| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举 | L1 |
+| ~8069620 | getRunCommandCardBranch() | L1 |
+| ~7502574 | provideUserResponse (知识分支) | L2 |
+| ~7503319 | provideUserResponse (其他分支) | L2 |
+
+### 错误处理
+
+| 偏移量 | 内容 | 层 |
+|--------|------|-----|
+| ~54000 | kg 错误码枚举 | 枚举 |
+| ~7161400 | kg 错误码枚举 (第二段) | 枚举 |
+| ~7300455 | handleCommonError() | L2 |
+| ~7458679 | teaEventChatFail() | L2 |
+| ~7508572 | ErrorStreamParser (zU) | L2 |
+| ~7513080 | getErrorInfoWithError(e) | L2 |
+| ~7528742 | _onError(e,t,i) | L2 |
+| ~7615777 | TaskAgentMessageParser.parse() | L2 |
+
+### 设置/配置
+
+| 偏移量 | 内容 | 层 |
+|--------|------|-----|
+| ~7438613 | AI.toolcall.confirmMode | 配置 |
+| ~7438600 | AI.toolcall.v2.command.* | 配置 |
