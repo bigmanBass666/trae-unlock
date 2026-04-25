@@ -2,6 +2,8 @@
 
 > **版本**: 1.0 | **创建日期**: 2026-04-25 | **适用项目**: trae-unlock
 >
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+>
 > 本文档是 Trae IDE 源码探索的**标准操作程序 (SOP)**。所有参与源码探索的 AI Agent 必须在开始工作前通读本文档，并在探索过程中严格遵循其中的规范。
 >
 > **目标读者**: 未来负责继续探索 Trae `@byted-icube/ai-modules-chat/dist/index.js`（~10MB 单行压缩 JS）的 AI 编码 Agent。

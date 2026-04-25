@@ -1,5 +1,7 @@
 # 命令确认系统架构文档
 
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+
 > 从用户点击到命令执行的完整链路
 
 ## 1. 概述
@@ -184,6 +186,8 @@ function getRunCommandCardBranch({ run_mode_version, autoRunMode, blockLevel, ha
 | `P8.V2_Sandbox_Unavailable` | 沙箱不可用提示 | "沙箱服务不可用..." |
 | `P8.V2_Sandbox_Unavailable_RedList` | 沙箱不可用+红名单 | 同上+红名单警告 |
 
+> **注意**: P8 变量名随 webpack 构建变化，当前版本可能为 P7 或其他混淆名。搜索锚点应为 `getRunCommandCardBranch` 方法名。
+
 ### AutoRunMode 与 BlockLevel 交互矩阵
 
 | AutoRunMode | BlockLevel | hasBlacklist | 返回值 | 行为 |
@@ -285,11 +289,11 @@ useEffect(() => {
 
 | 限制点 | 位置 | 类型 | 触发条件 | 当前补丁覆盖 |
 |--------|------|------|---------|-------------|
-| knowledge 分支确认 | ~7502574 | 确认弹窗 | `confirm_status==="unconfirmed" && isKnowledgeBg` | ✅ auto-confirm-commands v3 |
-| else 分支确认 | ~7503319 | 确认弹窗 | `confirm_status!=="confirmed"` | ✅ service-layer-runcommand-confirm v6 |
-| WHITELIST 沙箱弹窗 | ~8069700 | 确认弹窗 | `AutoRunMode===WHITELIST && BlockLevel!==default` | ✅ bypass-whitelist-sandbox-blocks |
-| ALWAYS_RUN 红名单弹窗 | ~8070328 | 确认弹窗 | `ALWAYS_RUN + RedList` | ❌ 未覆盖 |
-| default(Ask) 模式弹窗 | ~8069620 | 确认弹窗 | `ALWAYS_ASK/BLACKLIST 模式` | ❌ 未覆盖 |
+| knowledge 分支确认 | ~7502574 | 确认弹窗 | `confirm_status==="unconfirmed" && isKnowledgeBg` | ✅ auto-confirm-commands v4 |
+| else 分支确认 | ~7503319 | 确认弹窗 | `confirm_status!=="confirmed"` | ✅ service-layer-runcommand-confirm v8 |
+| WHITELIST 沙箱弹窗 | ~8069700 | 确认弹窗 | `AutoRunMode===WHITELIST && BlockLevel!==default` | ⚠️ bypass-whitelist-sandbox-blocks (DISABLED) |
+| ALWAYS_RUN 红名单弹窗 | ~8070328 | 确认弹窗 | `ALWAYS_RUN + RedList` | ✅ bypass-runcommandcard-redlist v2 |
+| default(Ask) 模式弹窗 | ~8069620 | 确认弹窗 | `ALWAYS_ASK/BLACKLIST 模式` | ✅ bypass-runcommandcard-redlist v2 |
 
 ## 8. 补丁接口
 
@@ -307,3 +311,64 @@ useEffect(() => {
 1. **`ew.confirm()` 不是执行函数** — 只是 telemetry 打点，真正的执行是 `eE(Confirmed)`
 2. **双层必须都绕过** — 服务层补丁处理了 `provideUserResponse`，但 `getRunCommandCardBranch` 返回非 Default 时 UI 仍会显示弹窗
 3. **本地状态同步是关键** — 调用 `provideUserResponse` 后必须同步更新 `confirm_info.confirm_status`
+
+## 9. 历史与验证
+
+### 9.1 已验证可零弹窗的命令
+
+| 命令类型 | 示例 |
+|---------|------|
+| 文件删除 | `Remove-Item`, `rm`, `del` |
+| 文件复制 | `Copy-Item`, `cp`, `copy` |
+| 文件移动 | `Move-Item`, `mv`, `move` |
+| 文件重命名 | `Rename-Item`, `ren` |
+| 文件创建/写入 | `New-Item`, `Set-Content` |
+| Git 操作 | `git add`, `git commit`, `git push` |
+| 包管理 | `npm install`, `pip install` |
+
+### 9.2 备份与回滚
+
+```powershell
+# 列出备份
+.\scripts\rollback.ps1 --list
+
+# 回滚到最新备份
+.\scripts\rollback.ps1 --latest
+
+# 回滚到指定日期
+.\scripts\rollback.ps1 --date 20260418
+```
+
+### 9.3 注意事项
+
+1. **版本兼容**: Trae 更新后可能覆盖修改，需重新应用补丁
+2. **安全风险**: 禁用确认后所有命令直接执行，请确保信任 AI Agent
+3. **生效方式**: 修改后重启当前 Trae 窗口即可
+4. **沙箱保护仍有效**: 文件系统限制仍然生效，AI 无法访问项目外文件
+
+### 9.4 探索过程记录
+
+#### 关键发现路径
+
+1. **初始搜索**: 在 workbench.desktop.main.js 中找到终端工具确认逻辑（位置 ~12100101）
+2. **发现真正拦截点**: 通过 NLS 翻译文件 `"dangerous command"` 定位到 `@byted-icube/ai-modules-chat`
+3. **核心代码**: PlanItemStreamParser 中的 `confirm_status==="unconfirmed"` 检查（位置 ~7502574）
+4. **双层确认发现**: 开启沙箱模式后出现第二层弹窗，定位到 RunCommandCard 组件
+
+#### 排除的方案
+
+| 尝试的方案 | 失败原因 |
+|-----------|----------|
+| workbench.desktop.main.js `z=!0` | VSCode 层，AI 模块层已覆盖 |
+| 白名单放行 | 维护成本高，不完整 |
+| React 组件内修改 | 切窗口后组件冻结，修改无效 |
+| `ew.confirm()` 调用 | 只是日志，不是执行函数 |
+
+### 9.5 相关文件索引
+
+| 文件 | 角色 | 是否修改 |
+|------|------|---------|
+| `ai-modules-chat/dist/index.js` | AI 聊天模块（核心） | ✅ 已修改 |
+| `workbench.desktop.main.js` | VSCode 工作台主文件 | ❌ 未修改 |
+| `nls.zh-cn.messages.json` | 中文翻译 | ❌ 未修改 |
+| `nls.messages.json` | 英文翻译 | ❌ 未修改 |

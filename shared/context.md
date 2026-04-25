@@ -69,6 +69,9 @@ trae-unlock/
 4. **ew.confirm() 不是执行** — 它是 telemetry/日志，真正执行函数是 eE(Confirmed)
 5. **补丁安全** — 箭头函数防 this 丢失、不改变控制流、fingerprint 精确匹配
 6. **🔑 L1 冻结原则 (2026-04-22 验证)** — 需要实时响应的补丁必须放在 L2/L3。auto-continue-thinking 因住在 L1 导致 6 次迭代（v3→v7）。设计新补丁时首先选择层级。
+7. **Symbol.for→Symbol 迁移** — IPlanItemStreamParser、ISessionStore、IEntitlementStore 等已从 Symbol.for 迁移到 Symbol，搜索时必须用正确类型
+8. **J→K 重命名未发生** — handoff 中声称的 J→K 重命名在当前版本中未发生，J 仍是当前变量名
+9. **商业权限域** — ICommercialPermissionService(NS)/IEntitlementStore(Nu)/ICredentialStore(MX) 是付费限制判断的核心服务链，bJ 枚举定义用户身份类型
 
 ## 架构文档索引
 
@@ -76,12 +79,16 @@ trae-unlock/
 |------|------|---------|
 | docs/architecture/sse-stream-parser.md | SSE 流解析系统 | PlanItemStreamParser 完整生命周期、事件分发、状态管理 |
 | docs/architecture/command-confirm-system.md | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
-| docs/architecture/limitation-map.md | 限制点地图 | 17 个 Alert 渲染点、7 个错误码、6 个 BlockLevel |
-| docs/architecture/module-boundaries.md | 模块边界与依赖 | 服务注入、事件系统、模块依赖关系图 |
+| docs/architecture/limitation-map.md | 限制点地图 | 错误码枚举、Alert 渲染点、BlockLevel、ToolCallName |
+| docs/architecture/module-boundaries.md | 模块边界与依赖 | DI 容器、服务注入、事件系统、模块依赖关系图 |
+| docs/architecture/di-service-registry.md | DI 服务注册表 | 51 个注册服务、101 个注入点、Symbol 迁移状态 |
+| docs/architecture/sse-pipeline-topology.md | SSE 管道拓扑 | 13 事件类型、15 Parser、EventHandlerFactory 分发逻辑 |
+| docs/architecture/store-architecture.md | Store 架构 | 8 个 Zustand Store、两种 currentSession 模式、无 Immer |
+| docs/architecture/source-architecture.md | 源码架构导航 | 关键位置索引表、搜索技巧、架构文档索引 |
 
 ## 关键位置速查
 
-> ⚠️ **最后更新**: 2026-04-21 23:00 (v5 三重加固后)
+> ⚠️ **最后更新**: 2026-04-26 (文档整理后)
 
 | 位置 | 内容 | 版本 | 重要性 |
 |------|------|------|---------|
@@ -102,16 +109,23 @@ trae-unlock/
 | ~41400 | ToolCallName 枚举 | — | ⭐⭐⭐ |
 | ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举 | — | ⭐⭐⭐⭐ |
 | ~8635000 | egR (RunCommandCard) React 组件 | — | ⭐⭐⭐⭐ |
+| ~7267682 | ICommercialPermissionService (NS 类) | — | ⭐⭐⭐⭐⭐ |
+| ~7259427 | IEntitlementStore (Nu 类) | — | ⭐⭐⭐⭐ |
+| ~7154491 | ICredentialStore (MX 类) | — | ⭐⭐⭐⭐ |
+| ~6479431 | bJ 枚举 (用户身份类型) | — | ⭐⭐⭐ |
+| ~8707858 | ee 变量 (配额限制标志) | — | ⭐⭐⭐⭐ |
 
-## 补丁版本总览 (8/8, 2026-04-21 23:00)
+## 补丁版本总览 (9/9, 2026-04-26)
 
 | # | 补丁 ID | 版本 | 偏移 | 核心作用 |
 |---|---------|------|------|---------|
-| 1 | data-source-auto-confirm | v3 | ~7323241 | L3数据层: auto_confirm=true |
-| 2 | auto-confirm-commands | v4 | ~7507671 | L2知识分支: 黑名单自动确认 |
-| 3 | service-layer-runcommand-confirm | v8 | ~7508254 | L2 else分支: 黑名单+守卫 |
-| 4 | bypass-runcommandcard-redlist | v2 | ~8075009 | L1 UI: 弹窗消除 |
-| 5 | **guard-clause-bypass** | **v1** | **~8706067** | **Guard Clause: !q&&!J 放行** |
-| 6 | efh-resume-list | **v3** | **~8699513** | **可恢复列表: +循环检测+DEFAULT** |
-| 7 | bypass-loop-detection | **v4** | **~8701180** | **J数组: +循环检测+DEFAULT** |
-| 8 | auto-continue-thinking | **v5** | **~8706660** | **500ms+嵌套retry+直调resumeChat** |
+| 1 | auto-confirm-commands | v4 | ~7507671 | L2知识分支: 黑名单自动确认 |
+| 2 | service-layer-runcommand-confirm | v8 | ~7508254 | L2 else分支: 黑名单+守卫 |
+| 3 | data-source-auto-confirm | v3 | ~7323241 | L3数据层: auto_confirm=true |
+| 4 | guard-clause-bypass | v1 | ~8706067 | Guard Clause: !q&&!J 放行 |
+| 5 | auto-continue-thinking | v7 | ~8706660 | L1展示+服务捕获+resumeChat |
+| 6 | efh-resume-list | v3 | ~8699513 | 可恢复列表: +循环检测+DEFAULT |
+| 7 | bypass-loop-detection | v4 | ~8701180 | J数组: +循环检测+DEFAULT |
+| 8 | bypass-runcommandcard-redlist | v2 | ~8075009 | L1 UI: 全模式弹窗消除 |
+
+**已禁用**: force-auto-confirm, sync-force-confirm, service-layer-confirm-status-update, bypass-whitelist-sandbox-blocks, auto-continue-l2-event

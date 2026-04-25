@@ -4,7 +4,7 @@
 
 通过修改 Trae IDE 源码（`@byted-icube/ai-modules-chat/dist/index.js`），解锁 AI Agent 能力：
 - 命令自动确认（Copy/Remove/Move/Rename 零弹窗）
-- 思考上限自动续接（v8: L1展示+L2轮询双架构）
+- 思考上限自动续接（v7: L1展示+服务捕获）
 - 循环检测绕过、可恢复错误扩展等
 
 现已具备完整探索工具链（js-beautify 美化 → AST 结构分析 → 模块级搜索），详见 `docs/architecture/exploration-toolkit.md`。
@@ -83,8 +83,14 @@
 |------|------|
 | `docs/architecture/explorer-protocol.md` | 探险家协议（含工具决策树） |
 | `docs/architecture/exploration-toolkit.md` | 工具箱使用指南 |
-| `docs/architecture/di-service-registry.md` | DI 服务注册表 |
-| `docs/architecture/sse-pipeline-topology.md` | SSE 管道拓扑 |
+| `docs/architecture/di-service-registry.md` | DI 服务注册表（51 服务+迁移状态） |
+| `docs/architecture/sse-pipeline-topology.md` | SSE 管道拓扑（13 事件+15 Parser） |
+| `docs/architecture/store-architecture.md` | Store 架构（8 个 Zustand Store） |
+| `docs/architecture/command-confirm-system.md` | 命令确认系统（双层架构+BlockLevel） |
+| `docs/architecture/limitation-map.md` | 限制点地图（错误码+Alert 渲染点） |
+| `docs/architecture/module-boundaries.md` | 模块边界与依赖关系 |
+| `docs/architecture/source-architecture.md` | 源码架构导航索引+关键位置速查 |
+| `docs/architecture/sse-stream-parser.md` | SSE 流解析系统 |
 
 ---
 

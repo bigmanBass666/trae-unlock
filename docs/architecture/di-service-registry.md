@@ -1,6 +1,7 @@
 # DI 服务注册表文档
 
 > Trae AI 聊天模块的依赖注入系统完整逆向工程
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
 
 ## 1. DI 容器概述
 
@@ -47,6 +48,14 @@
 | `TG` | (推断 IAgentExtensionStore) | ~7248275 | AgentExtensionStore (TH) | Agent 扩展存储 |
 | `Na` | (推断 ISkillStore) | ~7258315 | SkillStore (Ns) | 技能存储 |
 | `Nc` | (推断 IEntitlementStore) | ~7259427 | EntitlementStore (Nu) | 权限存储 |
+
+### 商业权限域 Token (Symbol.for/Symbol — ⭐⭐⭐⭐)
+
+| DI Token | Symbol 字符串 | 偏移量 | 服务名 | 说明 |
+|----------|-------------|--------|--------|------|
+| `Il` | `"aiAgent.ICommercialPermissionService"` (Symbol.for) | ~7267682 | NS | 商业权限判断服务 |
+| `Nc` | `"IEntitlementStore"` (Symbol) | ~7259427 | Nu | 订阅/权益管理 Store |
+| `MX` | `"ICredentialStore"` (Symbol) | ~7154491 | MX | 凭证/用户信息 Store |
 
 ### SSE Parser Token (Symbol.for — ⭐⭐⭐⭐⭐)
 
@@ -114,6 +123,8 @@ uj (DI Container)
 | `BR` = `_sessionServiceV2` DI Token | `BR` = `s(72103)` = Node.js `path` 模块 | auto-continue 补丁中 `resolve(BR)` 错误 |
 | `FX` = DI 解构模式 | `FX` = `findTargetAgent` 辅助函数 | 无 DI 关联 |
 | 正确的 sessionServiceV2 Token | `BO` = `Symbol("ISessionServiceV2")` 或 `M0` = `Symbol.for("aiAgent.ISessionService")` | 应 resolve `BO` 或 `M0` |
+| J→K 重命名已发生 | J→K 重命名**未发生**，J 仍是当前变量名 | 现有补丁中引用 J 的代码仍然有效 |
+| `ICommercialPermissionService` 有 `isFreeUser()` 方法 | `isFreeUser` 是在 React Hook `efi()` @8687513 中计算的，NS 类没有此方法 | 补丁应修改 NS 类方法，不是搜索 isFreeUser |
 
 ## 6. 搜索模板
 
@@ -128,3 +139,40 @@ uj (DI Container)
 | SessionStore | `Symbol("ISessionStore")` | ⭐⭐⭐⭐ |
 | SessionServiceV2 | `Symbol("ISessionServiceV2")` | ⭐⭐⭐⭐ |
 | TeaFacade | `Symbol.for("ITeaFacade")` | ⭐⭐⭐⭐⭐ |
+
+## 7. Symbol.for→Symbol 迁移状态
+
+### 已迁移到 Symbol 的 Token（搜索时必须用 Symbol 而非 Symbol.for）
+
+| Token 字符串 | 当前类型 | 偏移量 |
+|-------------|---------|--------|
+| `IPlanItemStreamParser` | Symbol | 7511512 |
+| `ISessionStore` | Symbol | 7092843 |
+| `IEntitlementStore` | Symbol | 7264735 |
+| `ISessionServiceV2` | Symbol | 7553132 |
+| `ICredentialStore` | Symbol | 7154464 |
+| `IModelStore` | Symbol | 7191686 |
+| `IAgentService` | Symbol | 7327208 |
+| `IEventHandlerFactory` | Symbol | 7526620 |
+| `IMetadataParser` | Symbol | — |
+| `IUserMessageContextParser` | Symbol | — |
+| `IFeeUsageStreamParser` | Symbol | — |
+| `IDoneStreamParser` | Symbol | — |
+| `IQueueingStreamParser` | Symbol | — |
+
+### 仍为 Symbol.for 的 Token
+
+| Token 字符串 | 偏移量 |
+|-------------|--------|
+| `aiAgent.ILogService` | ~6473533 |
+| `aiAgent.ICredentialFacade` | ~7015771 |
+| `aiAgent.ISessionService` | ~7150072 |
+| `aiAgent.ITeaFacade` | ~7135785 |
+| `aiAgent.ICommercialPermissionService` | — |
+| `IErrorStreamParser` | 7516471 |
+| `INotificationStreamParser` | 7328310 |
+| `ITextMessageChatStreamParser` | 7505681 |
+| `IUserMessageStreamParser` | — |
+| `ITokenUsageStreamParser` | — |
+| `IContextTokenUsageStreamParser` | — |
+| `ISessionTitleMessageStreamParser` | — |

@@ -2,6 +2,8 @@
 
 > Trae AI 聊天模块中所有可被补丁修改的限制点
 
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+
 ## 1. 概述
 
 本文档列出 Trae AI 聊天模块中所有已发现的限制点，包括确认弹窗、错误阻断、UI 限制等。每个限制点标注了位置、类型、触发条件、当前补丁覆盖状态和推荐解锁方案。
@@ -19,6 +21,9 @@
 | 4000009 | LLM_STOP_DUP_TOOL_CALL | 重复工具调用循环 | ✅ 补丁后 | ❌ | ✅ bypass-loop-detection |
 | 4000010 | LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT | Prompt token 超限 | ❌ | ❌ | ❌ |
 | 4000012 | LLM_STOP_CONTENT_LOOP | 内容循环 | ✅ 补丁后 | ❌ | ✅ bypass-loop-detection |
+| 700 | FIREWALL_BLOCKED | 防火墙拦截 | ❌ | ❌ | ❌ |
+| 4008 | PREMIUM_MODE_USAGE_LIMIT | 高级模式使用限制 | ❌ | ❌ | ❌ |
+| 4009 | STANDARD_MODE_USAGE_LIMIT | 标准模式使用限制 | ❌ | ❌ | ❌ |
 
 ### 网络/服务错误 (efh 列表, ~8695303)
 
@@ -54,12 +59,16 @@
 | 9 | ~8704548 | CAN_NOT_USE_SOLO_AGENT | warning | 无法使用 Solo Agent | ❌ |
 | 10 | ~8705020 | CLAUDE_MODEL_FORBIDDEN | error | Claude 模型被禁止 | ❌ |
 | 11 | ~8705534 | REPO_LEVEL_MODEL_UNAVAILABLE | warning | 仓库级模型不可用 | ❌ |
-| 12 | ~8705889 | FIREWALL_BLOCKED | error | 防火墙拦截 | ❌ |
+| 12 | ~8705889 | FIREWALL_BLOCKED (700) | error | 防火墙拦截 | ❌ |
 | 13 | ~8706759 | EXTERNAL_LLM_REQUEST_FAILED | error | 外部 LLM 请求失败 | ❌ |
 | 14 | ~8707685 | PREMIUM_USAGE_LIMIT | error | 高级使用限制 | ❌ |
-| 15 | ~8708073 | STANDARD_MODE_USAGE_LIMIT | error | 标准模式使用限制 | ❌ |
+| 15 | ~8708073 | STANDARD_MODE_USAGE_LIMIT (4009) | error | 标准模式使用限制 | ❌ |
 | 16 | ~8708463 | INVALID_TOOL_CALL | error | 无效工具调用 | ❌ |
 | 17 | ~8709130 | TOOL_CALL_RETRY_LIMIT | error | 工具调用重试上限 | ❌ |
+| 18 | ~8707858 | PREMIUM_MODE_USAGE_LIMIT (4008) | 配额限制 | 高级模式配额限制 | ❌ |
+| 19 | ~8707858 | STANDARD_MODE_USAGE_LIMIT (4009) | 配额限制 | 标准模式配额限制 | ❌ |
+
+> **配额限制标志**: ee=!![kg.PREMIUM_MODE_USAGE_LIMIT,kg.STANDARD_MODE_USAGE_LIMIT].includes(_) @8707858
 
 ## 3. BlockLevel 限制点
 
@@ -69,20 +78,20 @@
 |--------|---------|------|---------|
 | RedList | `"redlist"` | 红名单：危险命令 | ⚠️ 部分覆盖 |
 | Blacklist | `"blacklist"` | 黑名单：企业策略禁止 | ❌ 未覆盖 |
-| SandboxNotBlockCommand | `"sandbox_not_block_command"` | 沙箱非阻塞命令 | ✅ bypass-whitelist-sandbox-blocks |
-| SandboxExecuteFailure | `"sandbox_execute_failure"` | 沙箱执行失败 | ✅ bypass-whitelist-sandbox-blocks |
-| SandboxToRecovery | `"sandbox_to_recovery"` | 沙箱需要恢复 | ✅ bypass-whitelist-sandbox-blocks |
-| SandboxUnavailable | `"sandbox_unavailable"` | 沙箱服务不可用 | ✅ bypass-whitelist-sandbox-blocks |
+| SandboxNotBlockCommand | `"sandbox_not_block_command"` | 沙箱非阻塞命令 | ⚠️ DISABLED (bypass-whitelist-sandbox-blocks) |
+| SandboxExecuteFailure | `"sandbox_execute_failure"` | 沙箱执行失败 | ⚠️ DISABLED (bypass-whitelist-sandbox-blocks) |
+| SandboxToRecovery | `"sandbox_to_recovery"` | 沙箱需要恢复 | ⚠️ DISABLED (bypass-whitelist-sandbox-blocks) |
+| SandboxUnavailable | `"sandbox_unavailable"` | 沙箱服务不可用 | ⚠️ DISABLED (bypass-whitelist-sandbox-blocks) |
 
 ### getRunCommandCardBranch 分支覆盖
 
 | AutoRunMode | BlockLevel | 返回值 | 是否弹窗 | 补丁覆盖 |
 |-------------|-----------|--------|---------|---------|
-| WHITELIST | 任何 | Default (补丁后) | ❌ 不弹窗 | ✅ bypass-whitelist-sandbox-blocks |
-| ALWAYS_RUN | RedList | V2_Manual_RedList | ✅ 弹窗 | ❌ 未覆盖 |
-| ALWAYS_RUN | (其他+无黑名单) | Default | ❌ 不弹窗 | N/A |
-| default(Ask) | RedList | V2_Manual_RedList | ✅ 弹窗 | ❌ 未覆盖 |
-| default(Ask) | (其他) | V2_Manual | ✅ 弹窗 | ❌ 未覆盖 |
+| WHITELIST | 任何 | Default (补丁后) | ❌ 不弹窗 | ✅ bypass-runcommandcard-redlist v2 |
+| ALWAYS_RUN | RedList | V2_Manual_RedList | ✅ 弹窗 | ✅ bypass-runcommandcard-redlist v2 |
+| ALWAYS_RUN | (其他+无黑名单) | Default | ❌ 不弹窗 | ✅ bypass-runcommandcard-redlist v2 |
+| default(Ask) | RedList | V2_Manual_RedList | ✅ 弹窗 | ✅ bypass-runcommandcard-redlist v2 |
+| default(Ask) | (其他) | V2_Manual | ✅ 弹窗 | ✅ bypass-runcommandcard-redlist v2 |
 
 ## 4. ToolCallName 与确认逻辑
 
@@ -108,6 +117,8 @@
 ## 5. ConfirmMode 与设置
 
 ### ConfirmMode 枚举 (ei, ~8069382)
+
+> **注意**: ConfirmMode 枚举 (ei) 在当前版本中可能已被移除或重构。搜索锚点应以 BlockLevel 和 AutoRunMode 为主。
 
 | 枚举值 | 字符串值 | 含义 | 默认行为 |
 |--------|---------|------|---------|
@@ -182,3 +193,15 @@
 | Cancel | `"Cancel"` |
 | Error | `"Error"` |
 | Complete | `"Complete"` |
+
+### 用户身份枚举 (bJ, ~6479431)
+
+| 枚举值 | 字符串值 | 含义 |
+|--------|---------|------|
+| Free | 0 | 免费用户 |
+| Pro | 1 | Pro 付费用户 |
+| ProPlus | 2 | ProPlus 付费用户 |
+| Ultra | 3 | Ultra 付费用户 |
+| Trial | 4 | 试用用户 |
+| Lite | 5 | Lite 用户 |
+| Express | 100 | Express 用户 |

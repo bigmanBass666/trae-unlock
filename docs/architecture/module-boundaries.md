@@ -1,6 +1,8 @@
 # 模块边界与依赖关系
 
 > Trae AI 聊天模块的整体架构地图
+>
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
 
 ## 1. 概述
 
@@ -58,18 +60,31 @@ define(["katex","react","react-dom"], function(e,t,i) {
 
 PlanItemStreamParser 中的服务通过 `this._xxxService` 模式注入：
 
-| 服务属性 | 类型推断 | 用途 |
-|---------|---------|------|
-| `this._taskService` | TaskService | 调用 `provideUserResponse()` |
-| `this._logService` | LogService | 调用 `info()`, `warn()` |
-| `this.storeService` | StoreService | 调用 `setBadgesBySessionId()` |
+| 服务属性 | DI Token | 类型 | 用途 |
+|---------|---------|------|------|
+| `this._taskService` | (推断 ITaskService) | TaskService | 调用 `provideUserResponse()` |
+| `this._logService` | `bY` = Symbol.for("aiAgent.ILogService") | LogService | 调用 `info()`, `warn()` |
+| `this.storeService` | `xC` = Symbol("ISessionStore") | SessionStore (xI) | 调用 `setBadgesBySessionId()` |
+| `this._sessionServiceV2` | `BO` = Symbol("ISessionServiceV2") | SessionServiceV2 | resumeChat/sendChatMessage |
 
-### 注入方式推断
+### 注入方式（已确认）
 
-- **不是** React Context 注入（没有 `useContext` 调用）
-- **不是**全局单例（有 `this.` 前缀）
-- **最可能是构造函数参数注入**
-- `storeService` 没有 `_` 前缀，可能是公共属性
+- **uX(token) 装饰器注入** — 服务通过 `uX(token)` 装饰器注入到类属性
+- **uJ({identifier: token}) 装饰器注册** — 服务实现通过 `uJ` 注册到 DI 容器
+- **uj.getInstance()** — 全局 DI 容器单例，偏移量 ~6268469
+- **uB(token)** — React Hook `useInject`，等价于 `useSyncExternalStore`
+- `storeService` 没有 `_` 前缀，可能是通过 uX 注入的公共属性
+
+### DI 容器
+
+| 属性 | 值 |
+|------|-----|
+| 容器类 | `uj` |
+| 偏移量 | ~6268469 |
+| 模式 | 单例 `uj.getInstance()` |
+| 注册服务数 | 51 |
+| 注入点数 | 101 |
+| resolve 调用 | `uj.getInstance().resolve(token)` |
 
 ## 4. 事件系统
 
