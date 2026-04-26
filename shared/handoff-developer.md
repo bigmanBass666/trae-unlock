@@ -172,3 +172,77 @@ last_reviewed: 2026-04-26
 ### [2026-04-25 14:00] 会话 #30 — v20 测试 + v21 设计
 
 应用 v20 补丁 → 分析日志发现致命问题 → 设计 v21 方案（参数修正 + sendChatMessage 降级）。
+
+---
+
+## 🔄 闭环检查点 (Loop Closure Checklist)
+
+> **Agent 完成工作后必须自动执行以下步骤，无需人类介入。**
+> 这是 Developer Agent 的自治闭环协议的一部分。详见 [AGENTS.md](../AGENTS.md) §闭环保障。
+
+### 必做项（每次会话结束前）
+
+- [ ] **核心产出已写入权威文件**
+  - `patches/definitions.json` 已修改且 JSON 格式合法
+  - 运行 `ConvertFrom-Json (Get-Content patches\definitions.json -Raw)` 验证无报错
+- [ ] **运行 Prompt 同步（补丁相关 zone）**
+  ```powershell
+  powershell scripts/sync-prompts.ps1 -Zone "active-patch-table,patch-detail-list,disabled-patch-table,patch-layer-dist" -Prompt developer
+  ```
+  - 特别关注：active-patch-table（活跃列表）和 patch-detail-list（详细信息）
+  - 这些是下次 Developer 启动时 Step 0 要检查的关键数据
+  - 确认退出码为 0 且无 FAIL
+- [ ] **运行 auto-heal 验证补丁健康**
+  ```powershell
+  powershell scripts/auto-heal.ps1 -DiagnoseOnly
+  ```
+  - 这构成了 Developer 特有的验证链：**写 definitions → sync Prompt → auto-heal 验证**
+  - 三步缺一不可：写而不验 = 盲目交付；验而无写 = 验证空集
+- [ ] **最终报告合并两者结果**
+  - 报告中同时包含 sync 输出和 auto-heal 输出
+  - 格式示例：
+    ```
+    🔄 闭环状态:
+      ✓ Sync: 4 zones updated (active-patch-table, patch-detail-list, ...)
+      ✓ Auto-Heal: all 11 patches PASS
+    ```
+
+### 可选项（增强模式）
+
+- [ ] **源文件新鲜度检测**
+  - 检查 `patches/definitions.json` 的 LastWriteTime 是否比 `prompts/developer-agent-prompt.md` 新
+  - 检查 `shared/status.md` 是否也需要同步
+- [ ] **功能回归测试**
+  - 如果修改了关键补丁（如 auto-continue-thinking），建议在报告中提供测试 checklist 给用户
+  - 格式：参考 developer-agent-prompt.md §质量检查清单
+- [ ] **版本适配状态更新**
+  - 如果本次修改涉及偏移量更新，同步更新 handoff-developer.md 中的 §版本适配状态
+  - 保持 handoff 与实际状态一致
+
+### Developer 特有验证链详解
+
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│ 1. 写入      │ ─→ │ 2. Sync       │ ─→ │ 3. Auto-Heal │
+│ definitions │     │ Prompt        │     │ DiagnoseOnly │
+│ .json       │     │ (patch zones) │     │              │
+└─────────────┘     └──────────────┘     └─────────────┘
+       │                   │                    │
+       ▼                   ▼                    ▼
+  "我改了什么"       "Prompt 反映了   "系统是否健康"
+                     我的修改吗?"      "(补丁能正常应用吗)"
+```
+
+**为什么需要三步而不是一步**:
+- 只做 Step 1: 下次 Agent 启动时看到过时的 Prompt → 可能基于错误信息诊断问题
+- 只做 Step 1+2: 不知道修改是否破坏了现有补丁（语法错误？fingerprint 不匹配？）
+- 三步全做: 完整的 **修改 → 同步 → 验证** 闭环，可放心交付
+
+### 闭环失败时的降级策略
+
+| 失败场景 | 处理方式 | 报告要求 |
+|---------|---------|---------|
+| definitions.json JSON 解析失败 | 立即修复 JSON 语法；无法修复则回滚到备份 | 标注 "❌ 交付失败: JSON 非法" |
+| sync-prompts 脚本不存在 | 跳过同步；但仍执行 auto-heal | 标注 "⚠ 闭环部分跳过" |
+| sync 成功但 auto-heal 显示 FAIL | 分析失败原因；尝试修复；无法修复则禁用问题补丁 | 标标注 "⚠ 补丁 X 需人工关注" |
+| 所有操作成功 | 正常结束；完整的三步报告 | 标准交付 |

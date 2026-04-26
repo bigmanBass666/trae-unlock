@@ -215,3 +215,48 @@ IErrorStreamParser, INotificationStreamParser, ITextMessageChatStreamParser, ITe
 ### 统计
 
 Symbol.for 仍使用: ~185 个 | Symbol() 新形式: ~97 个 | 字符串/属性访问/自引用: 7 个
+
+---
+
+## 🔄 闭环检查点 (Loop Closure Checklist)
+
+> **Agent 完成工作后必须自动执行以下步骤，无需人类干预。**
+> 这是 Explorer Agent 的自治闭环协议的一部分。详见 [AGENTS.md](../AGENTS.md) §闭环保障。
+
+### 必做项（每次会话结束前）
+
+- [ ] **核心产出已写入权威文件**
+  - `shared/discoveries.md` 已更新（新增发现或修正记录）
+  - 文件非空、格式合法（Markdown 可解析）
+- [ ] **运行 Prompt 同步**
+  ```powershell
+  powershell scripts/sync-prompts.ps1 -Zone "domain-overview-table,correction-facts,blindspot-table,correction-shortcut" -Prompt explorer
+  ```
+  - 只同步 Explorer 相关的 zone（不触碰 Developer 的数据）
+  - 确认退出码为 0 且无 FAIL
+- [ ] **最终报告包含同步状态**
+  - 报告末尾有 "🔄 闭环状态: ✓ synced N zones" 或类似摘要
+  - 如果同步失败，报告中有明确的警告说明
+
+### 可选项（增强模式）
+
+- [ ] **源文件新鲜度检测**
+  - 检查 `shared/discoveries.md` 的 LastWriteTime 是否比 `prompts/explorer-agent-prompt.md` 新
+  - 如果是，说明你的写入尚未被同步 → 强制执行 sync
+- [ ] **运行 auto-heal 验证系统健康**
+  ```powershell
+  powershell scripts/auto-heal.ps1 -DiagnoseOnly
+  ```
+  - 虽然这是 Developer 的主要职责，但 Explorer 也应在重大变更后确认未破坏现有补丁
+- [ ] **清理临时产物**
+  - 删除本次会话创建的 T3/T4 级别临时文件（如有）
+  - 不归档到 .archive/（按 AGENTS.md 规则）
+
+### 闭环失败时的降级策略
+
+| 失败场景 | 处理方式 | 报告要求 |
+|---------|---------|---------|
+| discoveries.md 写入失败 | 重试一次；仍失败则将发现直接附在报告中 | 标注 "⚠ discoveries 未持久化" |
+| sync-prompts 脚本不存在 | 跳过；在报告中标注 "⚠ 闭环跳过(无脚本)" | 不影响主任务完成 |
+| sync 执行但部分 zone 失败 | 记录失败的 zone 名称；继续交付 | 标注 "⚠ 部分同步失败: zone-x, zone-y" |
+| 所有操作成功 | 正常结束；报告中包含 ✓ 状态 | 标准交付 |

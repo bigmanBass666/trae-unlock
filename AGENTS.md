@@ -63,15 +63,32 @@ last_reviewed: 2026-04-26
 
 ### 🔍 Explorer（探索源码）
 → 读 [handoff-explorer.md](shared/handoff-explorer.md) → 加载工具链 → 按 explorer-protocol 探索
-→ **产出**: 写入 discoveries.md
+→ **闭环**: 结束时 auto-sync discoveries → 自动更新 Prompt
+→ **产出**: 写入 discoveries.md + 自动同步的 Prompt
 
 ### 🔧 Developer（开发/维护补丁）
 → 自检(auto-heal) → 读 [handoff-developer.md](shared/handoff-developer.md) → 改 definitions.json → apply+verify
-→ **产出**: 更新 status.md
+→ **闭环**: 修改后 auto-sync patches → 更新 Prompt → auto-heal 验证
+→ **产出**: definitions.json + 自动更新的 Prompt + 验证报告
 
 ### 📋 Reviewer（代码审查）
 → 读 discoveries.md + handoff.md → 验证关键点
 → **产出**: 更新 handoff.md 审查结论
+
+---
+
+## 🔄 闭环保障 (Loop Closure)
+
+> **核心原则**: Agent 应形成自治闭环，所有机械性操作自动完成，无需人类介入。
+
+| 角色 | 启动时 (Pre-Sync) | 结束时 (Post-Sync) | 验证 |
+|------|-------------------|-------------------|------|
+| **Explorer** | `sync-prompts -Prompt explorer` 确保最新地图 | 写入 discoveries + sync explorer zones | 报告含同步状态 |
+| **Developer** | `sync-prompts -Prompt developer` 确保最新补丁信息 | 改 definitions.json + sync patch zones + auto-heal | 验证报告含两者结果 |
+
+**降级策略**: 同步失败时 Agent 继续工作但标注置信度降级；不因同步问题中断主任务。
+
+**详见**: [Agent Loop Protocol](.trae/specs/agent-autonomous-loop/spec.md)
 
 ---
 
