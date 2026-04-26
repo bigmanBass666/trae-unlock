@@ -324,4 +324,12 @@ if ($allPass -and $needsWrite) {
     Pop-Location
 }
 
+# === Auto-Cleanup: 保持项目整洁 ===
+$cleanupScript = Join-Path $ScriptDir "auto-cleanup.ps1"
+if (Test-Path $cleanupScript) {
+    Write-ColorOutput "`n[auto-cleanup] Running lifecycle cleanup..." "Cyan"
+    . $cleanupScript 2>$null | Out-Null
+    # auto-cleanup 自带完整输出，不需要额外处理
+}
+
 exit $(if ($allPass) { 0 } else { 1 })
