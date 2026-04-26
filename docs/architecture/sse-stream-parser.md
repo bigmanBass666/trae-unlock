@@ -2,7 +2,7 @@
 
 > PlanItemStreamParser — Trae AI 聊天系统的核心 SSE 流解析器
 
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
 ## 1. 概述
 
@@ -213,3 +213,11 @@ confirmed   → (终态)       (命令执行中/已完成)
 2. **不改变控制流**: 不要在补丁中添加 `return`/`break`/`continue`
 3. **本地状态同步**: 调用 `provideUserResponse` 后必须同步更新 `confirm_info.confirm_status`
 4. **防双重调用**: 多个补丁可能对同一 toolcall 调用同一 API，需要守卫条件
+
+## 8. P0 新发现
+
+| 发现 | 偏移量 | 与 SSE 流解析的关系 | 重要性 |
+|------|--------|-------------------|--------|
+| ChatError 枚举 | @54993 | 聊天错误码的补充/替代枚举，可能影响错误事件分发逻辑 | ⭐⭐⭐⭐ |
+| ContactType 枚举 | @55561 | 30+ 配额状态枚举，影响配额限制错误的触发条件 | ⭐⭐⭐⭐⭐ |
+| API endpoints config | @5870417 | API 端点配置，影响 SSE 流的连接地址 | ⭐⭐⭐⭐ |

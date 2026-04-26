@@ -110,6 +110,12 @@
 
 - 发现关键代码位置 → 追加到 `shared/discoveries.md`
 - 做出技术决策 → 追加到 `shared/decisions.md`
+
+
+格式：`### [YYYY-MM-DD HH:mm] 标题` 
+用命令获取当前时间：`Get-Date -Format "yyyy-MM-dd HH:mm"`
+然后追加内容。**永远追加，不要重写整个文件。**
+
 - 会话结束 → 更新 `shared/status.md` + 写 `shared/handoff.md`
 
-格式：`### [YYYY-MM-DD HH:mm] 标题` 然后追加内容。**永远追加，不要重写整个文件。**
+`shared/handoff.md`需要覆盖地写, 因为这是给下一个会话的交接单, 不是进度记录

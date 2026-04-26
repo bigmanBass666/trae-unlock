@@ -1,6 +1,67 @@
 # 会话交接单
 
-## [2026-04-26 06:00] 深度探索与文档强化完成 — P0深挖+P1全扫+11域交叉验证+43处文档修正+四维索引
+## [2026-04-26 18:00] Grand Exploration & Documentation Overhaul 完成 — 8 Phase 全面查漏补缺+9模板修复+2新域文档+25+处一致性修正
+
+### 本次完成
+
+执行了 Grand Exploration & Documentation Overhaul spec，8 个 Phase 全部完成。这是站在前序探险家肩膀上的一次系统性查漏补缺、强化、整理与重构，覆盖了基线重测、索引重构、DI 注册表完整更新、新域文档创建、搜索模板修复、一致性审计、P0 深化和知识交接。
+
+### 核心成果（10 个 Major）
+
+1. **DI 注册表 51→186 完整更新** ⭐⭐⭐⭐⭐ — 5种注册模式(Symbol.for 126 + Symbol 55 + 字符串 1 + 属性访问 1 + 自引用 4)，9组重复注册，4个自引用，5个含$变量名，ILogService 注入之王(66次)
+2. **discoveries.md 四维索引** ⭐⭐⭐⭐⭐ — +44KB/878行，17域/~170条按域索引，5区间偏移量索引，6类功能索引，4级置信度索引，13组重复+12组矛盾标注
+3. **Model 域架构文档创建** ⭐⭐⭐⭐⭐ — computeSelectedModelAndMode 6步决策链，商业用户 Solo Agent 强制 Max 模式，force-max-mode 补丁潜力 5/5，force_close_auto @7282940
+4. **Docset 域架构文档创建** ⭐⭐⭐⭐ — 5个ai.* DI Token（全部Symbol.for未迁移），三层服务架构（编排层→数据层→采集层），CKG API 11方法，ent_knowledge_base 门控 bypass 可行性 4/5
+5. **9 个搜索模板修复** ⭐⭐⭐⭐⭐ — SSE-02(Symbol.for→Symbol), SSE-06(.parse空格), SSE-11/12/13/14(混淆名→Symbol锚点), EVT-05(icube.shellExec→IICubeShellExecService), EVT-08(YTr→ipcRenderer), GEN-10(ConfirmMode→AI.toolcall.confirmMode)
+6. **78 个搜索模板全量验证** ⭐⭐⭐⭐ — 69通过, 8失败(已修复), 2预期空；新增 Search-SSEStream 函数
+7. **13 个文档交叉一致性审计** ⭐⭐⭐⭐ — 25+处修正：文件大小10490721, uX=817, DI=186, getRunCommandCardBranch@8081545, ConfirmMode→设置键, ContactType@55561
+8. **P0 盲区完全探明** ⭐⭐⭐⭐ — DI注册/注入=0, 核心业务方法=0；10大核心发现：ContactType@55561(30+配额), API端点@5870417, ChatError@54993, icube_devtool_bridge@5890559
+9. **Symbol.for→Symbol() 迁移模式完整映射** ⭐⭐⭐⭐ — 4个已迁移(IPlanItemStreamParser/ISessionStore/IInlineSessionStore/IModelStore), 6个未迁移(IErrorStreamParser/INotificationStreamParser/ITextMessageChatStreamParser/ITeaFacade/ISideChatStreamService/IInlineChatStreamService)
+10. **基线偏移量重测量** ⭐⭐⭐ — 16个锚点实测，uJ=186, uX=817, Symbol.for=185, Symbol()=97, 文件大小10490721(+306)
+
+### 关键补丁影响
+
+| 发现 | 对现有/未来补丁的影响 |
+|------|---------------------|
+| computeSelectedModelAndMode @7215828 | force-max-mode 补丁核心目标，5/5 可行性 |
+| ContactType @55561 | bypass-usage-limit 补丁核心数据结构 |
+| IICubeShellExecService | 替代 icube.shellExec，EVT-05 模板已修复 |
+| AI.toolcall.confirmMode | 替代 ConfirmMode 枚举，GEN-10 模板已修复 |
+| ent_knowledge_base @7727418 | Docset 域权限门控，bypass 可行性 4/5 |
+| force_close_auto @7282940 | 控制 Auto 模式开关 |
+| ChatError @54993 | efh-resume-list 可扩展新错误码(4000005/4000009) |
+| icube_devtool_bridge @5890559 | IPC 通信替代通道 |
+
+### 产出文件
+
+| 文件 | 内容 |
+|------|------|
+| `shared/discoveries.md` | +四维索引(+44KB/878行) + P0 10大发现 |
+| `shared/status.md` | 更新会话日志 #32 |
+| `shared/context.md` | 更新架构文档索引+新域文档+关键位置速查 |
+| `docs/architecture/model-domain.md` | **新建** Model 域架构文档（7章） |
+| `docs/architecture/docset-domain.md` | **新建** Docset 域架构文档（7章） |
+| `docs/architecture/di-service-registry.md` | 186注册+817注入完整更新 |
+| `docs/architecture/explorer-protocol.md` | 9模板修复+14处编辑 |
+| `docs/architecture/*.md` | 25+处一致性修正 |
+| `scripts/remeasure-anchors.ps1` | 锚点重测量脚本 |
+| `scripts/extract-di-services.ps1` | DI 服务提取脚本 |
+| `scripts/explore-model-domain.ps1` | Model 域探索脚本 |
+| `scripts/explore-docset-domain.ps1` | Docset 域探索脚本 |
+| `scripts/explore-p0-deep.ps1` | P0 深度探索脚本 |
+| `scripts/search-templates.ps1` | +Search-SSEStream 函数 |
+
+### 下一步建议
+
+1. **高优**: 基于 computeSelectedModelAndMode 开发 force-max-mode 补丁（5/5 可行性，修改静态方法返回值即可）
+2. **高优**: 基于 ContactType 枚举开发 bypass-usage-limit 补丁
+3. **高优**: 基于 IStuckDetectionService 开发 bypass-loop-detection 服务层替代方案
+4. **高优**: 基于 IAutoAcceptService 开发自动确认服务层方案
+5. **中优**: 将 ChatError 新错误码(4000005/4000009) 加入 efh-resume-list
+6. **中优**: 基于 ent_knowledge_base 门控开发 Docset bypass 补丁
+7. **中优**: 探索 ICommercialApiService 与 ICommercialPermissionService 的关系
+8. **低优**: 基于 icube_devtool_bridge 开发 IPC 通信替代方案
+9. **低优**: 探索 KnowledgesTaskService (FC) 的完整实现
 
 ### 本次完成
 
@@ -430,3 +491,61 @@ Extract-AllClasses -FilePath "unpacked/beautified.js"
 3. 基于 AST 索引重新验证已知发现点的偏移量
 4. 使用 Workflow A 对最大盲区 (54415-6268469) 进行系统化扫描
 5. （可选）如果需要 AI 增强反混淆，配置 reverse-machine 的 API key
+
+
+## [2026-04-26 16:05] Model + Docset 域架构文档创建完成
+
+### 本次完成
+
+对 Model 域和 Docset 域进行了系统性源码探索，创建了两个完整的架构文档。
+
+### 核心发现（4 个 Major）
+
+1. **computeSelectedModelAndMode 完整逻辑** ⭐⭐⭐⭐⭐ — 6 步决策链，商业用户 Solo Agent 强制 Max 模式，force-max-mode 补丁潜力 5/5
+2. **5 个 ai.* DI Token 完整映射** ⭐⭐⭐⭐⭐ — 全部使用 Symbol.for（未迁移），Gd/TD/WY/Wq/Gs 实现类定位
+3. **Docset 三层服务架构** ⭐⭐⭐⭐ — 编排层(Gd) → 数据层(WY/Wq) → 采集层(Gs)，CKG API 11 个方法
+4. **ent_knowledge_base 权限门控** ⭐⭐⭐⭐ — SaaS 功能开关控制企业文档集访问，bypass 可行性 4/5
+
+### Model 域关键偏移量（实测）
+
+| 代码 | 偏移量 |
+|------|--------|
+| computeSelectedModelAndMode | 7213492 (调用), 7215828 (定义), 7223323 (Hook) |
+| ID class (SessionRelationStore) | 7209355 |
+| NR class (IModelService) | 7271527 |
+| k2 class (IModelStore) | 7191708 |
+| kG/kH/kY 枚举 | 7185310 |
+| force_close_auto | 7282940 |
+
+### Docset 域关键偏移量（实测）
+
+| 代码 | 偏移量 |
+|------|--------|
+| ai.IDocsetService | 3546321 (定义), 7749472 (注册) |
+| ai.IDocsetStore | 7244792 |
+| ai.IDocsetCkgLocalApiService | 7715126 |
+| ai.IDocsetOnlineApiService | 7720282 |
+| ai.IWebCrawlerFacade | 7725219 |
+| DocsetServiceImpl (Gd) | 7726546 |
+| ent_knowledge_base | 7727418 |
+
+### 产出文件
+
+| 文件 | 说明 |
+|------|------|
+| docs/architecture/model-domain.md | Model 域架构文档（7 章） |
+| docs/architecture/docset-domain.md | Docset 域架构文档（7 章） |
+| scripts/explore-model-domain.ps1 | Model 域探索脚本（12 Phase） |
+| scripts/explore-docset-domain.ps1 | Docset 域探索脚本（12 Phase） |
+| scripts/explore-supplemental.ps1 | 补充探索脚本（20 项） |
+| scripts/explore-model-domain-results.txt | Model 域探索结果 |
+| scripts/explore-docset-domain-results.txt | Docset 域探索结果 |
+| scripts/explore-supplemental-results.txt | 补充探索结果 |
+
+### 下一步建议
+
+1. **高优**: 基于 computeSelectedModelAndMode 开发 force-max-mode 补丁
+2. **高优**: 基于 ent_knowledge_base 门控开发 bypass 补丁
+3. **中优**: 将 5 个 ai.* DI Token 更新到 di-service-registry.md
+4. **中优**: 探索 KnowledgesTaskService (FC) 的完整实现
+5. **低优**: 探索 IICubeCrawlerService 底层实现

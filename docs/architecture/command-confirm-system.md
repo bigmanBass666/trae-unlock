@@ -1,6 +1,6 @@
 # 命令确认系统架构文档
 
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
 > 从用户点击到命令执行的完整链路
 
@@ -129,7 +129,7 @@ provideUserResponse({decision:"confirm"})
 | SandboxToRecovery | `"sandbox_to_recovery"` | 沙箱需要恢复 |
 | SandboxUnavailable | `"sandbox_unavailable"` | 沙箱服务不可用 |
 
-### getRunCommandCardBranch 方法 (~8069620)
+### getRunCommandCardBranch 方法 (~8081545)
 
 **输入**: `{ run_mode_version, autoRunMode, blockLevel, hasBlacklist }`
 
@@ -211,7 +211,7 @@ function getRunCommandCardBranch({ run_mode_version, autoRunMode, blockLevel, ha
 
 - **逻辑层**: ~3210000-3230000 (RunCommandCard 组件主体)
 - **渲染层**: ~8635000-8640100 (egR 组件，实际渲染确认 UI)
-- **分支判定**: ~8069382-8070100 (getRunCommandCardBranch 方法)
+- **分支判定**: ~8081545 区域 (getRunCommandCardBranch 方法)
 
 ### egR 组件状态管理 (~8637300)
 

@@ -2,7 +2,7 @@
 
 > Trae AI 聊天模块中所有可被补丁修改的限制点
 
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
 ## 1. 概述
 
@@ -116,9 +116,9 @@
 
 ## 5. ConfirmMode 与设置
 
-### ConfirmMode 枚举 (ei, ~8069382)
+### ConfirmMode 设置 (已移除枚举，现为设置键)
 
-> **注意**: ConfirmMode 枚举 (ei) 在当前版本中可能已被移除或重构。搜索锚点应以 BlockLevel 和 AutoRunMode 为主。
+> **注意**: ConfirmMode 枚举 (ei) 在当前版本中已移除。确认模式现在通过 `AI.toolcall.confirmMode` 设置键 (@7438613) 控制，不再有独立枚举类型。搜索锚点应以 BlockLevel 和 AutoRunMode 为主。
 
 | 枚举值 | 字符串值 | 含义 | 默认行为 |
 |--------|---------|------|---------|
@@ -205,3 +205,11 @@
 | Trial | 4 | 试用用户 |
 | Lite | 5 | Lite 用户 |
 | Express | 100 | Express 用户 |
+
+### P0 新发现枚举
+
+| 枚举 | 偏移量 | 内容 | 重要性 |
+|------|--------|------|--------|
+| ContactType | @55561 | 30+ 配额状态枚举（含免费/付费/试用等细分状态） | ⭐⭐⭐⭐⭐ |
+| ChatError | @54993 | 聊天错误码枚举（kg 枚举的补充/替代） | ⭐⭐⭐⭐ |
+| API endpoints config | @5870417 | API 端点配置（服务端接口地址映射） | ⭐⭐⭐⭐ |

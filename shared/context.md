@@ -22,7 +22,7 @@ format: registry
 ## 技术栈
 
 **目标平台**: Trae IDE v3.3.x + Windows
-**核心源码**: ~10MB 压缩 JS（当前版本 10490415 chars），已解包（无 app.asar，直接编辑即可生效）
+**核心源码**: ~10MB 压缩 JS（当前版本 10490721 chars），已解包（无 app.asar，直接编辑即可生效）
 **主进程**: Electron
 
 ## 核心源码位置
@@ -73,7 +73,7 @@ trae-unlock/
 8. **J→K 重命名未发生** — v2 探索纠正：handoff 中声称的 J→K 重命名在当前版本中未发生，J 仍是"显示继续按钮"变量。此纠正已写入 explorer-protocol.md §1.6 关键纠正事实库
 9. **商业权限域** — ICommercialPermissionService(NS)/IEntitlementStore(Nu)/ICredentialStore(MX) 是付费限制判断的核心服务链，bJ 枚举定义用户身份类型（Free=0,Pro=1,ProPlus=2,Ultra=3,Trial=4,Lite=5,Express=100）。详见 commercial-permission-domain.md
 10. **ICommercialPermissionService 不使用 Symbol** — 通过 `aiAgent.ICommercialPermissionService` 命名空间前缀注册(@7197027)，不是 Symbol 或 Symbol.for
-11. **DI 系统规模远超文档记录** — 实际 186 个注册（文档记录 51 个）、816 个注入（文档记录 101 个），di-service-registry.md 需大幅更新
+11. **DI 系统规模远超文档记录** — 实际 186 个注册（文档记录 51 个）、817 个注入（文档记录 101 个），di-service-registry.md 需大幅更新
 12. **kg 错误码扩展到 56 个** — 含新增 MODEL_OUTPUT_TOO_LONG/MODEL_NOT_EXISTED
 13. **Model 域补丁潜力 5/5** — computeSelectedModelAndMode @7215828，可开发 force-max-mode 补丁
 
@@ -85,13 +85,22 @@ trae-unlock/
 | docs/architecture/command-confirm-system.md | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
 | docs/architecture/limitation-map.md | 限制点地图 | 错误码枚举(56个)、Alert 渲染点、BlockLevel、ToolCallName(38个) |
 | docs/architecture/module-boundaries.md | 模块边界与依赖 | DI 容器、服务注入、事件系统、模块依赖关系图 |
-| docs/architecture/di-service-registry.md | DI 服务注册表 | 186 个注册服务、816 个注入点、Symbol 迁移状态、aiAgent.命名空间注册 |
+| docs/architecture/di-service-registry.md | DI 服务注册表 | 186 个注册服务、817 个注入点、Symbol 迁移状态、aiAgent.命名空间注册 |
 | docs/architecture/sse-pipeline-topology.md | SSE 管道拓扑 | 13 事件类型、15 Parser、EventHandlerFactory 分发逻辑 |
 | docs/architecture/store-architecture.md | Store 架构 | 8 个 Zustand Store、两种 currentSession 模式、无 Immer |
 | docs/architecture/source-architecture.md | 源码架构导航 | 关键位置索引表、搜索技巧、架构文档索引 |
 | docs/architecture/commercial-permission-domain.md | 商业权限域 | ICommercialPermissionService 服务链、用户身份枚举、配额限制机制、补丁候选 |
 | docs/architecture/explorer-protocol.md | 探险家协议 | 工具决策树、交叉验证流程、发现记录规范 |
 | docs/architecture/exploration-toolkit.md | 工具箱使用指南 | js-beautify、AST 搜索、模块级搜索的使用方法 |
+| docs/architecture/model-domain.md | Model 域架构 | computeSelectedModelAndMode 6步决策链、kG/kH/kY/kZ 枚举、force-max-mode 补丁 |
+| docs/architecture/docset-domain.md | Docset 域架构 | 5个ai.* DI Token、三层服务架构、CKG API 11方法、Knowledges 子系统 |
+
+### 新域文档（已创建）
+
+| 域 | 核心位置 | 补丁潜力 | 说明 |
+|----|---------|---------|------|
+| Model 域 | @7215828 | 5/5 | computeSelectedModelAndMode，6步决策链，force-max-mode 补丁 |
+| Docset 域 | @7749472 | 4/5 | 5个ai.* DI Token，三层服务架构，ent_knowledge_base 门控 |
 
 ## 关键位置速查
 
@@ -121,6 +130,10 @@ trae-unlock/
 | ~7154491 | ICredentialStore (MX 类) | — | ⭐⭐⭐⭐ |
 | ~6479431 | bJ 枚举 (用户身份类型) | — | ⭐⭐⭐ |
 | ~8707858 | ee 变量 (配额限制标志) | — | ⭐⭐⭐⭐ |
+| @55561 | ContactType 枚举 (30+ 配额状态) | — | ⭐⭐⭐⭐⭐ |
+| @54993 | ChatError 错误码枚举 | — | ⭐⭐⭐⭐ |
+| @5870417 | API endpoints 配置 | — | ⭐⭐⭐⭐ |
+| @8081545 | getRunCommandCardBranch 核心判定 | — | ⭐⭐⭐⭐⭐ |
 
 ## 补丁版本总览 (9/9, 2026-04-26)
 

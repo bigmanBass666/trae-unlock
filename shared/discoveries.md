@@ -6659,3 +6659,993 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 ### 关键偏移量变化
 
 | DI-01 | 6279517 | | DI-02 | 7022679 | | DI-03 | 176352 | | DI-04 | 2260804 | | SSE-01 | 7534973 | | SSE-07 | 7328394 | | STO-01 | 7092843 | | STO-04 | 3106373 | | STO-05 | 1749634 | | ERR-01 | 54440 | | ERR-06 | 7299801 | | ERR-07 | 7300455 | | ERR-11 | 7458679 | | RCT-01 | 6417666 | | RCT-08 | 8081545 | | RCT-10 | 44416 | | EVT-01 | 7140149 | | EVT-02 | 210378 | | COM-01 | 7197035 | | COM-02 | 7267803 | | COM-03 | 7264743 | | GEN-06 | 7512531 | | GEN-07 | 40836 | | GEN-08 | 3304647 |
+
+
+## [2026-04-26] 四维索引体系
+
+> 本索引由 Grand Exploration 自动生成，供快速查找使用
+> 覆盖范围: 6666+ 行发现记录，27 个 ## 级章节，100+ 个 ### 级条目
+
+---
+
+### 按域分类索引
+
+#### [DI] 依赖注入 (18 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @6273630 | uj — DI 容器核心类 (getInstance @6275751) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @853508 | createDecorator — DI 装饰器工厂 (serviceRegistry) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @1227889 | ServiceCollection + InstantiationService | ⭐⭐⭐⭐ | 服务注册 |
+| @2607740 | VS Code DI 注入机制 (__instance__ Symbol, Inject 装饰器) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @6268469 | DI 容器类定义 (uj class) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @6270579 | React Hook uB(token) — useInject | ⭐⭐⭐⭐ | 服务注册 |
+| @2539813 | CommandsRegistry + ICommandService DI 注册 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @176352 | Symbol.for DI tokens (185个, 含 React 内部) | ⭐⭐⭐⭐ | 枚举定义 |
+| @2260804 | Symbol() DI tokens (77个) | ⭐⭐⭐⭐ | 枚举定义 |
+| @6279517 | uX( — DI 服务注册调用 (817命中) | ⭐⭐⭐⭐ | 服务注册 |
+| @7022679 | uJ({identifier: — DI 服务注册声明 (186命中) | ⭐⭐⭐⭐ | 服务注册 |
+| @10466462 | uj.getInstance().provide() — 仅1次调用 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7551518 | BR = s(72103) = path 模块 (非 DI token) | ⭐⭐⭐⭐⭐ | 数据流 |
+| @7604449 | FX = findTargetAgent 辅助函数 (非 DI 模式) | ⭐⭐⭐⭐ | 数据流 |
+| @7459376 | resolve(Di) — _aiAgentChatService | ⭐⭐⭐⭐⭐ | 数据流 |
+| @7592580 | resolve(BR) — 注意: BR 是 path 模块 | ⭐⭐⭐⭐ | 数据流 |
+| @7591618 | resolve(xC) — _sessionStore | ⭐⭐⭐⭐ | 数据流 |
+| @10476892 | eY0 — 模块入口对象 (registerAdapter + bootstrap) | ⭐⭐⭐⭐⭐ | 服务注册 |
+
+#### [SSE] 流管道 (12 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7534973 | eventHandlerFactory (5命中) | ⭐⭐⭐⭐ | 数据流 |
+| @7328394 | handleSteamingResult (14命中) | ⭐⭐⭐⭐ | 数据流 |
+| @7502500 | PlanItemStreamParser._handlePlanItem() [自动确认补丁] | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @7508572 | ErrorStreamParser.parse() | ⭐⭐⭐⭐⭐ | 错误处理 |
+| @7528742 | Bs._onError — SSE 错误回调 | ⭐⭐⭐⭐⭐ | 错误处理 |
+| @7513080 | zU.parse() — ErrorStreamParser 中 getErrorInfoWithError | ⭐⭐⭐⭐⭐ | 错误处理 |
+| @7456691 | IPlanService | ⭐⭐⭐⭐ | 服务注册 |
+| @7541121 | ISideChatStreamService | ⭐⭐⭐⭐ | 服务注册 |
+| @7548009 | IInlineChatStreamService | ⭐⭐⭐⭐ | 服务注册 |
+| @7540953 | _aiAgentChatService.resumeChat() — 模块级调用 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @7540700 | createStream — 含 resumeChat 蓝图 | ⭐⭐⭐⭐ | 数据流 |
+| @7524723 | chatStream(e) — 发起聊天流 | ⭐⭐⭐⭐ | 数据流 |
+
+#### [Store] 状态架构 (10 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7092843 | ISessionStore (Symbol) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7191694 | IModelStore (Symbol) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7264682 | IEntitlementStore — Nu 类 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7244780 | IDocsetStore — Zustand Store | ⭐⭐⭐⭐ | 服务注册 |
+| @3106373 | .subscribe() (33命中) | ⭐⭐⭐⭐ | 数据流 |
+| @1749634 | .getState() (234命中) | ⭐⭐⭐⭐ | 数据流 |
+| @7191708 | k2 类 — IModelStore 实现 (状态: selectedModel/mode/...) | ⭐⭐⭐⭐⭐ | 数据流 |
+| @7264804 | Nu 类 — entitlementInfo 字段 | ⭐⭐⭐⭐⭐ | 数据流 |
+| @7588682 | store.subscribe watcher — v15 补丁位置 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @7458876 | teaEventChatFail flag — v14 补丁位置 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+
+#### [Error] 错误系统 (16 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @54415 | kg 枚举 — 56个完整错误码 | ⭐⭐⭐⭐ | 枚举定义 |
+| @7160512 | eA 枚举 — 客户端错误码 (UI渲染用) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @7299801 | getErrorInfo (13命中) | ⭐⭐⭐⭐ | 错误处理 |
+| @7300455 | handleCommonError (5命中) | ⭐⭐⭐⭐ | 错误处理 |
+| @7300921 | De.handleError() — 错误路由到 UI Alert | ⭐⭐⭐⭐⭐ | 错误处理 |
+| @7458679 | teaEventChatFail — 最早错误信号 (5命中) | ⭐⭐⭐⭐⭐ | 错误处理 |
+| @7505837 | teaEventChatFail 调用点1 — _codeCompEventService | ⭐⭐⭐⭐ | 错误处理 |
+| @7542473 | teaEventChatFail 调用点3 — Bs.onError | ⭐⭐⭐⭐⭐ | 错误处理 |
+| @7537021 | IStuckDetectionService | ⭐⭐⭐⭐ | 服务注册 |
+| @8705916 | efg 可恢复错误列表 (原 efh) | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8707858 | ee 变量 — 配额限制标志 (PREMIUM/STANDARD) | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8718083 | FIREWALL_BLOCKED — UI Alert 渲染 | ⭐⭐⭐⭐ | UI渲染 |
+| @8717132 | CLAUDE_MODEL_FORBIDDEN — UI Alert 渲染 | ⭐⭐⭐⭐ | UI渲染 |
+| @8719877 | Alert 渲染 — PREMIUM/STANDARD_MODE_USAGE_LIMIT | ⭐⭐⭐⭐⭐ | UI渲染 |
+| @55610 | efr 枚举 — 免费用户配额状态 | ⭐⭐⭐⭐ | 枚举定义 |
+| @8692994 | usageLimitConfig — 配额限制配置 | ⭐⭐⭐⭐ | 数据流 |
+
+#### [React] UI 层 (20 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @10490209 | 16个 React 组件导出列表 | ⭐⭐⭐⭐ | UI渲染 |
+| @6417666 | sX().memo (31命中) | ⭐⭐⭐⭐ | UI渲染 |
+| @9015579 | ChatInput — 聊天输入组件 | ⭐⭐⭐⭐ | UI渲染 |
+| @8932385 | FileDiff — 文件差异展示组件 | ⭐⭐⭐ | UI渲染 |
+| @9067039 | ToolCall — 工具调用展示组件 | ⭐⭐⭐⭐ | UI渲染 |
+| @8975688 | confirm_status — 确认状态渲染 | ⭐⭐⭐⭐ | UI渲染 |
+| @8635000 | egR (RunCommandCard) — 命令确认卡片 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8637300 | confirm_info 解构 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8629200 | _ useMemo — 需要确认弹窗 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8640019 | 自动确认 useEffect | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8707716 | J 变量定义 — 可续接错误标志 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8713483 | if(V&&J) 分支 — 自动续接补丁 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8697580 | ec useCallback — 重试/续接 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8697620 | ed useCallback — "继续"按钮 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @9441960 | Max Mode tooltip — 模型选择 UI | ⭐⭐⭐ | UI渲染 |
+| @8687513 | efi() Hook — isFreeUser 计算 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @8069620 | getRunCommandCardBranch — UI 分支决策 | ⭐⭐⭐⭐⭐ | 数据流 |
+| @8078831 | P7.Default — RunCommandCard 分支 | ⭐⭐⭐⭐ | 枚举定义 |
+| @8081330 | Cr.AutoRunMode — 自动运行模式枚举 | ⭐⭐⭐⭐ | 枚举定义 |
+| @8081401 | Cr.BlockLevel — 阻塞级别枚举 | ⭐⭐⭐⭐ | 枚举定义 |
+
+#### [Event] 事件总线 (6 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7140149 | ITeaFacade (Symbol) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @210378 | visibilitychange (28命中) | ⭐⭐⭐⭐ | 数据流 |
+| @2317698 | HaltChainable — VS Code 事件链中断机制 | ⭐⭐⭐⭐ | 数据流 |
+| @7298383 | IModelReportService | ⭐⭐⭐⭐ | 服务注册 |
+| @7458678 | teaEventChatFail — 遥测错误事件 | ⭐⭐⭐⭐⭐ | 错误处理 |
+| — | icube.shellExec — 已移除 (EMPTY) | ⭐⭐ | 数据流 |
+
+#### [IPC] 进程间通信 (5 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7766628 | ITaskListApiService | ⭐⭐⭐⭐ | 服务注册 |
+| @7892948 | IASRService | ⭐⭐⭐⭐ | 服务注册 |
+| @7903529 | IHuoshanAsrClientService | ⭐⭐⭐⭐ | 服务注册 |
+| @8027658 | IAWSASRClientService | ⭐⭐⭐⭐ | 服务注册 |
+| @7615777 | TaskAgentMessageParser.parse() — IPC→SSE 桥接 | ⭐⭐⭐⭐⭐ | 数据流 |
+
+#### [Setting] 设置系统 (4 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7268582 | IModelTipConfigService | ⭐⭐⭐⭐ | 服务注册 |
+| @8036543 | IPrivacyModeService | ⭐⭐⭐⭐ | 服务注册 |
+| @8095684 | IContributionService | ⭐⭐⭐⭐ | 服务注册 |
+| @7296236 | IChatAgentGuideStorageService | ⭐⭐⭐⭐ | 服务注册 |
+
+#### [Sandbox] 沙箱 (6 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @8039940 | IAutoAcceptService | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @8063616 | IRunCommandFeatureService | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @8086208 | IFileOpFeatureService | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7562542 | IFileDiffTruncationService | ⭐⭐⭐⭐ | 服务注册 |
+| @7565469 | IFileDiffService | ⭐⭐⭐⭐ | 服务注册 |
+| @7318521 | DG.parse() — data-source-auto-confirm 补丁 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+
+#### [MCP] 工具调用 (2 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @40836 | ToolCallName 枚举 (38个工具名, 含 MCPCall='run_mcp') | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @7512531 | provideUserResponse (10命中) | ⭐⭐⭐⭐ | 数据流 |
+
+#### [Commercial] 商业权限 (12 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7267682 | NS 类 — ICommercialPermissionService 实现 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7197035 | ICommercialPermissionService Token | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7267803 | isCommercialUser (4命中) | ⭐⭐⭐⭐ | 数据流 |
+| @8687513 | efi() Hook — isFreeUser = !entitlementInfo?.identity | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @7264682 | IEntitlementStore — Nu 类 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7154491 | ICredentialStore — MX 类 (loggedIn/userProfile/token) | ⭐⭐⭐⭐ | 服务注册 |
+| @6479431 | bJ 枚举 — 用户身份 (Free/Pro/ProPlus/Ultra/Trial/Lite/Express) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @6479143 | bK 枚举 — scope (BYTEDANCE/MARSCODE/SAAS) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @7185157 | kP(e) — 判断是否内部用户 (e?.scope === bK.BYTEDANCE) | ⭐⭐⭐⭐⭐ | 数据流 |
+| @7559975 | ICommercialApiService | ⭐⭐⭐⭐ | 服务注册 |
+| @10471008 | eYZ.onUsageLimit() — 用量限制处理 | ⭐⭐⭐⭐⭐ | 错误处理 |
+| @8707858 | ee 变量 — 配额限制标志 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+
+#### [Docset] 文档集 (11 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @3546309 | IDocsetService (Symbol.for) | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7244780 | IDocsetStore (Symbol.for) — Zustand Store | ⭐⭐⭐⭐ | 服务注册 |
+| @7715114 | IDocsetCkgLocalApiService | ⭐⭐⭐⭐ | 服务注册 |
+| @7720270 | IDocsetOnlineApiService | ⭐⭐⭐⭐ | 服务注册 |
+| @7725207 | IWebCrawlerFacade | ⭐⭐⭐⭐ | 服务注册 |
+| @7589570 | IKnowledgesTaskService | ⭐⭐⭐⭐ | 服务注册 |
+| @8113678 | IKnowledgesPersistenceService | ⭐⭐⭐⭐ | 服务注册 |
+| @8122442 | IKnowledgesStagingService | ⭐⭐⭐⭐ | 服务注册 |
+| @8130079 | IKnowledgesFeatureService | ⭐⭐⭐⭐ | 服务注册 |
+| @8132725 | IKnowledgesSourceMaterialService | ⭐⭐⭐⭐ | 服务注册 |
+| @8139976 | IKnowledgesNotificationService | ⭐⭐⭐⭐ | 服务注册 |
+
+#### [Model] 模型选择 (8 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7182322 | IModelService Token | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7182353 | IModelStorageService Token | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7194537 | IModeStorageService Token | ⭐⭐⭐⭐ | 服务注册 |
+| @7271527 | NR 类 — ModelService 实现 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @7216438 | computeSelectedModelAndMode — 模式选择核心 (静态方法) | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @7273463 | switchSelectedModel — 切换选中模型 | ⭐⭐⭐⭐⭐ | 数据流 |
+| @7280685 | checkFreeUserPremiumModelNotice — 免费用户高级模型通知 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
+| @7185314 | kG 枚举 (模式类型) + kH 枚举 (模型层级) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+
+#### [Command] 命令注册 (28 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @2539813 | CommandsRegistry — 命令注册核心类 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @2540057 | registerCommand — 命令注册方法 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10477819 | workbench.action.chat.icube.send.internal | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10478151 | workbench.action.chat.icube.send.codeReview | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10479695 | icube.common.openUsageLimitModalAICompletion | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10479839 | workbench.action.icubeAIGetNetworkData | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10479977 | python-helper.environmentChanged | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10480095 | icube.session.updateWorktreeAfterMerge | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10480290 | icube.chat.acceptSessionTodo | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10480449 | icube.ai.reportAICodeContribution | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10480590 | icube.debug.fetchEnterpriseDocsets | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10480798 | icube.dslAgent.startGlobalLogStream | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10480933 | icube.dslAgent.stopGlobalLogStream | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10481066 | icube.dslAgent.openEditor | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10483844 | icube.chat.stopSession | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10483991 | icube.chat.sendToAgentNonBlocking | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10485192 | icube.chat.sendToAgentBackground.deepwiki | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10485648 | icube.chat.getSessionRunningStatus | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10485803 | icube.chat.forkSession | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10487427 | icube.knowledges.init | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10487683 | icube.knowledges.retryInit | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10487950 | icube.knowledges.rebuild | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10488215 | icube.knowledges.update | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10488493 | icube.knowledges.pause | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10488622 | icube.knowledges.continue | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10488891 | icube.knowledges.statusClick | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10489027 | icube.knowledges.showDebugStatus | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10476397 | registerAdapter = uj.getInstance().provide() | ⭐⭐⭐⭐⭐ | 服务注册 |
+
+#### [Bootstrap] 引导层 (8 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @0 | AMD define 入口 + AIScene 枚举 | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @435246 | webpack 内嵌 runtime (懒加载子模块) | ⭐⭐⭐ | 服务注册 |
+| @10476892 | eY0 模块入口对象 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10728701 | bootstrapApplicationContainer — 模块初始化入口 | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10743409 | 文件尾部 IIFE 闭合 (三重闭包) | ⭐⭐⭐⭐ | 数据流 |
+| @142 | __esModule — 首个模块导出 | ⭐⭐⭐⭐ | 枚举定义 |
+| @117 | Object.defineProperty — 首个属性定义 | ⭐⭐⭐⭐ | 枚举定义 |
+| @54440 | 错误码 4000002 首次出现 | ⭐⭐⭐⭐ | 错误处理 |
+
+#### [Export] 模块导出 (4 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @10476892 | eY0 — registerAdapter + bootstrapApplicationContainer | ⭐⭐⭐⭐⭐ | 服务注册 |
+| @10490209 | 16个 React 组件导出 | ⭐⭐⭐⭐ | UI渲染 |
+| @10490700 | apis:FW — 核心服务门面导出 | ⭐⭐⭐⭐⭐ | 数据流 |
+| @10743409 | 文件尾部 — IIFE 闭合与模块导出 | ⭐⭐⭐⭐ | 数据流 |
+
+#### [Enum] 枚举定义 (10 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @142 | AIScene 枚举 (Completion/MultiEdit/Test/...) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @40836 | ToolCallName 枚举 (38个工具名) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @44416 | UserConfirmStatusEnum (Unconfirmed/Confirmed/Skipped/Canceled) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @54415 | kg 枚举 — 56个完整错误码 | ⭐⭐⭐⭐ | 枚举定义 |
+| @55610 | efr 枚举 — 免费用户配额状态 | ⭐⭐⭐⭐ | 枚举定义 |
+| @6479431 | bJ 枚举 — 用户身份类型 (Free/Pro/ProPlus/Ultra/...) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @6479143 | bK 枚举 — scope (BYTEDANCE/MARSCODE/SAAS) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @7160512 | eA 枚举 — 客户端错误码 | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @7185314 | kG 枚举 (模式类型) + kH 枚举 (模型层级) | ⭐⭐⭐⭐⭐ | 枚举定义 |
+| @3304647 | BlockLevel 枚举 (3命中) | ⭐⭐⭐⭐ | 枚举定义 |
+
+#### [Network] 网络层 (6 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @2534601 | API 路由机制 (iCubeApi/ugApi/iCubeAgentApi) | ⭐⭐⭐⭐⭐ | 数据流 |
+| @5874509 | AI API 端点 (a0ai-api.byteintlapi.com) | ⭐⭐⭐⭐ | 数据流 |
+| @5870448 | ByteGate API 网关 | ⭐⭐⭐⭐ | 数据流 |
+| @5871017 | Slardar PC 监控 | ⭐⭐⭐⭐ | 数据流 |
+| @255810 | TEA 上传统计 (mcs-nontt.byteintlapi.com) | ⭐⭐⭐⭐ | 数据流 |
+| @5870752 | TEA AB 实验服务 (libraweb-va.tiktok.com) | ⭐⭐⭐⭐ | 数据流 |
+
+#### [Service] 核心服务 (2 条)
+
+| 偏移量 | 条目 | 置信度 | 功能分类 |
+|--------|------|--------|---------|
+| @7598504 | FW — 核心服务门面对象 (directlySendToSideChat/sendToAgent/...) | ⭐⭐⭐⭐⭐ | 数据流 |
+| @7610443 | sendToAgentBackground (F3) — 模块级函数 | ⭐⭐⭐⭐⭐ | 数据流 |
+
+---
+
+### 按偏移量范围索引
+
+#### 区间 A: 0-100000 (文件首部 — 枚举 + Bootstrap)
+
+| 偏移量 | 条目 | 域 | 置信度 |
+|--------|------|-----|--------|
+| @0 | AMD define 入口 + AIScene 枚举 | [Bootstrap][Enum] | ⭐⭐⭐⭐⭐ |
+| @117 | Object.defineProperty 首次出现 | [Bootstrap] | ⭐⭐⭐⭐ |
+| @142 | __esModule 首次出现 | [Bootstrap] | ⭐⭐⭐⭐ |
+| @40836 | ToolCallName 枚举 (38个工具名) | [Enum][Agent] | ⭐⭐⭐⭐⭐ |
+| @44416 | UserConfirmStatusEnum | [Enum][Confirm] | ⭐⭐⭐⭐⭐ |
+| @54415 | kg 枚举 — 56个完整错误码 | [Error][Enum] | ⭐⭐⭐⭐ |
+| @54440 | 错误码 4000002 首次出现 | [Error] | ⭐⭐⭐⭐ |
+| @55610 | efr 枚举 — 免费用户配额状态 | [Commercial][Enum] | ⭐⭐⭐⭐ |
+| @683 | Object.defineProperty | [Bootstrap] | ⭐⭐⭐⭐ |
+| @863 | Object.defineProperty | [Bootstrap] | ⭐⭐⭐⭐ |
+| @888 | __esModule | [Bootstrap] | ⭐⭐⭐⭐ |
+| @1671 | __esModule | [Bootstrap] | ⭐⭐⭐⭐ |
+
+#### 区间 B: 100000-1000000 (第三方库 + DI 基础设施)
+
+| 偏移量 | 条目 | 域 | 置信度 |
+|--------|------|-----|--------|
+| @176352 | Symbol.for DI tokens (185个) | [DI] | ⭐⭐⭐⭐ |
+| @210378 | visibilitychange (28命中) | [Event] | ⭐⭐⭐⭐ |
+| @2260804 | Symbol() tokens (77个) | [DI] | ⭐⭐⭐⭐ |
+| @2317698 | HaltChainable — 事件链中断 | [Event] | ⭐⭐⭐⭐ |
+| @2498078 | MicrotaskDelay | [DI] | ⭐⭐⭐ |
+| @2501836 | undefined_placeholder | [DI] | ⭐⭐⭐ |
+| @2514093 | debug.description | [DI] | ⭐⭐⭐ |
+| @2534601 | API 路由机制 | [Network] | ⭐⭐⭐⭐⭐ |
+| @2539813 | CommandsRegistry + ICommandService | [Command][DI] | ⭐⭐⭐⭐⭐ |
+| @2540057 | registerCommand | [Command] | ⭐⭐⭐⭐⭐ |
+| @255810 | TEA 上传统计 | [Network] | ⭐⭐⭐⭐ |
+| @2607740 | __instance__ DI 注入机制 | [DI] | ⭐⭐⭐⭐⭐ |
+| @3106373 | .subscribe() (33命中) | [Store] | ⭐⭐⭐⭐ |
+| @3276368 | radix-ui Symbol.for | [DI] | ⭐⭐⭐ |
+| @3304647 | BlockLevel 枚举 | [Enum] | ⭐⭐⭐⭐ |
+| @3546309 | IDocsetService | [Docset] | ⭐⭐⭐⭐⭐ |
+| @3552466 | @reflect-metadata:registry | [DI] | ⭐⭐⭐ |
+| @3716986 | radix.slottable | [DI] | ⭐⭐⭐ |
+| @3719039 | RADIX:SYNC_STATE | [DI] | ⭐⭐⭐ |
+| @4295005 | implicit (Chevrotain) | [DI] | ⭐⭐⭐ |
+| @435246 | webpack 内嵌 runtime | [Bootstrap] | ⭐⭐⭐ |
+| @4423600 | Datatype | [DI] | ⭐⭐⭐ |
+| @4435676 | OperationCancelled | [DI] | ⭐⭐⭐ |
+| @4443026 | ref_resolving | [DI] | ⭐⭐⭐ |
+| @4491911 | isProxy | [DI] | ⭐⭐⭐ |
+| @535695 | TEA SDK 区间 | [Telemetry] | ⭐⭐⭐ |
+| @5870448 | ByteGate API 网关 | [Network] | ⭐⭐⭐⭐ |
+| @5870752 | TEA AB 实验 | [Network] | ⭐⭐⭐⭐ |
+| @5871017 | Slardar PC 监控 | [Network] | ⭐⭐⭐⭐ |
+| @5874509 | AI API 端点 | [Network] | ⭐⭐⭐⭐ |
+| @853508 | createDecorator — DI 装饰器工厂 | [DI] | ⭐⭐⭐⭐⭐ |
+| @1197068 | DcsParser — 终端转义序列 | [Terminal] | ⭐⭐⭐ |
+| @1227889 | ServiceCollection + InstantiationService | [DI] | ⭐⭐⭐⭐ |
+| @1275920 | nodejs.util.inspect.custom | [DI] | ⭐⭐⭐ |
+| @1693182 | React Symbol.for 系列 | [DI] | ⭐⭐⭐⭐ |
+| @1749634 | .getState() (234命中) | [Store] | ⭐⭐⭐⭐ |
+| @1802391 | styled-components inject | [CSS] | ⭐⭐ |
+
+#### 区间 C: 1000000-5000000 (第三方库 + i18n + 少量业务)
+
+> 此区间 ~90% 第三方库 (React/Chevrotain/D3/Mermaid/YAML/Markdown/Radix/Langium)
+> ~5% i18n 本地化字符串 (6096015+)
+> ~3% TEA 遥测 SDK (535695-627855)
+> ~2% 业务逻辑
+
+| 偏移量 | 条目 | 域 | 置信度 |
+|--------|------|-----|--------|
+| @2534601 | API 路由 (iCubeApi/ugApi/iCubeAgentApi) | [Network] | ⭐⭐⭐⭐⭐ |
+| @3304647 | BlockLevel 枚举 | [Enum] | ⭐⭐⭐⭐ |
+| @3546309 | IDocsetService | [Docset] | ⭐⭐⭐⭐⭐ |
+| @3552466 | @reflect-metadata:registry | [DI] | ⭐⭐⭐ |
+
+#### 区间 D: 5000000-8000000 (核心业务 — DI/SSE/Store/Error/Commercial)
+
+| 偏移量 | 条目 | 域 | 置信度 |
+|--------|------|-----|--------|
+| @54415 | kg 错误码枚举 (实际位置在区间首部) | [Error] | ⭐⭐⭐⭐ |
+| @6268469 | DI 容器类定义 | [DI] | ⭐⭐⭐⭐⭐ |
+| @6270579 | React Hook useInject | [DI] | ⭐⭐⭐⭐ |
+| @6273630 | uj — DI 容器核心类 | [DI] | ⭐⭐⭐⭐⭐ |
+| @6275751 | uj.getInstance | [DI] | ⭐⭐⭐⭐⭐ |
+| @6279517 | uX( — DI 服务注册 (817命中) | [DI] | ⭐⭐⭐⭐ |
+| @6479143 | bK 枚举 — scope | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @6479431 | bJ 枚举 — 用户身份 | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @7022679 | uJ({identifier: — DI 声明 (186命中) | [DI] | ⭐⭐⭐⭐ |
+| @7080357 | bQ.Warning | [Error] | ⭐⭐⭐⭐ |
+| @7092843 | ISessionStore | [Store] | ⭐⭐⭐⭐⭐ |
+| @7140149 | ITeaFacade | [Event] | ⭐⭐⭐⭐⭐ |
+| @7154491 | ICredentialStore — MX 类 | [Commercial] | ⭐⭐⭐⭐ |
+| @7160512 | eA 枚举 — 客户端错误码 | [Error] | ⭐⭐⭐⭐⭐ |
+| @7182322 | IModelService Token | [Model] | ⭐⭐⭐⭐⭐ |
+| @7182353 | IModelStorageService Token | [Model] | ⭐⭐⭐⭐⭐ |
+| @7185314 | kG/kH 枚举 — 模式类型/模型层级 | [Model] | ⭐⭐⭐⭐⭐ |
+| @7191694 | IModelStore | [Store] | ⭐⭐⭐⭐⭐ |
+| @7197035 | ICommercialPermissionService Token | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @7216438 | computeSelectedModelAndMode — 模式选择核心 | [Model] | ⭐⭐⭐⭐⭐ |
+| @7244780 | IDocsetStore | [Docset] | ⭐⭐⭐⭐ |
+| @7264682 | IEntitlementStore — Nu 类 | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @7267682 | NS 类 — ICommercialPermissionService 实现 | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @7267803 | isCommercialUser | [Commercial] | ⭐⭐⭐⭐ |
+| @7271527 | NR 类 — ModelService 实现 | [Model] | ⭐⭐⭐⭐⭐ |
+| @7273463 | switchSelectedModel | [Model] | ⭐⭐⭐⭐⭐ |
+| @7280685 | checkFreeUserPremiumModelNotice | [Model] | ⭐⭐⭐⭐⭐ |
+| @7296236 | IChatAgentGuideStorageService | [Setting] | ⭐⭐⭐⭐ |
+| @7297005 | ISimpleBoolCacheService | [Store] | ⭐⭐⭐⭐ |
+| @7298383 | IModelReportService | [Event] | ⭐⭐⭐⭐ |
+| @7299801 | getErrorInfo | [Error] | ⭐⭐⭐⭐ |
+| @7300455 | handleCommonError | [Error] | ⭐⭐⭐⭐ |
+| @7300921 | De.handleError | [Error] | ⭐⭐⭐⭐⭐ |
+| @7318186 | IInlineSessionStoreService | [Store] | ⭐⭐⭐⭐ |
+| @7318521 | DG.parse() — data-source-auto-confirm | [Sandbox] | ⭐⭐⭐⭐⭐ |
+| @7323241 | data-source-auto-confirm 补丁 | [Sandbox] | ⭐⭐⭐⭐⭐ |
+| @7328394 | handleSteamingResult | [SSE] | ⭐⭐⭐⭐ |
+| @7456691 | IPlanService | [SSE] | ⭐⭐⭐⭐ |
+| @7458679 | teaEventChatFail | [Error] | ⭐⭐⭐⭐⭐ |
+| @7459376 | resolve(Di) — _aiAgentChatService | [DI] | ⭐⭐⭐⭐⭐ |
+| @7502500 | PlanItemStreamParser._handlePlanItem() | [SSE] | ⭐⭐⭐⭐⭐ |
+| @7508572 | ErrorStreamParser.parse() | [SSE] | ⭐⭐⭐⭐⭐ |
+| @7511512 | IPlanItemStreamParser — Symbol() (非 Symbol.for) | [SSE] | ⭐⭐⭐⭐⭐ |
+| @7513080 | zU.parse() — getErrorInfoWithError | [SSE] | ⭐⭐⭐⭐⭐ |
+| @7516749 | bQ.Error | [Error] | ⭐⭐⭐⭐ |
+| @7524723 | chatStream(e) | [SSE] | ⭐⭐⭐⭐ |
+| @7528742 | Bs._onError | [SSE] | ⭐⭐⭐⭐⭐ |
+| @7534973 | eventHandlerFactory | [SSE] | ⭐⭐⭐⭐ |
+| @7537021 | IStuckDetectionService | [Error] | ⭐⭐⭐⭐ |
+| @7540700 | createStream | [SSE] | ⭐⭐⭐⭐ |
+| @7540953 | _aiAgentChatService.resumeChat() | [SSE] | ⭐⭐⭐⭐⭐ |
+| @7541121 | ISideChatStreamService | [SSE] | ⭐⭐⭐⭐ |
+| @7542473 | Bs.onError → teaEventChatFail | [SSE] | ⭐⭐⭐⭐⭐ |
+| @7546037 | 另一个 onError | [SSE] | ⭐⭐⭐⭐ |
+| @7548009 | IInlineChatStreamService | [SSE] | ⭐⭐⭐⭐ |
+| @7551518 | BR = path 模块 | [DI] | ⭐⭐⭐⭐⭐ |
+| @7559975 | ICommercialApiService | [Commercial] | ⭐⭐⭐⭐ |
+| @7562542 | IFileDiffTruncationService | [Sandbox] | ⭐⭐⭐⭐ |
+| @7565469 | IFileDiffService | [Sandbox] | ⭐⭐⭐⭐ |
+| @7588682 | store.subscribe watcher — v15 补丁 | [Store] | ⭐⭐⭐⭐⭐ |
+| @7589570 | IKnowledgesTaskService | [Docset] | ⭐⭐⭐⭐ |
+| @7598504 | FW — 核心服务门面 | [Service] | ⭐⭐⭐⭐⭐ |
+| @7604449 | FX = findTargetAgent | [DI] | ⭐⭐⭐⭐ |
+| @7610443 | sendToAgentBackground (F3) | [Service] | ⭐⭐⭐⭐⭐ |
+| @7615777 | TaskAgentMessageParser.parse() | [IPC] | ⭐⭐⭐⭐⭐ |
+| @7618345 | asyncConvertAgentMessageToAssistantChatMessage | [SSE] | ⭐⭐⭐⭐ |
+| @7715114 | IDocsetCkgLocalApiService | [Docset] | ⭐⭐⭐⭐ |
+| @7720270 | IDocsetOnlineApiService | [Docset] | ⭐⭐⭐⭐ |
+| @7725207 | IWebCrawlerFacade | [Docset] | ⭐⭐⭐⭐ |
+| @7766628 | ITaskListApiService | [IPC] | ⭐⭐⭐⭐ |
+| @7892948 | IASRService | [IPC] | ⭐⭐⭐⭐ |
+| @7903529 | IHuoshanAsrClientService | [IPC] | ⭐⭐⭐⭐ |
+
+#### 区间 E: 8000000-10490721 (UI 层 + 命令注册 + 导出)
+
+| 偏移量 | 条目 | 域 | 置信度 |
+|--------|------|-----|--------|
+| @8027658 | IAWSASRClientService | [IPC] | ⭐⭐⭐⭐ |
+| @8036543 | IPrivacyModeService | [Setting] | ⭐⭐⭐⭐ |
+| @8039940 | IAutoAcceptService | [Sandbox] | ⭐⭐⭐⭐⭐ |
+| @8063616 | IRunCommandFeatureService | [Sandbox] | ⭐⭐⭐⭐⭐ |
+| @8069620 | getRunCommandCardBranch | [React] | ⭐⭐⭐⭐⭐ |
+| @8078831 | P7.Default | [React] | ⭐⭐⭐⭐ |
+| @8081330 | Cr.AutoRunMode | [React] | ⭐⭐⭐⭐ |
+| @8081401 | Cr.BlockLevel | [React] | ⭐⭐⭐⭐ |
+| @8086208 | IFileOpFeatureService | [Sandbox] | ⭐⭐⭐⭐⭐ |
+| @8095684 | IContributionService | [Setting] | ⭐⭐⭐⭐ |
+| @8113678 | IKnowledgesPersistenceService | [Docset] | ⭐⭐⭐⭐ |
+| @8122442 | IKnowledgesStagingService | [Docset] | ⭐⭐⭐⭐ |
+| @8130079 | IKnowledgesFeatureService | [Docset] | ⭐⭐⭐⭐ |
+| @8132725 | IKnowledgesSourceMaterialService | [Docset] | ⭐⭐⭐⭐ |
+| @8139976 | IKnowledgesNotificationService | [Docset] | ⭐⭐⭐⭐ |
+| @8144926 | KnowledgesTaskService stopChat + resumeChat | [Docset] | ⭐⭐⭐⭐ |
+| @8186683 | IKnowledgesStatusBarService | [Docset] | ⭐⭐⭐⭐ |
+| @8629200 | _ useMemo — 需要确认弹窗 | [React] | ⭐⭐⭐⭐⭐ |
+| @8635000 | egR (RunCommandCard) | [React] | ⭐⭐⭐⭐⭐ |
+| @8636941 | ey useMemo — 有效确认状态 | [React] | ⭐⭐⭐⭐⭐ |
+| @8637300 | confirm_info 解构 | [React] | ⭐⭐⭐⭐⭐ |
+| @8640019 | 自动确认 useEffect | [React] | ⭐⭐⭐⭐⭐ |
+| @8687513 | efi() Hook — isFreeUser 计算 | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @8688095 | efi() → isFreeUser=n | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @8692994 | usageLimitConfig | [Error] | ⭐⭐⭐⭐ |
+| @8695303 | efh 可恢复错误列表 (现 efg) | [React] | ⭐⭐⭐⭐⭐ |
+| @8697580 | ec useCallback — 重试/续接 | [React] | ⭐⭐⭐⭐⭐ |
+| @8697620 | ed useCallback — "继续"按钮 | [React] | ⭐⭐⭐⭐⭐ |
+| @8702300 | if(V&&J) 分支 | [React] | ⭐⭐⭐⭐⭐ |
+| @8705688 | efc() → freeCommercialActivity | [Commercial] | ⭐⭐⭐⭐ |
+| @8705916 | efg 可恢复错误列表 | [Error] | ⭐⭐⭐⭐⭐ |
+| @8707613 | J 变量完整定义 | [React] | ⭐⭐⭐⭐⭐ |
+| @8707716 | J=!![ 定义 | [React] | ⭐⭐⭐⭐⭐ |
+| @8707746 | kg.TASK_TURN | [Error] | ⭐⭐⭐⭐ |
+| @8707858 | ee 变量 — 配额限制标志 | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @8708083 | J 变量完整定义 + X 变量 | [React] | ⭐⭐⭐⭐⭐ |
+| @8711528 | Cr.Alert 组件 | [React] | ⭐⭐⭐⭐ |
+| @8712898 | !q&&!J) 分支 | [React] | ⭐⭐⭐⭐⭐ |
+| @8713483 | if(V&&J) — 自动续接补丁 | [React] | ⭐⭐⭐⭐⭐ |
+| @8717132 | CLAUDE_MODEL_FORBIDDEN Alert | [Error] | ⭐⭐⭐⭐ |
+| @8718083 | FIREWALL_BLOCKED Alert | [Error] | ⭐⭐⭐⭐ |
+| @8719877 | Alert 渲染 — PREMIUM/STANDARD_MODE_USAGE_LIMIT | [Error] | ⭐⭐⭐⭐⭐ |
+| @8932385 | FileDiff 组件 | [React] | ⭐⭐⭐ |
+| @8975688 | confirm_status | [React] | ⭐⭐⭐⭐ |
+| @9015579 | ChatInput 组件 | [React] | ⭐⭐⭐⭐ |
+| @6417666 | sX().memo (31命中) | [React] | ⭐⭐⭐⭐ |
+| @9067039 | ToolCall 组件 | [React] | ⭐⭐⭐⭐ |
+| @9441960 | Max Mode tooltip | [React] | ⭐⭐⭐ |
+| @9902871 | useState — MCP marketplace | [React] | ⭐⭐⭐ |
+| @10466462 | uj.getInstance().provide() | [DI] | ⭐⭐⭐⭐⭐ |
+| @10471008 | eYZ.onUsageLimit() | [Commercial] | ⭐⭐⭐⭐⭐ |
+| @10476397 | registerAdapter | [Command] | ⭐⭐⭐⭐⭐ |
+| @10476892 | eY0 模块入口对象 | [Export][DI] | ⭐⭐⭐⭐⭐ |
+| @10477819 | 命令注册起始 (25个命令) | [Command] | ⭐⭐⭐⭐⭐ |
+| @10490209 | 16个 React 组件导出 | [React][Export] | ⭐⭐⭐⭐ |
+| @10490700 | apis:FW | [Service][Export] | ⭐⭐⭐⭐⭐ |
+| @10728566 | eY0 模块入口 (另一偏移) | [Export] | ⭐⭐⭐⭐⭐ |
+| @10728701 | bootstrapApplicationContainer | [Bootstrap] | ⭐⭐⭐⭐⭐ |
+| @10729493 | workbench.action.chat.icube.send.internal | [Command] | ⭐⭐⭐⭐⭐ |
+| @10729767 | registerAdapter | [Command] | ⭐⭐⭐⭐⭐ |
+| @10743409 | 文件尾部 IIFE 闭合 | [Export] | ⭐⭐⭐⭐ |
+
+---
+
+### 按功能分类索引
+
+#### 补丁注入点 (22 条)
+
+| 偏移量 | 条目 | 域 | 补丁类型 |
+|--------|------|-----|---------|
+| @7502500 | PlanItemStreamParser._handlePlanItem() | [SSE] | 命令自动确认 |
+| @7318521 | DG.parse() — data-source-auto-confirm | [SSE] | 命令自动确认 |
+| @7323241 | data-source-auto-confirm 补丁 | [SSE] | 命令自动确认 |
+| @8635000 | egR (RunCommandCard) | [React] | 命令自动确认 |
+| @8637300 | confirm_info 解构 | [React] | 命令自动确认 |
+| @8629200 | _ useMemo — 需要确认弹窗 | [React] | 命令自动确认 |
+| @8640019 | 自动确认 useEffect | [React] | 命令自动确认 |
+| @8707716 | J 变量 — 可续接错误标志 | [React] | 思考上限续接 |
+| @8713483 | if(V&&J) 分支 | [React] | 思考上限续接 |
+| @8702300 | if(V&&J) 分支 (另一偏移) | [React] | 思考上限续接 |
+| @8712898 | !q&&!J) 分支 | [React] | 思考上限续接 |
+| @8697580 | ec useCallback — 重试/续接 | [React] | 思考上限续接 |
+| @8697620 | ed useCallback — "继续"按钮 | [React] | 思考上限续接 |
+| @8705916 | efg 可恢复错误列表 | [Error] | 可恢复错误扩展 |
+| @8695303 | efh 可恢复错误列表 (旧名) | [Error] | 可恢复错误扩展 |
+| @7540953 | _aiAgentChatService.resumeChat() | [SSE] | 循环检测绕过 |
+| @7458876 | teaEventChatFail flag | [Store] | 循环检测绕过 |
+| @7588682 | store.subscribe watcher | [Store] | 循环检测绕过 |
+| @7267682 | NS 类 — bypass-commercial-permission | [Commercial] | 商业权限绕过 |
+| @8707858 | ee 变量 — bypass-usage-limit | [Commercial] | 商业权限绕过 |
+| @7216438 | computeSelectedModelAndMode — force-max-mode | [Model] | 模型限制绕过 |
+| @7280685 | checkFreeUserPremiumModelNotice | [Model] | 模型限制绕过 |
+
+#### 服务注册 (55 条)
+
+> 包含所有 DI token 注册、命令注册、Store 注册
+> 详见 [DI] 域 (18条) + [Command] 域 (28条) + 各域 Service 条目
+
+核心注册点:
+- createDecorator @853508 — 所有 DI token 的创建工厂
+- uj class @6273630 — 全局 DI 容器
+- CommandsRegistry @2539813 — 命令注册核心
+- registerAdapter @10476397 — 模块适配器注册
+- bootstrapApplicationContainer @10728701 — 初始化入口
+
+#### 枚举定义 (10 条)
+
+> 详见 [Enum] 域索引
+
+关键枚举:
+- kg @54415 — 56个错误码 (补丁核心)
+- bJ @6479431 — 用户身份类型
+- ToolCallName @40836 — 38个工具名
+- UserConfirmStatusEnum @44416 — 确认状态
+- BlockLevel @3304647 — 阻塞级别
+
+#### UI渲染 (12 条)
+
+> 详见 [React] 域索引中 UI渲染 功能分类条目
+
+关键 UI 组件:
+- RunCommandCard @8635000 — 命令确认卡片 (补丁核心)
+- ChatInput @9015579 — 聊天输入
+- ToolCall @9067039 — 工具调用展示
+- Max Mode tooltip @9441960 — 模型选择
+- Alert 渲染 @8719877 — 错误展示
+
+#### 错误处理 (8 条)
+
+> 详见 [Error] 域索引
+
+关键错误处理链:
+1. SSE → ErrorService → UI Alert: De.handleError() @7300921
+2. SSE → FeeUsage → Notification: eYZ.onUsageLimit() @10471008
+3. FIREWALL_BLOCKED → UI Alert @8718083
+4. CLAUDE_MODEL_FORBIDDEN → UI Alert @8717132
+
+#### 数据流 (15 条)
+
+| 偏移量 | 条目 | 域 | 流向 |
+|--------|------|-----|------|
+| @7534973 | eventHandlerFactory | [SSE] | SSE事件 → Parser分发 |
+| @7328394 | handleSteamingResult | [SSE] | 流结果 → 处理 |
+| @7524723 | chatStream(e) | [SSE] | 用户输入 → SSE流 |
+| @7540700 | createStream | [SSE] | 流创建 → resumeChat |
+| @7615777 | TaskAgentMessageParser.parse() | [IPC] | IPC → SSE桥接 |
+| @7618345 | asyncConvertAgentMessage | [SSE] | 消息路由 |
+| @7598504 | FW 核心服务门面 | [Service] | API → 业务逻辑 |
+| @7610443 | sendToAgentBackground | [Service] | 后台发送 |
+| @3106373 | .subscribe() | [Store] | Store → UI更新 |
+| @1749634 | .getState() | [Store] | Store状态读取 |
+| @7273463 | switchSelectedModel | [Model] | 模型切换 |
+| @7185157 | kP(e) — 内部用户判断 | [Commercial] | scope判断 |
+| @2534601 | API 路由机制 | [Network] | 请求路由 |
+| @7551518 | BR = path 模块 | [DI] | 模块导入 |
+| @10743409 | IIFE 闭合 | [Export] | 模块导出 |
+
+---
+
+### 按置信度索引
+
+#### ⭐⭐⭐⭐⭐ High (已验证, 代码证据确凿) — 68 条
+
+**DI 核心**: uj class @6273630, createDecorator @853508, __instance__ @2607740, eY0 @10476892
+**SSE 核心**: PlanItemStreamParser @7502500, ErrorStreamParser @7508572, Bs._onError @7528742, resumeChat @7540953
+**Store 核心**: ISessionStore @7092843, IEntitlementStore @7264682, IModelStore @7191694
+**Error 核心**: kg 枚举 @54415, eA 枚举 @7160512, teaEventChatFail @7458679, De.handleError @7300921
+**Commercial 核心**: NS 类 @7267682, bJ 枚举 @6479431, bK 枚举 @6479143, efi() @8687513, ee @8707858
+**Model 核心**: computeSelectedModelAndMode @7216438, NR 类 @7271527, checkFreeUserPremiumModelNotice @7280685
+**补丁核心**: RunCommandCard @8635000, J变量 @8707716, if(V&&J) @8713483, efg列表 @8705916
+**Bootstrap 核心**: AMD define @0, bootstrapApplicationContainer @10728701, FW @7598504
+**枚举核心**: ToolCallName @40836, UserConfirmStatusEnum @44416, kG/kH @7185314
+**命令注册**: 25个命令 @10477819-10489027
+
+#### ⭐⭐⭐⭐ Medium (单源验证, 需交叉确认) — 42 条
+
+**DI**: uX( @6279517, uJ @7022679, Symbol.for @176352, Symbol() @2260804
+**SSE**: eventHandlerFactory @7534973, handleSteamingResult @7328394
+**Store**: .subscribe @3106373, .getState @1749634
+**Error**: getErrorInfo @7299801, handleCommonError @7300455, FIREWALL_BLOCKED @8718083, CLAUDE_MODEL_FORBIDDEN @8717132
+**React**: ChatInput @9015579, ToolCall @9067039, confirm_status @8975688, sX().memo @6417666
+**Event**: ITeaFacade @7140149, visibilitychange @210378
+**各域 Service tokens**: 31个 I*Service (详见按域索引)
+**Network**: API 端点 @5870448-5874509
+**Bootstrap**: __esModule @142, Object.defineProperty @117
+
+#### ⭐⭐⭐ Low (采样发现, 未深度验证) — 30 条
+
+**React 采样**: useMemo @8929851/@8930053/@8930266/@9186300/@9186746, useEffect @8981241/@8981358/@8981418, useState @9186206/@9186231/@9902871, useRef @9186271
+**createElement 采样**: @8981546/@8981584/@8981645/@9082632/@9082696/@9082750/@9389963/@9390039/@9390131/@9441960/@9441998/@9442064/@9800090/@9800150/@9800219
+**Bootstrap 采样**: webpack runtime @435246, DcsParser @1197068
+**CSS**: styled-components @1802391
+**第三方**: radix-ui @3276368, Chevrotain @4295005
+
+#### ⭐⭐ Speculative (推测性, 需进一步验证) — 2 条
+
+- icube.shellExec — 已从当前版本移除 (EMPTY)
+- styled-components inject @1802391 — 非 DI 注入
+
+---
+
+### 重复/矛盾条目标注
+
+#### 重复条目
+
+> **重复标注 [2026-04-26]**: 以下条目在不同扫描轮次中被多次记录，偏移量相同或极接近
+
+| 条目 | 偏移量 | 出现次数 | 说明 |
+|------|--------|---------|------|
+| sX().createElement 采样 | @8981546/@8981584/@8981645 | 3次 | 04:16 和 04:28 两轮扫描均命中同一区间 |
+| useEffect 采样 | @8981241/@8981358/@8981418 | 3次 | 同一 AutoRunSettingLink 组件内多个 useEffect |
+| useMemo 采样 | @8929851/@8930053/@8930266 | 3次 | 同一 RunCommandCard 组件内多个 useMemo |
+| ChatInput | @9015579 vs @9015885 | 2次 | 不同扫描轮次，偏移差 306 (同一组件不同采样点) |
+| FileDiff | @8932385 vs @8932691 | 2次 | 不同扫描轮次，偏移差 306 |
+| ToolCall | @9067039 vs @9067345 | 2次 | 不同扫描轮次，偏移差 306 |
+| confirm_status | @8975688 vs @8975994 | 2次 | 不同扫描轮次，偏移差 306 |
+| eY0 模块入口 | @10476892 vs @10728566 | 2次 | 不同扫描轮次使用不同美化偏移 |
+| registerAdapter | @10476397 vs @10729767 | 2次 | 同上，美化偏移差异 |
+| 命令注册区间 | @10477819 vs @10729493 | 2次 | 同上，美化偏移差异 |
+| 文件尾部 | @10743103 vs @10743409 | 2次 | 同上，美化偏移差异 |
+| __esModule | @142/@888/@1671 | 3次 | 文件首部多个模块的 __esModule 声明 |
+| Object.defineProperty | @117/@683/@863 | 3次 | 文件首部多个模块的属性定义 |
+
+#### 矛盾条目
+
+> **矛盾标注 [2026-04-26]**: 以下条目在不同探索阶段得出不同结论，以最新结论为准
+
+| 条目 | 早期结论 | 修正结论 | 修正来源 | 影响 |
+|------|---------|---------|---------|------|
+| BR 变量 | BR = _sessionServiceV2 DI token | BR = s(72103) = Node.js path 模块 | [2026-04-25 18:00] DI容器映射 | ⚠️ 高: resolve(BR) 仍存在但 BR 本身不是 DI token |
+| PREMIUM_MODE_USAGE_LIMIT 错误码 | 值 = 1016 | 值 = 4008 | [2026-04-25 23:50] 付费限制错误码纠正 | ⚠️ 高: 补丁中引用的错误码需更新 |
+| efh/efg 可恢复错误列表 | efh 是可恢复错误列表 | efh 现为 domain mask 函数，列表重命名为 efg | [2026-04-25 22:30] 变量重命名 | ⚠️ 高: 补丁必须引用 efg 而非 efh |
+| J→K 重命名 | J 已重命名为 K | J 仍为当前变量名，K 不存在 | [2026-04-25 23:50] J→K 重命名纠正 | ⚠️ 高: 补丁仍应引用 J |
+| Bs 类身份 | Bs = ChatStreamService | Bs = ChatParserContext | [2026-04-23 14:00] v12 变异源头追踪 | ⚠️ 中: 类名理解修正 |
+| SSE 事件前缀 | D7 (如 D7.Error) | Ot (如 Ot.Error) | [2026-04-25 21:05] 版本差异探索 | ⚠️ 中: 搜索模板需更新 |
+| IPlanItemStreamParser Token | Symbol.for("IPlanItemStreamParser") | Symbol("IPlanItemStreamParser") @7511512 | [2026-04-25 22:30] Symbol.for→Symbol 迁移 | ⚠️ 高: 搜索模板 SSE-02 返回 EMPTY |
+| ISessionStore Token | Symbol.for("ISessionStore") | Symbol("ISessionStore") @7092843 | [2026-04-25 22:30] Symbol.for→Symbol 迁移 | ⚠️ 高: 搜索模板需更新 |
+| DI 注册计数 | 51 服务 / 101 uX 调用 | 186 uJ 声明 / 817 uX 调用 | [2026-04-26 04:15] 11域交叉验证 | ⚠️ 低: 计数更精确 |
+| registerCommand 位置 | 文件尾部 @10477319+ | 文件中部 @2540057 (核心) + 尾部 (icube命令) | [2026-04-26 04:27] P1盲区扫描 | ⚠️ 中: 命令注册分两处 |
+| kg 错误码数量 | ~30 个 | 56 个 | [2026-04-25 22:30] kg 错误码完整枚举 | ⚠️ 低: 枚举更完整 |
+| 偏移量差异 (美化 vs 原始) | 单一偏移体系 | 美化后偏移 vs 原始偏移存在系统性差异 | 多轮扫描对比 | ⚠️ 中: 04:16/04:28 扫描偏移与 04:27 扫描偏移不同 |
+
+---
+
+### 搜索模板可用性速查
+
+> 来源: [2026-04-26 04:44] 搜索模板可用性验证报告
+
+| 模板ID | 搜索模式 | 首次偏移量 | 命中数 | 状态 |
+|--------|---------|-----------|--------|------|
+| DI-01 | `uX(` | 6279517 | 817 | ✅ OK |
+| DI-02 | `uJ({identifier:` | 7022679 | 186 | ✅ OK |
+| DI-03 | `Symbol.for("` | 176352 | 185 | ✅ OK |
+| DI-04 | `Symbol("` | 2260804 | 77 | ✅ OK |
+| SSE-01 | `eventHandlerFactory` | 7534973 | 5 | ✅ OK |
+| SSE-02 | `Symbol.for("IPlanItemStreamParser")` | -1 | 0 | ❌ EMPTY (已迁移为 Symbol()) |
+| SSE-07 | `handleSteamingResult` | 7328394 | 14 | ✅ OK |
+| STO-01 | `Symbol("ISessionStore")` | 7092843 | 1 | ✅ OK |
+| STO-04 | `.subscribe(` | 3106373 | 33 | ✅ OK |
+| STO-05 | `.getState()` | 1749634 | 234 | ✅ OK |
+| ERR-01 | `4000002` | 54440 | 7 | ✅ OK |
+| ERR-06 | `getErrorInfo` | 7299801 | 13 | ✅ OK |
+| ERR-07 | `handleCommonError` | 7300455 | 5 | ✅ OK |
+| ERR-11 | `teaEventChatFail` | 7458679 | 5 | ✅ OK |
+| RCT-01 | `sX().memo(` | 6417666 | 31 | ✅ OK |
+| RCT-08 | `getRunCommandCardBranch` | 8081545 | 2 | ✅ OK |
+| RCT-10 | `"unconfirmed"` | 44416 | 11 | ✅ OK |
+| EVT-01 | `Symbol.for("ITeaFacade")` | 7140149 | 1 | ✅ OK |
+| EVT-02 | `visibilitychange` | 210378 | 28 | ✅ OK |
+| EVT-05 | `icube.shellExec` | -1 | 0 | ❌ EMPTY (已移除) |
+| COM-01 | `ICommercialPermissionService` | 7197035 | 1 | ✅ OK |
+| COM-02 | `isCommercialUser` | 7267803 | 4 | ✅ OK |
+| COM-03 | `IEntitlementStore` | 7264743 | 1 | ✅ OK |
+| GEN-06 | `provideUserResponse` | 7512531 | 10 | ✅ OK |
+| GEN-07 | `ToolCallName` | 40836 | 4 | ✅ OK |
+| GEN-08 | `BlockLevel` | 3304647 | 3 | ✅ OK |
+
+**汇总**: 24/26 OK, 2/26 EMPTY (SSE-02, EVT-05)
+
+
+## [2026-04-26 16:05] Model 域深度探索 ⭐⭐⭐⭐⭐
+
+> 对 Model 域进行系统性源码探索，创建完整架构文档
+
+### 核心发现
+
+| 发现 | 偏移量 | 说明 |
+|------|--------|------|
+| computeSelectedModelAndMode 定义 | @7215828 | 静态方法，核心模式决策逻辑 |
+| computeSelectedModelAndMode 调用1 | @7213492 | SessionRelationStore 内调用 |
+| computeSelectedModelAndMode 调用2 | @7223323 | React Hook (useMemo) 内调用 |
+| ID class (SessionRelationStore) | @7209355 | 含 computeSelectedModelAndMode，DI token IN |
+| NR class (IModelService) | @7271527 | 模型服务，DI token kv=Symbol.for |
+| k2 class (IModelStore) | @7191708 | 模型列表 Store，DI token k1=Symbol |
+| kG 枚举 (Manual=0/Auto=1/Max=2) | @7185310 | 模式类型枚举 |
+| kH 枚举 (Advanced=1/Premium=2/Super=3) | @7185310 | 模型费用级别 |
+| kY 枚举 (Trae=1/Enterprise=2/Personal=3) | @7185310 | 配置来源 |
+| kZ 枚举 | @7185900 | 刷新来源（14个值） |
+| force_close_auto 配置 | @7282940 | AI.chat.force_close_auto 配置键 |
+| max_mode 属性 | @7186673 | 模型是否支持 Max 模式 |
+| is_dollar_max 属性 | @7224419 | 模型是否美元计费 Max |
+| fee_model_level 属性 | @7186897 | 模型费用级别 |
+| ID uJ 注册 | @7222646 | uJ({identifier:IN}) |
+| NE DI identifier | @7271041 | IModelService 的 DI 注册标识 |
+
+### computeSelectedModelAndMode 核心决策逻辑
+
+1. 无 agentType 或空模型列表 -> Manual
+2. 查找 session 级选中模型 -> global 级 -> 默认模型
+3. 商业用户 Solo Agent -> 强制 Max (isOlderCommercialUser || isSaas)
+4. 回退 + auto_mode 行为 -> Auto
+5. 回退其他 -> Manual
+6. 正常路径 -> session/global 模式映射，默认 Auto
+
+### 补丁潜力
+
+- force-max-mode: 5/5 (修改 computeSelectedModelAndMode 返回值)
+- bypass-premium-model-notice: 4/5
+- bypass-usage-limit: 4/5
+- force-auto-mode: 3/5
+
+### 产出文件
+
+- docs/architecture/model-domain.md — Model 域完整架构文档
+- scripts/explore-model-domain.ps1 — Model 域探索脚本
+- scripts/explore-model-domain-results.txt — 探索结果数据
+
+
+## [2026-04-26 16:05] Docset 域深度探索 ⭐⭐⭐⭐⭐
+
+> 对 Docset 域进行系统性源码探索，创建完整架构文档
+
+### 核心发现
+
+| 发现 | 偏移量 | 说明 |
+|------|--------|------|
+| ai.IDocsetService Token | @3546321 | Symbol.for，WK 变量，Gd 实现类 |
+| ai.IDocsetStore Token | @7244792 | Symbol.for，TM 变量，TD 实现类 |
+| ai.IDocsetCkgLocalApiService Token | @7715126 | Symbol.for，Wj 变量，WY 实现类 |
+| ai.IDocsetOnlineApiService Token | @7720282 | Symbol.for，WV 变量，Wq 实现类 |
+| ai.IWebCrawlerFacade Token | @7725219 | Symbol.for，Ga 变量，Gs 实现类 |
+| DocsetServiceImpl (Gd) | @7726546 | 编排层，uJ({identifier:WK.IDocsetService}) @7749472 |
+| DocsetStore (TD) | @7244792 | Zustand Store，5个状态字段 |
+| CkgLocalApiService (WY) | @7717236 | 7个 API 方法 |
+| DocsetOnlineApiService (Wq) | @7720282 | 4个 API 方法 |
+| WebCrawlerFacade (Gs) | @7725219 | 4个方法 |
+| ent_knowledge_base 门控 | @7727418 | SaaS 功能开关 |
+| Knowledges 命令 | @8191984+ | icube.knowledges.rebuild/update/pause |
+| CKG IPC 通道 | @11405+ | chat/start/cancel/clear_ckg_indexing |
+| Docset-Chat 集成 | @7594424 | sendToAgent 中 resolve(WK.IDocsetService) |
+
+### 5 个 ai.* DI Token 全部使用 Symbol.for
+
+与 IModelStore (Symbol) 和 ICommercialPermissionService (aiAgent.前缀) 不同，
+Docset 域的 5 个 Token 全部使用 Symbol.for("ai.*") 模式。
+
+### 企业文档集权限门控
+
+- 检查 userProfile.scope === bK.SAAS
+- 检查 isSaaSFeatureEnabled("ent_knowledge_base")
+- 不满足条件时清空内置文档集列表
+
+### 补丁潜力
+
+- bypass-ent-knowledge-base-gating: 4/5
+- force-knowledges-enable: 3/5
+- unlock-enterprise-docsets: 4/5
+
+### 产出文件
+
+- docs/architecture/docset-domain.md — Docset 域完整架构文档
+- scripts/explore-docset-domain.ps1 — Docset 域探索脚本
+- scripts/explore-docset-domain-results.txt — 探索结果数据
+- scripts/explore-supplemental.ps1 — 补充探索脚本
+- scripts/explore-supplemental-results.txt — 补充探索结果
+$content
+
+### [2026-04-26 16:30] P0 盲区深度探索 — 业务逻辑全量扫描 ⭐⭐⭐⭐
+> P0 范围 (54415-6268469, ~5.9MB) 系统性业务逻辑搜索，确认 DI/核心服务不在 P0，发现 API 配置/错误码/ContactType/CueTrace 等关键数据结构
+#### 搜索统计
+| 搜索类型 | 命中数 | 分类 |
+|---------|--------|------|
+| DI_REG (uJ) | 0 | P0 无 DI 注册 |
+| DI_INJECT (uX) | 0 | P0 无 DI 注入 |
+| CLASS_DEF | 200 | 大部分第三方库 |
+| ASYNC_FUNC | 91 | 大部分第三方库 |
+| REG_CMD | 117 | VS Code 框架 + Lexical 编辑器 |
+| HTTPS_URL | 155 (24 api_endpoint) | API 端点 |
+| HTTP_URL | 121 (2 api_endpoint) | API 端点 |
+| CN_CHARS | 20275 | i18n |
+| CONSOLE_LOG/WARN/ERR | 232/187/147 | 遥测 |
+| GET_STATE | 15 | 大部分第三方 |
+| SUBSCRIBE | 1 | 第三方 |
+| SET_STATE | 1 | 第三方 |
+| resumeChat/sendChatMessage/provideUserResponse | 0 | 确认不在 P0 |
+| Symbol.for("aiAgent.") / Symbol("I") | 0 | 确认不在 P0 |
+| tool_confirm | 0 | 确认不在 P0 |
+
+#### 核心发现 1: API 端点完整配置 JSON @5870417 ⭐⭐⭐⭐⭐
+- 偏移量: @5870417 - @5874921 (4505 chars)
+- webpack 模块 84312: `e.exports=JSON.parse('{...}')`
+- 完整配置已提取到 `scripts/p0-api-endpoints.json`
+- 关键端点:
+  - **byteGate**: `https://bytegate-sg.byteintlapi.com` (CN/i18n/ToB 统一)
+  - **tea.verifyUrl**: `https://mcs.byteoversea.net` (遥测验证)
+  - **tea.abService**: `https://libraweb-va.tiktok.com` (AB 实验)
+  - **slardarPC**: `https://pc-mon-sg.byteintlapi.com` (监控)
+  - **deviceRegister**: `https://log.byteoversea.com` (设备注册)
+  - **copilotDomain**: `https://copilot.byteintl.net` (CN/US), `https://copilot-sg.byteintl.net` (SG)
+  - **mcpPlugin**: `api.trae.ai` (MCP 插件市场), `ide-market-us.tiktok-row.net` (内部)
+  - **appProviderLogin.marscode**: `api.marscode.com` / `www.marscode.com`
+  - **externalCopilotDomains**: `https://a0ai-api.byteintlapi.com` (usex/cnex/boe)
+  - **SaasServer**: boeCopilot/ppeCopilot/prodCopilot (CN/SG/US 均为空字符串)
+  - **cdnPrefix/cdnLocation**: CDN 区域配置
+  - **USER_GROUP**: TOB_USER_GROUP_OVERSEA=`https://www.marscode.com`
+  - **TRAE_AI_HOME_PAGE**: 空字符串
+
+#### 核心发现 2: ChatError 类 + 完整错误码枚举 @54993 ⭐⭐⭐⭐⭐
+- 偏移量: @54993 (webpack 模块开头)
+- ChatError 类定义: `class l extends Error`
+  - constructor(e, t, i=n.ERROR, r) — code, message, level, extra
+  - static create(e, t, i, r)
+  - static createWithError(e, t, i, r)
+- ChatErrorLevel: ERROR / WARN
+- ERROR_LEVEL: WARN / ERROR / INFO
+- 错误码枚举 (部分新发现):
+  - CLAUDE_MODEL_FORBIDDEN = 4113
+  - CAN_NOT_USE_SOLO_MODE = 4120
+  - FAST_APPLY_FILE_TOO_LARGE = 0xa7d8c1 (十进制 1099649)
+  - FAST_APPLY_FIX_INVALID_FORMAT = 0xa7d8c2 (十进制 1099650)
+  - LLM_INVALID_JSON = 4000003
+  - LLM_INVALID_JSON_START = 4000004
+  - LLM_QUEUING = 4000005
+  - LLM_STOP_DUP_TOOL_CALL = 4000009
+  - LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT = 4000010
+  - TASK_TURN_EXCEEDED_ERROR = 4000002
+  - PROJECT_NOT_FOUND_ERROR = 5000001
+  - CLIENT_UNAUTHORIZED_ERROR = 1010002
+- NetworkErrorCodes 数组: CONNECTION_ERROR, NETWORK_ERROR, NETWORK_ERROR_INTERNAL, CLIENT_NETWORK_ERROR, CLIENT_NETWORK_ERROR_INTERNAL, REQUEST_TIMEOUT_ERROR, REQUEST_TIMEOUT_ERROR_INTERNAL, MODEL_RESPONSE_TIMEOUT_ERROR, MODEL_RESPONSE_FAILED_ERROR
+
+#### 核心发现 3: ContactType 枚举 — 用户配额状态完整映射 @55561 ⭐⭐⭐⭐⭐
+- 偏移量: @55561 (webpack 模块 65544)
+- 完整的免费/付费用户配额状态枚举 (30+ 值):
+  - FreeNewSubscription: CompletionRemaining(1) / CompletionExhausted(2) / AdvancedModelRemaining(3) / AdvancedModelExhaustedPremiumModelRemaining(4) / AdvancedModelExhausted(5) / PremiumModelFlashRemaining(6) / PremiumModelFlashExhaustedNormalRemaining(7) / PremiumModelNormalRemaining(8) / PremiumModelNormalExhaustedAdvancedModelRemaining(9) / PremiumModelNormalExhausted(10)
+  - FreeOldSubscription: CompletionRemaining(11) / CompletionExhausted(12) / AdvancedModelRemaining(13) / AdvancedModelExhaustedPremiumModelRemaining(14) / AdvancedModelExhausted(15) / PremiumModelFlashRemaining(16) / PremiumModelFlashExhaustedNormalRemaining(17) / PremiumModelNormalRemaining(18) / PremiumModelNormalExhaustedAdvancedModelRemaining(19) / PremiumModelNormalExhausted(20)
+  - ProNewSubscription: CompletionRemaining(21) / CompletionExhausted(22) / AdvancedModelRemaining(23) / AdvancedModelExhausted(24) / PremiumModelFlashRemaining(25) / PremiumModelNormalRemaining(26)
+  - ProOldSubscription: CompletionRemaining(27) / CompletionExhausted(28) / AdvancedModelRemaining(29) / AdvancedModelExhausted(30) / PremiumModelFlashRemaining(31) / PremiumModelNormalRemaining(32)
+- **补丁意义**: ContactType 是 bypass-usage-limit 补丁的关键数据结构，控制 UI 显示的配额提示
+
+#### 核心发现 4: CueTrace 性能追踪类 @113091 ⭐⭐⭐⭐
+- 偏移量: @113091 (webpack 模块 31202)
+- 完整的代码补全性能追踪类
+- 追踪时间点: startTime → preProcess → request → firstToken → end → postProcess → render
+- 图片渲染追踪: renderImage(Start/End) / Syntax / Canvas / FormatCanvas
+- 上下文获取: preProcessTotalEditContext / LspDiagnostics / RewriteRange / NodeBoundary / Tokenizer
+- 防抖追踪: remainingDebounce / contextFetchingDebounce
+- CSP 预检: cspPreCheck(Start/End)
+- logId 字段用于关联服务端日志
+
+#### 核心发现 5: AbstractBootService — 启动配置服务 @2535031 ⭐⭐⭐⭐
+- 偏移量: @2535031 - @2537000
+- 服务方法: getAgentConfig / getCueConfig / getCKGConfig / getThreePgHost / getCdnLocation / getHomeUrl / getConsoleUrl / getImageXConfig / getExtensionConfig / getMcpConfig / getStoreRegion / getCdnPrefix / getDocsUrl / getGuideHelperConfig / getCdnPrefixes
+- IPC_SERVICE_NAME = "BootService"
+- AbstractBootManagementService: 管理 userInfo / originBootConfig / storeRegion / bootConfig / deviceId
+- 事件: onDidBootConfigChanged / onDidOriginBootConfigChanged / onDidStoreRegionChanged / onDidUserInfoChanged / onDidDeviceIdChange
+- throttle(50) 限流 refreshBootConfigDebounce
+
+#### 核心发现 6: icube_devtool_bridge — VS Code 通信桥 @5890559 ⭐⭐⭐⭐
+- 偏移量: @5890559
+- s8 类: VS Code WebView 与主进程的通信桥
+  - register/unregister/fire 方法
+  - get/set state 通过 `window.__icube_devtool_vscode__`
+  - handleReceive 处理回调
+- vscodeService 全局单例: `window.vscodeService = new s8`
+- callJS 消息处理器: 支持 callback(成功/失败) 和 event 两种类型
+- la() 函数: 注册回调到 `__icube_devtool_bridge_callbacks`
+- s7() 函数: 错误处理 — "The query has been canceled" 特殊处理 (-1 errCode)
+
+#### 核心发现 7: Lexical 编辑器命令注册 @2834865 ⭐⭐⭐
+- 偏移量: @2834865
+- Chat 输入框的 Lexical 编辑器命令:
+  - ADD_WORKSPACE_MENTION_SYMBOL — 添加工作区引用
+  - ADD_FILE_MENTION_SYMBOL — 添加文件引用
+  - ADD_FILE_MENTION_SYMBOL_WITH_SELECTION — 带选区的文件引用
+  - ADD_FILE_MENTION_SYMBOL_FROM_EXTERNAL — 外部文件引用
+  - ADD_CODE_MENTION_SYMBOL — 代码引用
+  - ADD_FOLDER_MENTION_SYMBOL — 文件夹引用
+  - ADD_FOLDER_MENTION_SYMBOL_FROM_EXTERNAL — 外部文件夹引用
+- 遥测回调: es.GP.ContextAddClick + context_type + add_type
+
+#### 核心发现 8: 多模态图片上传 @2681467 ⭐⭐⭐
+- 偏移量: @2681467
+- uploadSingleImageToServer: image_id + width + height + raw_body
+- uploadFilesToServer: 批量上传，进度追踪，Slardar 事件
+- 图片限制: 3MB / 最小尺寸 / jpeg/png/gif/webp
+- ToB 图片 ID 格式: `ToB-{userId}_{timestamp}_{random}_{type}_{width}_{height}`
+
+#### 核心发现 9: CancelReason / FinishReason 枚举 @111249 ⭐⭐⭐
+- 偏移量: @111249
+- FinishReason: CANCEL_BY_TOKEN / TRUNCATE_BY_PLUGIN_AST / TRUNCATE_BY_PLUGIN_INDENT / MAX_TOKEN_LIMIT / CANCEL_BY_SENSITIVE / SAME / CANCEL_BY_CONTENT_SECURITY
+- CancelReason: REQUEST_TIMEOUT(20) / PARAMS_INVALID(21) / CANCEL_BY_TOKEN(22) / DOCUMENT_UNDEFINED(23) / UNKNOWN_ERROR(24) / CONTENT_SECURITY_PRE_INTERCEPTED(25) / CONTENT_SECURITY_POST_INTERCEPTED(26)
+
+#### 核心发现 10: DocumentSetStatus / ExternalDocumentType @100870 ⭐⭐⭐
+- 偏移量: @100870 (webpack 模块 64977)
+- ExternalDocumentType: Official / Custom
+- DocumentSetStatus: Ready / Indexing / Failed
+- DocumentPageStatus: Ready / Fetching / FetchFailed / Indexing / IndexFailed / Deleted
+
+#### P0 JSON 配置文件清单
+| 偏移量 | 模块 | 内容 |
+|--------|------|------|
+| @2473418 | - | Unicode 字符分类表 |
+| @2494107 | - | Unicode 空白字符表 |
+| @2734967 | - | i18n 中文 (zh-cn) |
+| @2742207 | - | i18n 日文 (ja) |
+| @5870417 | 84312 | API 端点配置 (byteGate/tea/slardarPC/copilotDomain/mcpPlugin) |
+| @5874967 | 99771 | i18n 英文 (en) |
+| @5992978 | - | i18n 英文 (逗号分隔格式) |
+| @6107094 | - | i18n 中文 (逗号分隔格式) |
+| @6184670 | - | i18n 日文 (逗号分隔格式) |
+
+#### 补丁影响评估
+| 发现 | 对现有补丁的影响 |
+|------|-----------------|
+| ContactType 枚举 @55561 | bypass-usage-limit 补丁可直接引用此枚举值 |
+| ChatError + 错误码 @54993 | efh-resume-list 补丁可扩展新错误码 (LLM_QUEUING/LLM_STOP_DUP_TOOL_CALL) |
+| externalCopilotDomains @5874343 | AI API 端点 `a0ai-api.byteintlapi.com`，可用于理解请求路径 |
+| AbstractBootService @2535031 | getStoreRegion/getMcpConfig 可用于条件化补丁逻辑 |
+| icube_devtool_bridge @5890559 | window.vscodeService 可作为补丁的 IPC 通信替代通道 |
+
+#### 结论
+P0 盲区确认: **所有 DI 注册(uJ)、DI 注入(uX)、核心业务方法(resumeChat/sendChatMessage/provideUserResponse)、服务接口(Symbol)均不在 P0 范围内**。P0 的业务逻辑主要是:
+1. 数据结构定义 (错误码/枚举/类型)
+2. API 端点配置 (JSON 静态数据)
+3. VS Code 框架代码 (CommandsRegistry/Protocol)
+4. 上传/遥测/性能追踪基础设施
+5. i18n 本地化数据 (3 种格式 × 3 种语言)
+6. DevTool 通信桥

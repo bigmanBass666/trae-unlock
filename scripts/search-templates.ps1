@@ -175,7 +175,7 @@ function Search-IPC {
     )
     if (-not (Test-Path $Path)) { Write-Warning "File not found: $Path"; return @() }
     $c = [IO.File]::ReadAllText($Path)
-    $keywords = @('postMessage', 'onmessage', 'ipcRenderer')
+    $keywords = @('ipcRenderer', 'IICubeShellExecService', 'registerCommand', 'registerAdapter')
     $results = @()
     foreach ($kw in $keywords) {
         $idx = 0
@@ -195,6 +195,36 @@ function Search-SettingKey {
     if (-not (Test-Path $Path)) { Write-Warning "File not found: $Path"; return @() }
     $c = [IO.File]::ReadAllText($Path)
     $keywords = @('AI.toolcall.', 'chat.tools.')
+    $results = @()
+    foreach ($kw in $keywords) {
+        $idx = 0
+        while (($idx = $c.IndexOf($kw, $idx)) -ge 0) {
+            $results += [PSCustomObject]@{ Offset = $idx; Context = (Get-Context -Content $c -Offset $idx -ContextSize $Context); Keyword = $kw }
+            $idx += $kw.Length
+        }
+    }
+    $results
+}
+
+function Search-SSEStream {
+    param(
+        [string]$Path = $DefaultPath,
+        [int]$Context = 150
+    )
+    if (-not (Test-Path $Path)) { Write-Warning "File not found: $Path"; return @() }
+    $c = [IO.File]::ReadAllText($Path)
+    $keywords = @(
+        'Symbol("IPlanItemStreamParser")',
+        'Symbol.for("IErrorStreamParser")',
+        'Symbol.for("INotificationStreamParser")',
+        'Symbol.for("ITextMessageChatStreamParser")',
+        'Symbol.for("ISideChatStreamService")',
+        'Symbol.for("IInlineChatStreamService")',
+        'Symbol("IMetadataParser")',
+        'ChatStreamService',
+        'eventHandlerFactory',
+        'handleSteamingResult'
+    )
     $results = @()
     foreach ($kw in $keywords) {
         $idx = 0
@@ -235,6 +265,7 @@ function Search-All {
         'ServiceProperty' = { Search-ServiceProperty -Path $Path -Context $Context }
         'Subscribe'      = { Search-Subscribe -Path $Path -Context $Context }
         'EventHandler'   = { Search-EventHandler -Path $Path -Context $Context }
+        'SSEStream'      = { Search-SSEStream -Path $Path -Context $Context }
         'StoreAction'    = { Search-StoreAction -Path $Path -Context $Context }
         'ReactHook'      = { Search-ReactHook -Path $Path -Context $Context }
         'ErrorEnum'      = { Search-ErrorEnum -Path $Path -Context $Context }

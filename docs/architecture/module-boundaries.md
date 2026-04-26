@@ -2,7 +2,7 @@
 
 > Trae AI 聊天模块的整体架构地图
 >
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
 ## 1. 概述
 
@@ -82,8 +82,8 @@ PlanItemStreamParser 中的服务通过 `this._xxxService` 模式注入：
 | 容器类 | `uj` |
 | 偏移量 | ~6268469 |
 | 模式 | 单例 `uj.getInstance()` |
-| 注册服务数 | 51 |
-| 注入点数 | 101 |
+| 注册服务数 | 186 |
+| 注入点数 | 817 |
 | resolve 调用 | `uj.getInstance().resolve(token)` |
 
 ## 4. 事件系统
@@ -175,7 +175,7 @@ PlanItemStreamParser 中的服务通过 `this._xxxService` 模式注入：
                   │ 服务层      │  │ UI 判定层     │  │ React 渲染层  │
                   │ _taskSvc   │  │ getRunCommand │  │ egR          │
                   │ _logSvc    │  │ CardBranch    │  │ RunCmdCard   │
-                  │ storeSvc   │  │ (~8069620)    │  │ Alert        │
+                  │ storeSvc   │  │ (@8081545)   │  │ Alert        │
                   │ (~7503319) │  │              │  │ (~8635000+)  │
                   └────────────┘  └──────────────┘  └──────────────┘
                          │                  │                  │
@@ -213,7 +213,7 @@ PlanItemStreamParser 中的服务通过 `this._xxxService` 模式注入：
 | ~7533176 | _onStreamingStop → WaitingInput | 中 |
 | ~7614717 | ResumeChat 服务端方法 | 中 |
 | ~8069382 | BlockLevel/AutoRunMode/ConfirmMode | 高 |
-| ~8069620 | getRunCommandCardBranch 核心判定 | 高 |
+| @8081545 | getRunCommandCardBranch 核心判定 | 高 |
 | ~8069700 | WHITELIST 模式沙箱逻辑 | 高 |
 | ~8629200 | UI 确认状态判断 | 高 |
 | ~8635000 | egR (RunCommandCard) 组件 | 高 |
@@ -228,3 +228,19 @@ PlanItemStreamParser 中的服务通过 `this._xxxService` 模式注入：
 | ~8702300 | if(V&&J) Alert 渲染分支 | **极高** |
 | ~8702342 | auto-continue-thinking 补丁位置 | **极高** |
 | ~8930000 | ErrorMessageWithActions 结束 | 低 |
+
+### P0 新发现位置
+
+| 偏移量 | 内容 | 重要性 |
+|--------|------|--------|
+| @55561 | ContactType 枚举（30+ 配额状态） | ⭐⭐⭐⭐⭐ |
+| @54993 | ChatError 错误码枚举 | ⭐⭐⭐⭐ |
+| @5870417 | API endpoints 配置 | ⭐⭐⭐⭐ |
+| @7215828 | computeSelectedModelAndMode（Model 域核心） | ⭐⭐⭐⭐⭐ |
+
+### 新域候选
+
+| 域 | 核心位置 | 补丁潜力 | 说明 |
+|----|---------|---------|------|
+| Model 域 | @7215828 | 5/5 | computeSelectedModelAndMode 可开发 force-max-mode 补丁 |
+| Docset 域 | 待探索 | 待评估 | 文档集/知识库相关逻辑 |

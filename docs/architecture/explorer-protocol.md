@@ -2,7 +2,7 @@
 
 > **版本**: 1.0 | **创建日期**: 2026-04-25 | **适用项目**: trae-unlock
 >
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 >
 > 本文档是 Trae IDE 源码探索的**标准操作程序 (SOP)**。所有参与源码探索的 AI Agent 必须在开始工作前通读本文档，并在探索过程中严格遵循其中的规范。
 >
@@ -85,8 +85,8 @@ Trae 的源码是一个约 10MB 的单行压缩 JS 文件（`@byted-icube/ai-mod
 | J 变量已重命名为 K | **J→K 重命名未发生**，J 仍是"显示继续按钮"变量，handoff 中的报告有误 | 2026-04-25 | v2 版本适配审计 |
 | 付费限制错误码为 1016/1017/1023 | **PREMIUM_MODE_USAGE_LIMIT=4008(非1016), STANDARD_MODE_USAGE_LIMIT=4009(非1017), FIREWALL_BLOCKED=700(非1023)** | 2026-04-25 | v2 商业权限域映射 |
 | auto-continue 可放在 L1 React 层 | **L1 在后台标签页冻结**（Chromium 停止 rAF → React Scheduler 降级） | 2026-04-22 | L1 冻结原则 |
-| ICommercialPermissionService 使用 Symbol.for 注册 | **ICommercialPermissionService 通过 `aiAgent.ICommercialPermissionService` 命名空间前缀注册** (@7197027)，非 Symbol.for/Symbol | 2026-04-26 | DI 审计纠正 |
-| DI 注册数为 51 / 注入数为 101 | **DI 注册数为 186 / 注入数为 816** (uJ/uX 搜索确认) | 2026-04-26 | DI 审计纠正 |
+| ICommercialPermissionService 使用 Symbol.for 注册 | **ICommercialPermissionService 通过 `aiAgent.ICommercialPermissionService` 命名空间前缀注册** (@7197035)，非 Symbol.for/Symbol | 2026-04-26 | DI 审计纠正 |
+| DI 注册数为 51 / 注入数为 101 | **DI 注册数为 186 / 注入数为 817** (uJ/uX 搜索确认) | 2026-04-26 | DI 审计纠正 |
 | kg 错误码约 30 个 | **kg 错误码完整穷举为 56 个** | 2026-04-26 | 错误码审计 |
 | beautified.js 为 347,099 行 | **beautified.js 为 347,244 行** | 2026-04-26 | 文件统计更新 |
 | ToolCallName 约 12 个 | **ToolCallName 完整枚举为 38 个** (@40836) | 2026-04-26 | 枚举审计 |
@@ -220,7 +220,7 @@ Test-Path scripts/search-templates.ps1
 
 # 快速测试 Search-Generic 功能
 $c = [IO.File]::ReadAllText("D:\apps\Trae CN\resources\app\node_modules\@byted-icube\ai-modules-chat\dist\index.js")
-$idx = $c.IndexOf("Symbol.for(""IPlanItemStreamParser"")")
+$idx = $c.IndexOf("Symbol(""IPlanItemStreamParser"")")
 Write-Host "Test anchor found at offset: $idx"
 if ($idx -gt 0) {
     Write-Host "Context (100 chars): $($c.Substring($idx, 100))"
@@ -230,7 +230,7 @@ if ($idx -gt 0) {
 **看什么**:
 - `search-templates.ps1` 文件存在
 - 能成功读取目标文件
-- 至少一个已知锚点能被正确定位（如 `Symbol.for("IPlanItemStreamParser")` 应在 ~7503299 附近）
+- 至少一个已知锚点能被正确定位（如 `Symbol("IPlanItemStreamParser")` 应在 ~7510931 附近）
 
 **为什么重要**: 所有探索工作都依赖 `$c.IndexOf()` 子串搜索。如果在启动阶段就发现工具链有问题，可以立即修复而不是在深入探索后才意识到数据不可靠。
 
@@ -267,7 +267,7 @@ Test-ToolAvailability
 
 | # | 域 | 标签 | 偏移量范围 | 覆盖范围估计 | 关键发现数 | confidence | 盲区评估 |
 |---|-----|------|-----------|-------------|-----------|------------|---------|
-| 1 | DI 依赖注入容器 | [DI] | ~6268469-7545196 | ~1.28MB | 30+ tokens, 186 services, 816 injections | **high** | FX 解析字段不完整；uJ() 186 服务只详细记录了约 30 个 |
+| 1 | DI 依赖注入容器 | [DI] | ~6268469-7545196 | ~1.28MB | 30+ tokens, 186 services, 817 injections | **high** | FX 解析字段不完整；uJ() 186 服务只详细记录了约 30 个 |
 | 2 | SSE 流管道 | [SSE] | ~7300000-7616470 | ~316KB | 13 event types, 15 parsers, EventHandlerFactory | **high** | DZ/Dq 预解析器细节不足；Bo base class Template Method 骨架不完整 |
 | 3 | Store 状态管理 | [Store] | ~7087490-7605848 | ~520KB | 8 stores, 两种 currentSession 模式 | **medium** | SessionStore mutations 不完整；badges 数据流未知；setRunningStatusMap 不详 |
 | 4 | 错误处理系统 | [Error] | ~54000-8696378 | 全文件散布 | 27+ error codes, 3 propagation paths | **medium** | kg 枚举完整值未知；handleCommonError 内部映射不全；_aiChatRequestErrorService API 不完整 |
@@ -298,10 +298,10 @@ Test-ToolAvailability
 |-------|------------|-----------|------------|
 | DZ/Dq 预解析器的完整逻辑 | 只知道名称和大致位置 (~7300000) | 预解析器可能在 Parser 之前做数据转换，影响 payload 结构 | 从 DZ/Dq 变量名出发双向扩展 |
 | Bs (ChatParserContext) 类的所有字段和方法 | 知道它是数据类，不知道完整字段列表 | Context 对象携带 session/scene 信息，影响 parse() 行为 | 从 Bs class 定义出发提取所有属性赋值 |
-| Bo (ChatStreamService base) 的完整 Template Method 骨架 | 只知道继承关系 `class Bv extends Bo` | Template Method 模式意味着 Bo 定义了 _onMessage/_onError/_onComplete 的默认行为 | 从 `class Bo` 定义出发，列出所有方法签名 |
-| Bv vs BE (SideChat vs Inline) 的具体差异 | 只知道一个是侧边栏一个是内联，差异细节不明 | 两者的错误处理路径可能不同，影响补丁选择 | 并列对比两者的 _onError/_onMessage 实现 |
+| Bo (ChatStreamService base) 的完整 Template Method 骨架 | 只知道继承关系 `class Bw extends Bs` (原 class Bv extends Bo 已迁移) | Template Method 模式意味着基类定义了 _onMessage/_onError/_onComplete 的默认行为 | 从 `ChatStreamService` log字符串或 `Symbol.for("ISideChatStreamService")` 出发定位基类 |
+| Bw vs BC (SideChat vs Inline) 的具体差异 | 只知道一个是侧边栏一个是内联，差异细节不明 | 两者的错误处理路径可能不同，影响补丁选择 | 并列对比两者的 _onError/_onMessage 实现 |
 | EventHandlerFactory (Bt) 的 register/handle 完整实现 | 只知道基本模式 `handle(event, payload, context)` | Factory 的路由逻辑决定哪个 Parser 处理哪个事件 | 从 Bt 变量出发追踪 register 调用和 handle 分发逻辑 |
-| DG.parse() 的完整实现 | 只知道位置 ~7318521 和用途（L3 数据层拦截） | DG.parse 是最早的数据拦截点，可能是最稳定的补丁位置 | 从 DG 变量名出发，追踪 parse 方法的完整逻辑 |
+| DG.parse() 的完整实现 | 只知道位置 ~7320642 和用途（L3 数据层拦截），原 DG 变量名已迁移 | DG.parse 是最早的数据拦截点，可能是最稳定的补丁位置 | 从 `Symbol("IMetadataParser")` Token 出发定位 MetadataParser 类 |
 
 #### [Store] 盲区
 
@@ -353,8 +353,8 @@ Test-ToolAvailability
 | 盲区项 | 当前已知程度 | 为什么重要 | 建议探索方法 |
 |-------|------------|-----------|------------|
 | workbench.desktop.main.js 中 GZt.create 的所有调用点 | 只知道 "exceeded maximum number of turns" 一个调用 | GZt.create 是主进程创建错误对象的工厂，每个调用对应一种错误来源 | 需要在主进程文件中搜索（本项目范围外，但值得记录） |
-| YTr 事件的完整注册表 | 只知道 emit/drain/enqueueData 几个方法 | 主进程事件总线的完整事件列表 | 搜索 YTr. 后跟方法名的模式 |
-| ExtHostShellExecService 的完整事件流 | 只知道 17 个命令 ID | 命令执行的完整生命周期（创建→排队→运行→输出→清理） | 从 icube.shellExec 前缀出发追踪 |
+| YTr 事件的完整注册表 | 只知道 emit/drain/enqueueData 几个方法，原 YTr 变量名已迁移 | 主进程事件总线的完整事件列表 | 从 `ipcRenderer` 出发追踪 IPC 通道 |
+| ExtHostShellExecService 的完整事件流 | 只知道 17 个命令 ID | 命令执行的完整生命周期（创建→排队→运行→输出→清理） | 从 `IICubeShellExecService` DI Token 出发追踪 |
 | shellExecutor.js 的完整实现 | 完全未知（可能在 main 进程文件中） | Shell 执行是沙箱的核心机制 | 需要在 Electron 主进程中查找 |
 | VS Code Command 系统的注册方式 | 只知道通过 S2.IXxxService 调用 | 完整的命令注册表可以帮助理解所有可用的 IPC 通道 | 搜索 `registerCommand` 或类似模式 |
 
@@ -527,9 +527,9 @@ Step 6: 记录发现
 
 | 功能 | 变体 1 (最稳定) | 变体 2 | 变体 3 | 变体 4 |
 |------|----------------|--------|--------|--------|
-| ISessionStore 引用 | `Symbol.for("ISessionStore")` | `Symbol("ISessionStore")` | `xC` (变量名) | `uX(xC)` (注入调用) |
-| IPlanItemStreamParser 引用 | `Symbol.for("IPlanItemStreamParser")` | `Symbol("IPlanItemStreamParser")` | `zL` (变量名) | `uJ({identifier:zL})` |
-| ISessionServiceV2 引用 | `Symbol.for("ISessionServiceV2")` | `Symbol("ISessionServiceV2")` | `BO` (变量名) | `resolve(BO)` |
+| ISessionStore 引用 | `Symbol("ISessionStore")` | `Symbol.for("ISessionStore")` (EMPTY!) | `xC` (变量名) | `uX(xC)` (注入调用) |
+| IPlanItemStreamParser 引用 | `Symbol("IPlanItemStreamParser")` | `Symbol.for("IPlanItemStreamParser")` (EMPTY!) | `zL` (变量名) | `uJ({identifier:zL})` |
+| ISessionServiceV2 引用 | `Symbol("ISessionServiceV2")` | `Symbol.for("ISessionServiceV2")` | `BO` (变量名) | `resolve(BO)` |
 
 #### 4.3.2 Store 操作变体
 
@@ -599,7 +599,7 @@ Step 6: 记录发现
 **示例 — 从 PlanItemStreamParser 出发的关联搜索**:
 
 ```
-锚点: Symbol("IPlanItemStreamParser") @~7503299
+锚点: Symbol("IPlanItemStreamParser") @~7510931
 
 维度 1 (定义):
   向后搜索 "class" 或函数定义 → 找到 Parser 类定义
@@ -960,7 +960,7 @@ for ($i = 0; $i -lt $knownPoints.Count - 1; $i++) {
 | `kg.TASK_TURN_EXCEEDED_ERROR` | `4000002` | `"TASK_TURN_EXCEEDED"` | `task_turn_exceeded` | `exception.code===4000002` |
 | `confirm_status==="unconfirmed"` | `'unconfirmed'===confirm_status` | `.confirm_status=="unconfirmed"` | `!"confirmed"...confirm_status` | `getRunCommandCardBranch(...)` |
 | `class Bs` | `Bs extends` | `var Bs=` | `Bs.prototype.` | new Bs( |
-| `Symbol.for("IPlanItemStreamParser")` | `Symbol("IPlanItemStreamParser")` | `zL` (变量) | `uJ({identifier:zL})` | `IPlanItemStreamParser` (字符串) |
+| `Symbol("IPlanItemStreamParser")` ⚠️Symbol.for已空 | `Symbol.for("IPlanItemStreamParser")` (EMPTY!) | `zL` (变量) | `uJ({identifier:zL})` | `IPlanItemStreamParser` (字符串) |
 
 **执行策略**: 对每个原始模式，依次执行所有变体的 IndexOf 搜索。如果变体产生了不同的偏移量，记录下来——这可能意味着同一功能的多个引用点或多个版本。
 
@@ -1371,7 +1371,7 @@ foreach ($p in $zhPatterns + $enPatterns) {
 
 | 模板 ID | 搜索关键词 | 命令/方法 | 用途 | 稳定性 |
 |---------|-----------|----------|------|--------|
-| DI-01 | `uX(` | Search-Generic / IndexOf | 所有 DI 注入装饰器调用 (816次) | ⭐⭐ |
+| DI-01 | `uX(` | Search-Generic / IndexOf | 所有 DI 注入装饰器调用 (817次) | ⭐⭐ |
 | DI-02 | `uJ({identifier:` | Search-Generic / IndexOf | 所有 DI 服务注册 (186次) | ⭐⭐ |
 | DI-03 | `Symbol.for("` | Search-Generic / IndexOf | 全局 DI Token (Symbol.for) | ⭐⭐⭐⭐⭐ |
 | DI-04 | `Symbol("` | Search-Generic / IndexOf | 局部 DI Token (Symbol) | ⭐⭐⭐⭐ |
@@ -1387,19 +1387,19 @@ foreach ($p in $zhPatterns + $enPatterns) {
 | 模板 ID | 搜索关键词 | 命令/方法 | 用途 | 稳定性 |
 |---------|-----------|----------|------|--------|
 | SSE-01 | `eventHandlerFactory` | Search-Generic / IndexOf | SSE 事件中央调度器 | ⭐⭐⭐ |
-| SSE-02 | `Symbol.for("IPlanItemStreamParser")` | IndexOf | PlanItem Parser Token | ⭐⭐⭐⭐⭐ |
+| SSE-02 | `Symbol("IPlanItemStreamParser")` | IndexOf | PlanItem Parser Token (migrated from Symbol.for) | ⭐⭐⭐⭐ |
 | SSE-03 | `Symbol.for("IErrorStreamParser")` | IndexOf | Error Parser Token | ⭐⭐⭐⭐⭐ |
 | SSE-04 | `Symbol.for("INotificationStreamParser")` | IndexOf | Notification Parser Token | ⭐⭐⭐⭐⭐ |
 | SSE-05 | `Symbol.for("ITextMessageChatStreamParser")` | IndexOf | TextMessage Parser Token | ⭐⭐⭐⭐⭐ |
-| SSE-06 | `.parse(e, t)` | Search-Generic / IndexOf | 所有 Parser 的 parse 方法 | ⭐⭐⭐ |
+| SSE-06 | `.parse(e,t` | Search-Generic / IndexOf | 所有 Parser 的 parse 方法 (minified无空格) | ⭐⭐⭐ |
 | SSE-07 | `handleSteamingResult` | IndexOf | SSE 结果分发方法 | ⭐⭐⭐ |
 | SSE-08 | `_onMessage` | IndexOf | SSE 消息回调 | ⭐⭐ |
 | SSE-09 | `_onError` | IndexOf | SSE 错误回调 | ⭐⭐ |
 | SSE-10 | `onComplete` | IndexOf | SSE 完成回调 | ⭐⭐ |
-| SSE-11 | `class Bo` | IndexOf | ChatStreamService 基类 | ⭐⭐ |
-| SSE-12 | `class Bv` | IndexOf | SideChatStreamService | ⭐⭐ |
-| SSE-13 | `class BE` | IndexOf | InlineChatStreamService | ⭐⭐ |
-| SSE-14 | `DG.parse` | IndexOf | L3 数据层解析入口 | ⭐⭐⭐ |
+| SSE-11 | `ChatStreamService` | IndexOf | ChatStreamService 基类 (log字符串锚点) | ⭐⭐⭐ |
+| SSE-12 | `Symbol.for("ISideChatStreamService")` | IndexOf | SideChatStreamService Token | ⭐⭐⭐⭐⭐ |
+| SSE-13 | `Symbol.for("IInlineChatStreamService")` | IndexOf | InlineChatStreamService Token | ⭐⭐⭐⭐⭐ |
+| SSE-14 | `Symbol("IMetadataParser")` | IndexOf | L3 数据层解析入口 (MetadataParser Token) | ⭐⭐⭐⭐ |
 
 ### A.3 Store 相关模板
 
@@ -1458,10 +1458,10 @@ foreach ($p in $zhPatterns + $enPatterns) {
 | EVT-02 | `visibilitychange` | IndexOf | DOM 可见性变化事件 | ⭐⭐⭐⭐⭐ |
 | EVT-03 | `MessageChannel` | IndexOf | MessageChannel API | ⭐⭐⭐⭐⭐ |
 | EVT-04 | `addEventListener` | Search-Generic / IndexOf | DOM 事件监听器 | ⭐⭐⭐ |
-| EVT-05 | `icube.shellExec` | IndexOf | Shell 执行 IPC 命令前缀 | ⭐⭐⭐⭐ |
+| EVT-05 | `IICubeShellExecService` | IndexOf | Shell 执行 DI 服务标识 (原 icube.shellExec 已迁移) | ⭐⭐⭐⭐ |
 | EVT-06 | `registerCommand` | IndexOf | VS Code 命令注册 | ⭐⭐⭐ |
-| EVT-07 | `registerAdapter` | IndexOf | 适配器注册 (@10466462) | ⭐⭐⭐ |
-| EVT-08 | `YTr` | IndexOf | 主进程事件总线 (渲染进程侧引用) | ⭐⭐ |
+| EVT-07 | `registerAdapter` | IndexOf | 适配器注册 (@10476897) | ⭐⭐⭐ |
+| EVT-08 | `ipcRenderer` | IndexOf | VS Code IPC 渲染进程桥接 (原 YTr 已迁移) | ⭐⭐⭐ |
 | EVT-09 | `queueMicrotask` | IndexOf | 微任务调度 (不受后台节流) | ⭐⭐⭐⭐⭐ |
 
 ### A.7 商业权限相关模板
@@ -1487,7 +1487,7 @@ foreach ($p in $zhPatterns + $enPatterns) {
 | GEN-07 | `ToolCallName` | IndexOf | 工具调用名称枚举 | ⭐⭐⭐ |
 | GEN-08 | `BlockLevel` | IndexOf | 命令阻塞级别 | ⭐⭐⭐⭐ |
 | GEN-09 | `AutoRunMode` | IndexOf | 自动运行模式 | ⭐⭐⭐⭐ |
-| GEN-10 | `ConfirmMode` | IndexOf | 确认模式 | ⭐⭐⭐⭐ |
+| GEN-10 | `AI.toolcall.confirmMode` | IndexOf | 确认模式设置键 (原 ConfirmMode 已迁移) | ⭐⭐⭐⭐ |
 
 ### A.8 搜索脚本参考
 
@@ -1584,7 +1584,7 @@ Search-All                         # 全量组合扫描
 
 **检查清单**:
 - [ ] 文件大小是否在预期范围内 (9-11MB)?
-- [ ] 已知锚点 (如 `Symbol.for("IPlanItemStreamParser")`) 的偏移量是否在预期范围 (±5000)?
+- [ ] 已知锚点 (如 `Symbol("IPlanItemStreamParser")`) 的偏移量是否在预期范围 (±5000)?
 - [ ] 至少抽取 3 个已知代码片段确认内容一致?
 
 ---
@@ -1731,7 +1731,7 @@ subscribe 参数 = (curr, prev) 非 (prev, curr)!
 exception = IPC 携带 (非 index.js 内赋值!)
 L1 = 后台冻结 (补丁放 L2/L3!)
 ICommercialPermissionService = aiAgent.前缀 (非Symbol.for!)
-DI = 186注册/816注入 (非51/101!)
+DI = 186注册/817注入 (非51/101!)
 kg = 56错误码 (非~30!)
 ToolCallName = 38个 (非~12!)
 beautified.js = 347244行 (非347099!)

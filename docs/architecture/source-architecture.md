@@ -1,6 +1,6 @@
 # Trae Source Architecture - 源码架构探索记录
 
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
 > 本文档记录了 Trae IDE 源码的完整架构和关键位置，供后续 AI 探索和修改时参考。
 
@@ -61,18 +61,20 @@ D:\apps\Trae CN\resources\app\
 | [command-confirm-system.md](command-confirm-system.md) | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
 | [limitation-map.md](limitation-map.md) | 限制点地图 | 错误码枚举、Alert 渲染点、BlockLevel、ToolCallName |
 | [module-boundaries.md](module-boundaries.md) | 模块边界与依赖 | DI 容器、服务注入、事件系统、模块依赖关系图 |
-| [di-service-registry.md](di-service-registry.md) | DI 服务注册表 | 186 个注册服务、816 个注入点、Symbol 迁移状态 |
+| [di-service-registry.md](di-service-registry.md) | DI 服务注册表 | 186 个注册服务、817 个注入点、Symbol 迁移状态 |
 | [sse-pipeline-topology.md](sse-pipeline-topology.md) | SSE 管道拓扑 | 13 事件类型、15 Parser、EventHandlerFactory 分发逻辑 |
 | [store-architecture.md](store-architecture.md) | Store 架构 | 8 个 Zustand Store、两种 currentSession 模式、无 Immer |
 | [explorer-protocol.md](explorer-protocol.md) | 探险家协议 | 工具决策树、交叉验证流程、发现记录规范 |
 | [exploration-toolkit.md](exploration-toolkit.md) | 工具箱使用指南 | js-beautify、AST 搜索、模块级搜索的使用方法 |
 | [commercial-permission-domain.md](commercial-permission-domain.md) | 商业权限域 | ICommercialPermissionService 服务链、用户身份枚举、配额限制机制、补丁候选 |
+| *(待建)* Model 域 | 模型选择与模式控制 | computeSelectedModelAndMode @7215828、kG 枚举(Manual/Auto/Max)、force-max-mode 补丁候选 |
+| *(待建)* Docset 域 | 文档集服务 | ai.IDocsetService/Store/CkgLocalApi/OnlineApi、ai.IWebCrawlerFacade、WK 模块导出 |
 
 ### 1. ai-modules-chat/dist/index.js
 
 **角色**: Trae AI 聊天系统的核心前端组件
 
-**大小**: ~10MB 压缩 JS（当前版本 10490415 chars）
+**大小**: ~10MB 压缩 JS（当前版本 10490721 chars）
 
 **关键功能**:
 - AI 对话渲染
@@ -105,8 +107,8 @@ D:\apps\Trae CN\resources\app\
 | ~7503319 | storeService.setBadgesBySessionId + 服务层确认 | ⭐⭐⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
 | ~7533176 | _onStreamingStop → WaitingInput | ⭐⭐⭐ | [sse-stream-parser.md](sse-stream-parser.md) |
 | ~7614717 | ResumeChat 服务端方法调用 | ⭐⭐ | [sse-stream-parser.md](sse-stream-parser.md) |
-| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举定义 | ⭐⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
-| ~8069620 | getRunCommandCardBranch 核心判定方法 | ⭐⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
+| ~8069382 | BlockLevel/AutoRunMode 枚举定义 + AI.toolcall.confirmMode 设置 | ⭐⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
+| ~8081545 | getRunCommandCardBranch 核心判定方法 | ⭐⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
 | ~8069700 | WHITELIST 模式沙箱确认弹窗逻辑 | ⭐⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
 | ~8629200 | UI 确认状态判断 `g===Ck.Unconfirmed&&!f` | ⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
 | ~8630204 | 终端工具卡片确认状态 useMemo | ⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
@@ -122,7 +124,7 @@ D:\apps\Trae CN\resources\app\
 | ~8702300 | if(V&&J) Alert 渲染分支 | ⭐⭐⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
 | ~8702342 | auto-continue-thinking 补丁位置 | ⭐⭐⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
 | ~8930000 | ErrorMessageWithActions 组件结束 | ⭐⭐ | [limitation-map.md](limitation-map.md) |
-| ~7267682 | ICommercialPermissionService (NS 类) — 商业权限判断 (aiAgent.命名空间前缀注册, @7197027) | ⭐⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
+| ~7267682 | ICommercialPermissionService (NS 类) — 商业权限判断 (aiAgent.命名空间前缀注册, @7197035) | ⭐⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
 | ~7259427 | IEntitlementStore (Nu 类) — 订阅/权益管理 | ⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
 | ~7154491 | ICredentialStore (MX 类) — 凭证管理 | ⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
 | ~6479431 | bJ 枚举 — 用户身份类型 (Free/Pro/ProPlus/Ultra/Trial/Lite/Express) | ⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
