@@ -22,7 +22,7 @@ format: registry
 ## 技术栈
 
 **目标平台**: Trae IDE v3.3.x + Windows
-**核心源码**: 87MB minified JS，已解包（无 app.asar，直接编辑即可生效）
+**核心源码**: ~10MB 压缩 JS（当前版本 10490415 chars），已解包（无 app.asar，直接编辑即可生效）
 **主进程**: Electron
 
 ## 核心源码位置
@@ -70,8 +70,12 @@ trae-unlock/
 5. **补丁安全** — 箭头函数防 this 丢失、不改变控制流、fingerprint 精确匹配
 6. **🔑 L1 冻结原则 (2026-04-22 验证)** — 需要实时响应的补丁必须放在 L2/L3。auto-continue-thinking 因住在 L1 导致 6 次迭代（v3→v7）。设计新补丁时首先选择层级。
 7. **Symbol.for→Symbol 迁移** — IPlanItemStreamParser、ISessionStore、IEntitlementStore 等已从 Symbol.for 迁移到 Symbol，搜索时必须用正确类型
-8. **J→K 重命名未发生** — handoff 中声称的 J→K 重命名在当前版本中未发生，J 仍是当前变量名
-9. **商业权限域** — ICommercialPermissionService(NS)/IEntitlementStore(Nu)/ICredentialStore(MX) 是付费限制判断的核心服务链，bJ 枚举定义用户身份类型
+8. **J→K 重命名未发生** — v2 探索纠正：handoff 中声称的 J→K 重命名在当前版本中未发生，J 仍是"显示继续按钮"变量。此纠正已写入 explorer-protocol.md §1.6 关键纠正事实库
+9. **商业权限域** — ICommercialPermissionService(NS)/IEntitlementStore(Nu)/ICredentialStore(MX) 是付费限制判断的核心服务链，bJ 枚举定义用户身份类型（Free=0,Pro=1,ProPlus=2,Ultra=3,Trial=4,Lite=5,Express=100）。详见 commercial-permission-domain.md
+10. **ICommercialPermissionService 不使用 Symbol** — 通过 `aiAgent.ICommercialPermissionService` 命名空间前缀注册(@7197027)，不是 Symbol 或 Symbol.for
+11. **DI 系统规模远超文档记录** — 实际 186 个注册（文档记录 51 个）、816 个注入（文档记录 101 个），di-service-registry.md 需大幅更新
+12. **kg 错误码扩展到 56 个** — 含新增 MODEL_OUTPUT_TOO_LONG/MODEL_NOT_EXISTED
+13. **Model 域补丁潜力 5/5** — computeSelectedModelAndMode @7215828，可开发 force-max-mode 补丁
 
 ## 架构文档索引
 
@@ -79,12 +83,15 @@ trae-unlock/
 |------|------|---------|
 | docs/architecture/sse-stream-parser.md | SSE 流解析系统 | PlanItemStreamParser 完整生命周期、事件分发、状态管理 |
 | docs/architecture/command-confirm-system.md | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
-| docs/architecture/limitation-map.md | 限制点地图 | 错误码枚举、Alert 渲染点、BlockLevel、ToolCallName |
+| docs/architecture/limitation-map.md | 限制点地图 | 错误码枚举(56个)、Alert 渲染点、BlockLevel、ToolCallName(38个) |
 | docs/architecture/module-boundaries.md | 模块边界与依赖 | DI 容器、服务注入、事件系统、模块依赖关系图 |
-| docs/architecture/di-service-registry.md | DI 服务注册表 | 51 个注册服务、101 个注入点、Symbol 迁移状态 |
+| docs/architecture/di-service-registry.md | DI 服务注册表 | 186 个注册服务、816 个注入点、Symbol 迁移状态、aiAgent.命名空间注册 |
 | docs/architecture/sse-pipeline-topology.md | SSE 管道拓扑 | 13 事件类型、15 Parser、EventHandlerFactory 分发逻辑 |
 | docs/architecture/store-architecture.md | Store 架构 | 8 个 Zustand Store、两种 currentSession 模式、无 Immer |
 | docs/architecture/source-architecture.md | 源码架构导航 | 关键位置索引表、搜索技巧、架构文档索引 |
+| docs/architecture/commercial-permission-domain.md | 商业权限域 | ICommercialPermissionService 服务链、用户身份枚举、配额限制机制、补丁候选 |
+| docs/architecture/explorer-protocol.md | 探险家协议 | 工具决策树、交叉验证流程、发现记录规范 |
+| docs/architecture/exploration-toolkit.md | 工具箱使用指南 | js-beautify、AST 搜索、模块级搜索的使用方法 |
 
 ## 关键位置速查
 

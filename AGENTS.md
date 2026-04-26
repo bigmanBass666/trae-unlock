@@ -91,6 +91,7 @@
 | `docs/architecture/module-boundaries.md` | 模块边界与依赖关系 |
 | `docs/architecture/source-architecture.md` | 源码架构导航索引+关键位置速查 |
 | `docs/architecture/sse-stream-parser.md` | SSE 流解析系统 |
+| `docs/architecture/commercial-permission-domain.md` | 商业权限域（ICommercialPermissionService 服务链+用户身份枚举+补丁候选） |
 
 ---
 

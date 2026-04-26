@@ -2,7 +2,7 @@
 
 > **版本**: 1.0 | **创建日期**: 2026-04-25 | **适用项目**: trae-unlock
 >
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
 >
 > 本文档是 Trae IDE 源码探索的**标准操作程序 (SOP)**。所有参与源码探索的 AI Agent 必须在开始工作前通读本文档，并在探索过程中严格遵循其中的规范。
 >
@@ -37,7 +37,7 @@ Trae 的源码是一个约 10MB 的单行压缩 JS 文件（`@byted-icube/ai-mod
 
 例如：
 - 前序探索者搜索"思考上限错误"，发现了 IPC 路径 → 但可能遗漏了其他错误类型的传播路径
-- 前序探索者从 DI token 出发映射了服务注册表 → 但 uJ() 注册的 51 个服务只详细记录了约 30 个
+- 前序探索者从 DI token 出发映射了服务注册表 → 但 uJ() 注册的 186 个服务只详细记录了约 30 个
 - 前序探索者聚焦于 L2 服务层 → 但 8930000+ 到文件末尾的大量 UI 代码几乎未触及
 
 **你的工作是打破这种路径依赖，用系统化的方法扫描所有可能的区域。**
@@ -82,7 +82,14 @@ Trae 的源码是一个约 10MB 的单行压缩 JS 文件（`@byted-icube/ai-mod
 | J 变量控制所有可恢复错误 | **J 只控制是否显示"继续"按钮**，实际恢复还需 efh 列表 + agentProcess==="v3" | 2026-04-23 | 错误处理系统 |
 | store.subscribe 参数是 (prev, curr) | **Zustand subscribe 参数顺序是 (curr, prev)**，第1个是新状态 | 2026-04-23 | v11.1 Bug修复 |
 | exception 通过显式赋值写入 | **exception 在主进程构造后随 IPC 到达**，index.js 中仅 TaskAgentMessageParser 有1处显式赋值且不走思考上限路径 | 2026-04-23 | v12 零输出分析 |
+| J 变量已重命名为 K | **J→K 重命名未发生**，J 仍是"显示继续按钮"变量，handoff 中的报告有误 | 2026-04-25 | v2 版本适配审计 |
+| 付费限制错误码为 1016/1017/1023 | **PREMIUM_MODE_USAGE_LIMIT=4008(非1016), STANDARD_MODE_USAGE_LIMIT=4009(非1017), FIREWALL_BLOCKED=700(非1023)** | 2026-04-25 | v2 商业权限域映射 |
 | auto-continue 可放在 L1 React 层 | **L1 在后台标签页冻结**（Chromium 停止 rAF → React Scheduler 降级） | 2026-04-22 | L1 冻结原则 |
+| ICommercialPermissionService 使用 Symbol.for 注册 | **ICommercialPermissionService 通过 `aiAgent.ICommercialPermissionService` 命名空间前缀注册** (@7197027)，非 Symbol.for/Symbol | 2026-04-26 | DI 审计纠正 |
+| DI 注册数为 51 / 注入数为 101 | **DI 注册数为 186 / 注入数为 816** (uJ/uX 搜索确认) | 2026-04-26 | DI 审计纠正 |
+| kg 错误码约 30 个 | **kg 错误码完整穷举为 56 个** | 2026-04-26 | 错误码审计 |
+| beautified.js 为 347,099 行 | **beautified.js 为 347,244 行** | 2026-04-26 | 文件统计更新 |
+| ToolCallName 约 12 个 | **ToolCallName 完整枚举为 38 个** (@40836) | 2026-04-26 | 枚举审计 |
 
 ---
 
@@ -167,7 +174,7 @@ powershell scripts/auto-heal.ps1 -DiagnoseOnly
 | [limitation-map.md](../limitation-map.md) | 限制点地图 |
 | [module-boundaries.md](../module-boundaries.md) | 模块边界与依赖关系 |
 | [di-service-registry.md](../di-service-registry.md) | DI 服务注册表 |
-| [trae-confirm-system.md](../trae-confirm-system.md) | Trae 确认系统综合 |
+| [command-confirm-system.md](../command-confirm-system.md) | Trae 确认系统综合 |
 
 **看什么**:
 - 各文档中的偏移量引用（可能与 discoveries.md 一致或有更新）
@@ -260,7 +267,7 @@ Test-ToolAvailability
 
 | # | 域 | 标签 | 偏移量范围 | 覆盖范围估计 | 关键发现数 | confidence | 盲区评估 |
 |---|-----|------|-----------|-------------|-----------|------------|---------|
-| 1 | DI 依赖注入容器 | [DI] | ~6268469-7545196 | ~1.28MB | 30+ tokens, 51 services, 45 resolve calls | **high** | FX 解析字段不完整；uJ() 51 服务只详细记录了 50 个 |
+| 1 | DI 依赖注入容器 | [DI] | ~6268469-7545196 | ~1.28MB | 30+ tokens, 186 services, 816 injections | **high** | FX 解析字段不完整；uJ() 186 服务只详细记录了约 30 个 |
 | 2 | SSE 流管道 | [SSE] | ~7300000-7616470 | ~316KB | 13 event types, 15 parsers, EventHandlerFactory | **high** | DZ/Dq 预解析器细节不足；Bo base class Template Method 骨架不完整 |
 | 3 | Store 状态管理 | [Store] | ~7087490-7605848 | ~520KB | 8 stores, 两种 currentSession 模式 | **medium** | SessionStore mutations 不完整；badges 数据流未知；setRunningStatusMap 不详 |
 | 4 | 错误处理系统 | [Error] | ~54000-8696378 | 全文件散布 | 27+ error codes, 3 propagation paths | **medium** | kg 枚举完整值未知；handleCommonError 内部映射不全；_aiChatRequestErrorService API 不完整 |
@@ -270,6 +277,7 @@ Test-ToolAvailability
 | 8 | 设置与配置 | [Setting] | ~7438600-8069382 | ~630KB | 8 setting keys, BlockLevel/AutoRunMode/ConfirmMode | **low** | onDidChangeConfiguration 实现未知；设置变更传播机制未知；GlobalAutoApprove 影响范围不明 |
 | 9 | 沙箱与命令执行 | [Sandbox] | ~7502500-~8070328 | ~570KB | enums, pipeline, SAFE_RM rules | **medium** | safe_rm_aliases.ps1/sh 内容未知；trae-sandbox.exe 调用方式未知；VirtualTerminal 生命周期不详 |
 | 10 | MCP 与工具调用 | [MCP] | ~41400-~8635000 | 全文件散布 | 80+ ToolCallNames, confirm_info structure, lifecycle | **low** | MCP server 注册机制未知；工具调用权限模型未知；browser_* 20+ 工具枚举不全 |
+| 11 | 商业权限域 | [Commercial] | ~6479431-8707858 | 全文件散布 | ICommercialPermissionService 6方法, IEntitlementStore, ICredentialStore, bJ枚举, ee配额标志 | **high** | NS 方法实现细节; CredentialStore 完整结构; efr 枚举完整值 |
 
 ### 3.2 已知盲区详细列表
 
@@ -277,7 +285,7 @@ Test-ToolAvailability
 
 | 盲区项 | 当前已知程度 | 为什么重要 | 建议探索方法 |
 |-------|------------|-----------|------------|
-| uJ() 注册的 51 个服务的完整参数结构 | 只记录了类名和 Token，不知道构造函数参数和依赖 | 新服务可能需要特定初始化参数才能 resolve 成功 | 对每个 uJ({identifier:X}) 向后扩展 500 字符查看 constructor |
+| uJ() 注册的 186 个服务的完整参数结构 | 只记录了类名和 Token，不知道构造函数参数和依赖 | 新服务可能需要特定初始化参数才能 resolve 成功 | 对每个 uJ({identifier:X}) 向后扩展 500 字符查看 constructor |
 | FX() 函数的完整参数结构和返回值 | 只知道签名 `async function FX(e,t,i,r,n=!1,o)` 和用途是 findTargetAgent | FX 可能是 Agent 路由的关键入口 | 从 @7604449 出发双向扩展，追踪所有调用点 |
 | hX() 的所有使用点 | 只知道定义在 @6270579，使用点不完全 | hX 是容器的快捷方式，所有使用点都是潜在的服务访问入口 | 搜索 `hX()` 所有出现位置 |
 | uP (DependencyRegistry) 类的完整实现 | 只知道 `new uP` 创建实例 | 依赖注册表可能包含延迟加载、条件注册等高级特性 | 从 `new uP` 出发追踪类定义 |
@@ -323,7 +331,7 @@ Test-ToolAvailability
 | 盲区项 | 当前已知程度 | 为什么重要 | 建议探索方法 |
 |-------|------------|-----------|------------|
 | Alert #6-#17 的精确位置和完整渲染逻辑 | 只有粗略偏移量（±1000误差） | 每个 Alert 都可能有独立的条件分支和操作按钮 | 从 @8702410 开始逐个精确定位 |
-| 8930000-10463462 之间的 UI 代码 | **完全未探索！~1.5MB** | 这是文件的后半段，可能包含设置面板、Agent 选择器、历史列表等重要 UI | 取中点 Substring(9421723, 2000) 初步扫描 |
+| 8930000-10490354 之间的 UI 代码 | **完全未探索！~1.5MB** | 这是文件的后半段，可能包含设置面板、Agent 选择器、历史列表等重要 UI | 取中点 Substring(9421723, 2000) 初步扫描 |
 | sX().createElement() 的所有组件类型列表 | 只知道 memo/Alert/Button 等少量类型 | 完整的组件类型清单有助于理解 UI 架构的全貌 | 搜索 `sX().createElement(` 提取第二参数的类型 |
 | 所有 useCallback/useMemo/useEffect 的完整列表 | 只知道与 auto-continue 相关的几个 | 每个 Hook 都是潜在的补丁注入点或冻结行为观察点 | 分别搜索三个 Hook 关键字 |
 | ConfirmPopover 和 NotifyUserCard 的实现 | 只知道名称存在，完全不了解内部逻辑 | 这两个组件涉及用户交互确认流程 | 从组件名出发搜索定义 |
@@ -393,8 +401,8 @@ Test-ToolAvailability
 | **54415-6268469** | **~6.2MB** | **最大盲区！** Error 枚举到 DI 容器(uj)之间 | **极高** | 分段扫描：每 500KB 取中点采样；重点关注函数/类定义关键字 |
 | **6665xxx-7000000** (workbench 区域) | ? | 主进程相关代码的 renderer 代理层 | 高 | 如果文件延伸到此范围 |
 | **8930000-9910446** | ~1MB | ErrorMessageWithActions 之后到 DEFAULT error 组件 | **高** | UI 下半部分，含可能的设置面板、Agent 选择器等 |
-| **9910446-10463462** | ~550KB | DEFAULT error 到命令注册层（registerAdapter 等） | **高** | 含 VS Code 命令注册、适配器注册等基础设施 |
-| **10463462-EOF** | ? | 文件末尾（webpack IIFE 闭合、export 等） | 中 | 通常为模块导出和初始化代码 |
+| **9910446-10490354** | ~550KB | DEFAULT error 到命令注册层（registerAdapter 等） | **高** | 含 VS Code 命令注册、适配器注册等基础设施 |
+| **10490354-EOF** | ? | 文件末尾（webpack IIFE 闭合、export 等） | 中 | 通常为模块导出和初始化代码 |
 
 **关于最大盲区 (54415-6268469, ~6.2MB) 的特别说明**:
 
@@ -695,7 +703,7 @@ function Find-CodeBoundary {
   │
   ├─ 文件状态？
   │   ├─ 原始压缩文件（~10MB 单行）→ 先运行 Unpack-TraeIndex 美化
-  │   ├─ 已美化（unpacked/beautified.js, 347099行）→ 直接用 AST/模块搜索
+  │   ├─ 已美化（unpacked/beautified.js, 347244行）→ 直接用 AST/模块搜索
   │   └─ 已提取索引（functions-index.json）→ 用查询接口快速定位
   │
   └─ 时间约束？
@@ -726,7 +734,7 @@ function Find-CodeBoundary {
 
 #### 关键成果（首次运行）
 
-- **beautified.js**: 347,099 行可读代码（从 10.25MB 单行转换）
+- **beautified.js**: 347,244 行可读代码（从 10.25MB 单行转换）
 - **函数索引**: 38,630 个函数定义
 - **类索引**: 1,009 个类定义
 - **webpack 模块**: 待 Get-ModuleOverview 统计
@@ -901,7 +909,7 @@ foreach ($key in $patterns.Keys) {
 $knownPoints = @(54000, 41400, 46816, 6268469, 7087490, 7135785, 7300000,
                  7458679, 7502500, 7508572, 7588518, 7610443, 7615777,
                  8069382, 8635000, 8696378, 8700000, 8930000, 9910446,
-                 10463462)
+                 10490354)
 
 # 计算空隙:
 for ($i = 0; $i -lt $knownPoints.Count - 1; $i++) {
@@ -935,9 +943,9 @@ for ($i = 0; $i -lt $knownPoints.Count - 1; $i++) {
 |--------|---------|------|---------|---------|
 | P0 | 54415-6268469 | **~6.2MB** | 最大盲区，可能含大量中间层代码 | Phase 1 粗筛 → Phase 2 聚焦 → Phase 3 深挖 |
 | P1 | 8930000-9910446 | ~1MB | UI 层下半部分 | 重点扫描组件定义和事件处理 |
-| P1 | 9910446-10463462 | ~550KB | 命令注册/扩展层 | 扫描 registerAdapter / command 注册 |
+| P1 | 9910446-10490354 | ~550KB | 命令注册/扩展层 | 扫描 registerAdapter / command 注册 |
 | P2 | 0-41400 | ~41KB | webpack bootstrap | 低优先级，快速采样确认 |
-| P2 | 10463462-EOF | ? | 文件末尾 | 中优先级，检查 export/init 代码 |
+| P2 | 10490354-EOF | ? | 文件末尾 | 中优先级，检查 export/init 代码 |
 
 ### 6.3 模式变体扫描 (Pattern Variant Scanning)
 
@@ -1363,8 +1371,8 @@ foreach ($p in $zhPatterns + $enPatterns) {
 
 | 模板 ID | 搜索关键词 | 命令/方法 | 用途 | 稳定性 |
 |---------|-----------|----------|------|--------|
-| DI-01 | `uX(` | Search-Generic / IndexOf | 所有 DI 注入装饰器调用 (101次) | ⭐⭐ |
-| DI-02 | `uJ({identifier:` | Search-Generic / IndexOf | 所有 DI 服务注册 (51次) | ⭐⭐ |
+| DI-01 | `uX(` | Search-Generic / IndexOf | 所有 DI 注入装饰器调用 (816次) | ⭐⭐ |
+| DI-02 | `uJ({identifier:` | Search-Generic / IndexOf | 所有 DI 服务注册 (186次) | ⭐⭐ |
 | DI-03 | `Symbol.for("` | Search-Generic / IndexOf | 全局 DI Token (Symbol.for) | ⭐⭐⭐⭐⭐ |
 | DI-04 | `Symbol("` | Search-Generic / IndexOf | 局部 DI Token (Symbol) | ⭐⭐⭐⭐ |
 | DI-05 | `uj.getInstance()` | IndexOf | DI 容器访问点 (45处resolve) | ⭐⭐ |
@@ -1456,7 +1464,17 @@ foreach ($p in $zhPatterns + $enPatterns) {
 | EVT-08 | `YTr` | IndexOf | 主进程事件总线 (渲染进程侧引用) | ⭐⭐ |
 | EVT-09 | `queueMicrotask` | IndexOf | 微任务调度 (不受后台节流) | ⭐⭐⭐⭐⭐ |
 
-### A.7 通用模板
+### A.7 商业权限相关模板
+
+| 模板 ID | 搜索关键词 | 命令/方法 | 用途 | 稳定性 |
+|---------|-----------|----------|------|--------|
+| COM-01 | `ICommercialPermissionService` | Search-Generic / IndexOf | 商业权限服务接口字符串 | ⭐⭐⭐⭐⭐ |
+| COM-02 | `isCommercialUser` | Search-Generic / IndexOf | 商业用户判断方法 | ⭐⭐⭐ |
+| COM-03 | `IEntitlementStore` | Search-Generic / IndexOf | 权益存储接口字符串 | ⭐⭐⭐⭐ |
+| COM-04 | `entitlementInfo` | Search-Generic / IndexOf | 权益信息字段 | ⭐⭐⭐ |
+| COM-05 | `isFreeUser` | Search-Generic / IndexOf | 免费用户判断（React Hook efi()） | ⭐⭐⭐ |
+
+### A.8 通用模板
 
 | 模板 ID | 搜索关键词 | 命令/方法 | 用途 | 稳定性 |
 |---------|-----------|----------|------|--------|
@@ -1712,6 +1730,11 @@ ew.confirm = telemetry (非执行!)
 subscribe 参数 = (curr, prev) 非 (prev, curr)!
 exception = IPC 携带 (非 index.js 内赋值!)
 L1 = 后台冻结 (补丁放 L2/L3!)
+ICommercialPermissionService = aiAgent.前缀 (非Symbol.for!)
+DI = 186注册/816注入 (非51/101!)
+kg = 56错误码 (非~30!)
+ToolCallName = 38个 (非~12!)
+beautified.js = 347244行 (非347099!)
 ```
 
 ### D.4 Top 3 Hook 点
@@ -1732,9 +1755,9 @@ L1 = 后台冻结 (补丁放 L2/L3!)
 ```
 P0: 54415-6268469  (~6.2MB!)  → Phase 1 粗筛 (每 100KB 采样)
 P1: 8930000-9910446 (~1MB)    → UI 下半部分
-P1: 9910446-10463462 (~550KB)  → 命令注册层
+P1: 9910446-10490354 (~550KB)  → 命令注册层
 P2: 0-41400        (~41KB)    → webpack bootstrap (低优先)
-P2: 10463462-EOF   (?)        → 文件末尾
+P2: 10490354-EOF   (?)        → 文件末尾
 ```
 
 ### D.6 常用 PowerShell 搜索模式
@@ -1754,7 +1777,7 @@ $variants = @("Symbol.for('X')", "Symbol('X')", "xVar", "methodName")
 foreach ($v in $variants) { $c.IndexOf($v) }
 
 # Gap 扫描
-$points = @(0, 54000, 6268469, 7087490, 7502500, 8930000, 10463462)
+$points = @(0, 54000, 6268469, 7087490, 7502500, 8930000, 10490354)
 # 计算 points[i] 到 points[i+1] 的 gap, 对 >10000 的 gap 取样
 ```
 

@@ -1,5 +1,137 @@
 # 会话交接单
 
+## [2026-04-26 06:00] 深度探索与文档强化完成 — P0深挖+P1全扫+11域交叉验证+43处文档修正+四维索引
+
+### 本次完成
+
+执行了 deep-exploration-and-docs-strengthening spec，8 个 Phase 全部完成。这是目前最全面的一次源码探索，覆盖了 P0 盲区深挖、P1 盲区全扫、11 域交叉验证、架构文档审计、索引构建、新域探索和搜索模板验证。
+
+### 核心发现（8 个 Major）
+
+1. **DI 注册数 51→186，注入数 101→816** ⭐⭐⭐⭐⭐ — 交叉验证揭示 DI 系统远比文档记录的庞大，di-service-registry.md 需要大幅更新
+2. **5 个新 ai.* DI Token** ⭐⭐⭐⭐⭐ — ai.IDocsetService/IDocsetStore/IDocsetCkgLocalApiService/IDocsetOnlineApiService/IWebCrawlerFacade，构成完整文档集管理域
+3. **31 个 I*Service DI Token 完整映射** ⭐⭐⭐⭐⭐ — 包括 IStuckDetectionService(@7537021)/IAutoAcceptService(@8039940)/IPrivacyModeService(@8036543)/ICommercialApiService(@7559975) 等关键服务
+4. **ICommercialPermissionService 不使用 Symbol 模式** ⭐⭐⭐⭐⭐ — 通过 `aiAgent.ICommercialPermissionService` 命名空间前缀注册(@7197027)，不是 Symbol 或 Symbol.for
+5. **25 个 VS Code 命令注册** ⭐⭐⭐⭐ — 在 bootstrapApplicationContainer(@10477819) 中通过 CommandsRegistry 注册，含 send.internal/codeReview/forkSession/knowledges.*
+6. **38 个 ToolCallName 完整枚举** ⭐⭐⭐⭐ — @40836，包含所有 Agent 工具名
+7. **kg 错误码从 ~30 扩展到 56** ⭐⭐⭐⭐ — 交叉验证穷举确认，含新增 MODEL_OUTPUT_TOO_LONG/MODEL_NOT_EXISTED
+8. **Model 域应优先建立** ⭐⭐⭐⭐ — computeSelectedModelAndMode @7215828，补丁潜力 5/5
+
+### 文档修正（43 处）
+
+- ICommercialPermissionService Token 类型：Symbol.for → aiAgent.命名空间前缀（4 处）
+- DI 统计：51→186 注册、101→816 注入（5 个文档 10 处）
+- 文件统计：10490354→10490415 chars、347099→347244 行（17 处）
+- 枚举数量：kg 错误码 56 个、ToolCallName 38 个（4 处）
+- 新增信息：4 个新服务、5 个 ai.* Token、eY0 入口对象、Model 域锚点（3 个文档追加）
+
+### 四维索引
+
+| 索引类型 | 条目数 | 说明 |
+|---------|--------|------|
+| 按域搜索 | ~150 | 13 个域分类 |
+| 按偏移量范围 | ~130 | 4 个区间 |
+| 按功能 | ~80 | 7 个功能分类 |
+| 按 confidence | ~120 | 3 个级别 |
+
+### 搜索模板验证
+
+- 24/26 OK，2 个 EMPTY
+- SSE-02 `Symbol.for("IPlanItemStreamParser")` → 已迁移为 Symbol()
+- EVT-05 `icube.shellExec` → 命名空间可能已变更
+
+### 新域候选
+
+- **[Docset]** — 文档集管理域 (5个ai.* DI token + 6个Knowledges服务)
+- **[Model]** — 模型选择域 (computeSelectedModelAndMode @7215828, 补丁潜力 5/5)
+
+### 关键补丁影响
+
+| 发现 | 对现有补丁的影响 |
+|------|-----------------|
+| IStuckDetectionService @7537021 | bypass-loop-detection 补丁的服务层替代方案 |
+| IAutoAcceptService @8039940 | 自动确认补丁的服务层替代方案 |
+| ICommercialApiService @7559975 | 商业权限域的 API 层入口 |
+| icubeStore.serviceCollection | DI 容器全局入口，可用于任何服务获取 |
+| computeSelectedModelAndMode @7215828 | force-max-mode 补丁核心目标 |
+
+### 产出文件
+
+| 文件 | 内容 |
+|------|------|
+| `shared/discoveries.md` | +P0/P1 深度探索 + 交叉验证 + 四维索引 + 模板验证报告 |
+| `docs/architecture/*.md` | 43 处过时信息修正 |
+| `scripts/explore-deep-p0-phase2.ps1` | P0 Phase 2 聚焦扫描脚本 |
+| `scripts/explore-deep-p1-scan.ps1` | P1 盲区扫描脚本 |
+| `scripts/explore-deep-cross-validate.ps1` | 11 域交叉验证脚本 |
+| `scripts/verify-search-templates.ps1` | 搜索模板可用性验证脚本 |
+
+### 下一步建议
+
+1. **高优**: 基于 IStuckDetectionService 开发 bypass-loop-detection 服务层替代方案
+2. **高优**: 基于 IAutoAcceptService 开发自动确认服务层方案
+3. **高优**: 将 186 个 DI 注册更新到 di-service-registry.md（当前仅记录 51 个）
+4. **高优**: 建立 Model 域架构文档（computeSelectedModelAndMode @7215828）
+5. **中优**: 更新 SSE-02 和 EVT-05 搜索模板（Symbol.for→Symbol, icube.shellExec→?）
+6. **中优**: 探索 ICommercialApiService 与 ICommercialPermissionService 的关系
+7. **中优**: 基于 icubeStore.serviceCollection 开发通用服务获取补丁
+8. **低优**: 探索 [Docset] 域的完整服务链
+
+---
+
+### 本次完成
+
+对 P0 盲区 (54415-6268469, ~6.2MB) 执行了 Phase 2 (10KB级细扫) + Phase 3 (双向扩展深挖) + Phase 3++ (精确搜索)，完成了该区间的系统性探索。
+
+### 核心发现（6 个 Major）
+
+1. **ai.* DI Token 家族 (5个新发现)** ⭐⭐⭐⭐⭐ — IDocsetService/IDocsetStore/IDocsetCkgLocalApiService/IDocsetOnlineApiService/IWebCrawlerFacade，构成完整的文档集管理域
+2. **31 个 I*Service DI Token 完整映射** ⭐⭐⭐⭐⭐ — 包括 IStuckDetectionService/IAutoAcceptService/IPrivacyModeService/ICommercialApiService 等关键服务
+3. **VS Code DI 注入机制** ⭐⭐⭐⭐⭐ — Inject 装饰器使用 Symbol("__instance__")，icubeStore.serviceCollection 是 DI 容器入口，SyncDescriptor 用于单例延迟解析
+4. **API 端点映射** ⭐⭐⭐⭐ — a0ai-api.byteintlapi.com (AI API), bytegate-sg (网关), pc-mon-sg (监控), mcs-nontt (TEA), libraweb-va (AB实验)
+5. **HaltChainable 事件链机制** ⭐⭐⭐⭐ — VS Code Event.chain() 实现可中断事件链，filter 返回 HaltChainable 即中断传播
+6. **P0 盲区组成确认** ⭐⭐⭐⭐ — ~90% 第三方库，~5% i18n，~3% TEA SDK，~2% 业务逻辑。核心业务方法（resumeChat 等）均不在 P0 区间
+
+### 新域候选
+
+- **[Docset]** — 文档集管理域 (5个ai.* DI token + 6个Knowledges服务)
+- **[DI-Inject]** — VS Code DI 注入机制 (__instance__ Symbol, Inject 装饰器)
+
+### 关键补丁影响
+
+| 发现 | 对现有补丁的影响 |
+|------|-----------------|
+| IStuckDetectionService @7537021 | 可用于 bypass-loop-detection 补丁的服务层替代 |
+| IAutoAcceptService @8039940 | 可用于自动确认补丁的服务层替代 |
+| IPrivacyModeService @8036543 | 可用于隐私模式绕过 |
+| ICommercialApiService @7559975 | 商业权限域的 API 层入口 |
+| icubeStore.serviceCollection | DI 容器全局入口，可用于任何服务获取 |
+
+### 产出文件
+
+| 文件 | 内容 |
+|------|------|
+| `shared/discoveries.md` | +P0盲区深度探索完整记录 |
+| `scripts/explore-deep-p0-phase2.ps1` | Phase 2 聚焦扫描脚本 |
+| `scripts/explore-deep-p0-phase3.ps1` | Phase 3 双向扩展脚本 |
+| `scripts/explore-deep-p0-phase3plus.ps1` | Phase 3++ 精确搜索脚本 |
+| `scripts/explore-deep-p0-phase3plus2.ps1` | Phase 3++ DI token 精确搜索脚本 |
+| `scripts/explore-deep-p0-phase2-results.txt` | Phase 2 扫描结果 |
+| `scripts/explore-deep-p0-phase3-results.txt` | Phase 3 深挖结果 |
+| `scripts/explore-deep-p0-phase3plus-results.txt` | Phase 3++ 结果 |
+| `scripts/explore-deep-p0-phase3plus2-results.txt` | Phase 3++ DI token 结果 |
+
+### 下一步建议
+
+1. **高优**: 基于 IStuckDetectionService 开发 bypass-loop-detection 服务层替代方案
+2. **高优**: 基于 IAutoAcceptService 开发自动确认服务层方案
+3. **高优**: 将 31 个 I*Service DI token 更新到 di-service-registry.md
+4. **中优**: 探索 ICommercialApiService 与 ICommercialPermissionService 的关系
+5. **中优**: 基于 icubeStore.serviceCollection 开发通用服务获取补丁
+6. **低优**: 探索 [Docset] 域的完整服务链
+
+---
+
 ## [2026-04-25 23:50] v2 探索远征完成 — 版本适配 + 商业权限 + 新补丁目标
 
 ### 本次完成

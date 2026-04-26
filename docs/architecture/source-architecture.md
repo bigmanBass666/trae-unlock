@@ -1,6 +1,6 @@
 # Trae Source Architecture - 源码架构探索记录
 
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
 
 > 本文档记录了 Trae IDE 源码的完整架构和关键位置，供后续 AI 探索和修改时参考。
 
@@ -61,17 +61,18 @@ D:\apps\Trae CN\resources\app\
 | [command-confirm-system.md](command-confirm-system.md) | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
 | [limitation-map.md](limitation-map.md) | 限制点地图 | 错误码枚举、Alert 渲染点、BlockLevel、ToolCallName |
 | [module-boundaries.md](module-boundaries.md) | 模块边界与依赖 | DI 容器、服务注入、事件系统、模块依赖关系图 |
-| [di-service-registry.md](di-service-registry.md) | DI 服务注册表 | 51 个注册服务、101 个注入点、Symbol 迁移状态 |
+| [di-service-registry.md](di-service-registry.md) | DI 服务注册表 | 186 个注册服务、816 个注入点、Symbol 迁移状态 |
 | [sse-pipeline-topology.md](sse-pipeline-topology.md) | SSE 管道拓扑 | 13 事件类型、15 Parser、EventHandlerFactory 分发逻辑 |
 | [store-architecture.md](store-architecture.md) | Store 架构 | 8 个 Zustand Store、两种 currentSession 模式、无 Immer |
 | [explorer-protocol.md](explorer-protocol.md) | 探险家协议 | 工具决策树、交叉验证流程、发现记录规范 |
 | [exploration-toolkit.md](exploration-toolkit.md) | 工具箱使用指南 | js-beautify、AST 搜索、模块级搜索的使用方法 |
+| [commercial-permission-domain.md](commercial-permission-domain.md) | 商业权限域 | ICommercialPermissionService 服务链、用户身份枚举、配额限制机制、补丁候选 |
 
 ### 1. ai-modules-chat/dist/index.js
 
 **角色**: Trae AI 聊天系统的核心前端组件
 
-**大小**: ~87MB（压缩后）
+**大小**: ~10MB 压缩 JS（当前版本 10490415 chars）
 
 **关键功能**:
 - AI 对话渲染
@@ -83,11 +84,11 @@ D:\apps\Trae CN\resources\app\
 
 | 位置 | 内容 | 重要性 | 专题文档 |
 |------|------|--------|---------|
-| ~41400 | ToolCallName 枚举定义 (RunCommand, ResponseToUser 等) | ⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
-| ~44403 | `Ck.Unconfirmed="unconfirmed"` 枚举定义 | ⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
+| ~41400 | ToolCallName 枚举定义 (38个，含 RunCommand, ResponseToUser 等) | ⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
+| ~44416 | UserConfirmStatusEnum 枚举定义 (Unconfirmed/Confirmed/Skipped/Canceled) | ⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
 | ~46856 | RunningStatus 枚举 (Io) | ⭐⭐ | [store-architecture.md](store-architecture.md) |
 | ~47202 | ChatTurnStatus 枚举 (bQ) | ⭐⭐ | [store-architecture.md](store-architecture.md) |
-| ~54000 | 错误码枚举 (kg) 第一处定义 | ⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
+| ~54000 | 错误码枚举 (kg) 第一处定义 (56个错误码) | ⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
 | ~54269 | `LLM_STOP_DUP_TOOL_CALL=4000009` | ⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
 | ~54415 | `TASK_TURN_EXCEEDED_ERROR=4000002` | ⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
 | ~2665348 | `AI.NEED_CONFIRM="unconfirmed"` 枚举定义 | ⭐⭐⭐ | [command-confirm-system.md](command-confirm-system.md) |
@@ -121,6 +122,11 @@ D:\apps\Trae CN\resources\app\
 | ~8702300 | if(V&&J) Alert 渲染分支 | ⭐⭐⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
 | ~8702342 | auto-continue-thinking 补丁位置 | ⭐⭐⭐⭐⭐ | [limitation-map.md](limitation-map.md) |
 | ~8930000 | ErrorMessageWithActions 组件结束 | ⭐⭐ | [limitation-map.md](limitation-map.md) |
+| ~7267682 | ICommercialPermissionService (NS 类) — 商业权限判断 (aiAgent.命名空间前缀注册, @7197027) | ⭐⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
+| ~7259427 | IEntitlementStore (Nu 类) — 订阅/权益管理 | ⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
+| ~7154491 | ICredentialStore (MX 类) — 凭证管理 | ⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
+| ~6479431 | bJ 枚举 — 用户身份类型 (Free/Pro/ProPlus/Ultra/Trial/Lite/Express) | ⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
+| ~8707858 | ee 变量 — 配额限制标志 | ⭐⭐⭐⭐ | [commercial-permission-domain.md](commercial-permission-domain.md) |
 
 ### 2. workbench.desktop.main.js
 
@@ -317,3 +323,38 @@ if(r){provideUserResponse(...)}else{this._logService.warn("...")}
 // 在 service-layer 补丁中检查 confirm_status 防止 knowledge 分支已处理
 (e?.confirm_info?.confirm_status!=="confirmed")&&(this._taskService.provideUserResponse(...))
 ```
+
+---
+
+## 新增关键服务与发现 (2026-04-26 审计更新)
+
+### 新增 DI 服务
+
+| 服务 | 偏移量 | 说明 |
+|------|--------|------|
+| IStuckDetectionService | @7537021 | 卡住检测服务 |
+| IAutoAcceptService | @8039940 | 自动接受服务 |
+| ICommercialApiService | @7559975 | 商业 API 服务 |
+| IPrivacyModeService | @8036543 | 隐私模式服务 |
+
+### 新增 ai.* DI Token 家族
+
+| DI Token | 说明 |
+|----------|------|
+| ai.IDocsetService | 文档集服务 |
+| ai.IDocsetStore | 文档集存储 |
+| ai.IDocsetCkgLocalApiService | 文档集本地 API 服务 |
+| ai.IDocsetOnlineApiService | 文档集在线 API 服务 |
+| ai.IWebCrawlerFacade | 网页爬虫门面 |
+
+### eY0 模块入口对象 (@10476892)
+
+| 方法 | 说明 |
+|------|------|
+| registerAdapter | 适配器注册 |
+| getRegisteredAdapter | 获取已注册适配器 |
+| bootstrapApplicationContainer | 应用容器引导 (含 25 个 VS Code 命令注册, @10477819) |
+
+### Model 域 (待建架构文档)
+
+核心锚点: `computeSelectedModelAndMode` @7215828

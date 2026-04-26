@@ -2,7 +2,7 @@
 
 > **版本**: 1.0 | **创建日期**: 2026-04-25 | **适用项目**: trae-unlock
 >
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
 >
 > 本文档是 trae-unlock 项目探索工具链的完整使用手册。所有参与源码探索的 Agent 应在开始深度探索前阅读本文档。
 
@@ -14,7 +14,7 @@ trae-unlock 的目标文件是 Trae IDE 的 `@byted-icube/ai-modules-chat/dist/i
 
 - **单行压缩**：整个文件可能只有 1-3 行，所有代码被 webpack 打包压缩为一行
 - **无 source map**：无法通过 reverse-sourcemap 还原原始源码
-- **体积巨大**：解包后膨胀至 **21.18 MB / 347,099 行**
+- **体积巨大**：解包后膨胀至 **21.18 MB / 347,244 行**
 - **含 TypeScript 装饰器**：使用了 `@babel/parser` 才能正确解析的装饰器语法
 
 传统搜索工具在此场景下完全失效：
@@ -112,7 +112,7 @@ Unpack-TraeIndex -Force
 
 [unpack] File Statistics: index.beautified.js
   Size:          21.18 MB (22208802 bytes)
-  Lines:         347,099
+  Lines:         347,244
   Last Modified: 2026-04-25 21:11:49
   Created:       2026-04-25 21:09:30
 
@@ -137,7 +137,7 @@ Get-UnpackStats -Path "d:\Test\trae-unlock\unpacked\beautified.js"
 | 指标 | 健康范围 | 当前值 | 判定 |
 |------|---------|--------|------|
 | 文件大小 | 18-25 MB | 21.18 MB | ✅ 正常 |
-| 行数 | 300,000-400,000 | 347,099 | ✅ 正常 |
+| 行数 | 300,000-400,000 | 347,244 | ✅ 正常 |
 | 压缩比 | 2.0:1 - 2.5:1 | 2.26:1 | ✅ 正常 |
 
 异常信号：
@@ -855,7 +855,7 @@ $astResult = Search-AST -FilePath "unpacked\beautified.js" `
 
 ### 5.2 案例 2: 盲区扫描实战
 
-**场景**: 需要在 347,099 行代码中找出之前从未注意过的、可能与「命令执行确认」相关的未知代码。
+**场景**: 需要在 347,244 行代码中找出之前从未注意过的、可能与「命令执行确认」相关的未知代码。
 
 #### Step 1: 全局模块扫描
 

@@ -2,7 +2,7 @@
 
 > PlanItemStreamParser — Trae AI 聊天系统的核心 SSE 流解析器
 
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490415 chars)
 
 ## 1. 概述
 

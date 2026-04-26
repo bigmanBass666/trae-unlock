@@ -89,20 +89,7 @@ if(V&&J){...}  // 原有逻辑不变
    d. 回滚到工作版本的 definitions.json + 干净目标文件
    e. apply-patches + node --check + 重启 Trae 验证
    ```
-module: discoveries
-description: 源码发现和代码定位（核心资产）
-read_priority: P2
-read_when: 需要查代码时
-write_when: 发现关键信息时
-format: registry
----
 
-# 源码探索经验
-
-> **这是本项目最有价值的文件。** 所有 Trae 内部代码位置、枚举值、架构关系都在这里。
-> 未来 AI 同事：改补丁前先搜这里，90% 的概率前人已经分析过。
-
----
 
 ## 架构总览
 
@@ -4206,3 +4193,2469 @@ P1 盲区扫描（31 个采样点）结果：
 - **confidence**: high
 - **verified_by**: $c.IndexOf() 实际搜索
 - **last_verified**: 2026-04-25
+### [2026-04-26 04:15] 11域交叉验证 + 新域探索
+
+> 自动化交叉验证结果，由 explore-deep-cross-validate.ps1 生成
+
+## [DI] 域交叉验证
+
+| 检查项 | 预期 | 实际 | 结果 |
+|--------|------|------|------|
+| uJ({identifier: 注册数 | 51 | 186 | ❌ FAIL |
+| uX( 注入数 | 101 | 817 | ❌ FAIL |
+| ISessionStore | 7092843 | 7092843 | ✅ PASS |
+| IPlanItemStreamParser | 7510931 | 7510931 | ✅ PASS |
+
+## [SSE] 域交叉验证
+
+| 检查项 | 实际值 |
+|--------|--------|
+| eventHandlerFactory 出现次数 | 5 |
+| handleSteamingResult 出现次数 | 10 |
+| handleSteamingResult 位置 | 7328394, 7490128, 7503265, 7505244, 7511054, 7517005, 7518770, 7520557, 7521682, 7523529 |
+
+| 事件类型 | 出现次数 | 位置 |
+|---------|---------|------|
+| PlanItem | 2 | 7514720, 7527483 |
+| Error | 5 | 7517735, 7527511, 7545623 |
+| Done | 3 | 7519472, 7527536, 7545632 |
+| Metadata | 4 | 7322040, 7504304, 7527424 |
+| Notification | 2 | 7328738, 7527755 |
+| TextMessage | 2 | 7505706, 7527452 |
+| UserMessage | 2 | 7523720, 7527618 |
+| TokenUsage | 4 | 7524662, 7527649, 7537085 |
+| Queueing | 0 |  |
+| FeeUsage | 2 | 7490394, 7527396 |
+| SessionTitle | 2 | 7527716, 7537132 |
+
+## [Store] 域交叉验证
+
+| 检查项 | 实际值 |
+|--------|--------|
+| setCurrentSession 出现次数 | 25 |
+| .subscribe( 出现次数 | 33 |
+| .getState() 出现次数 | 234 |
+
+| Store Token | 存在 | 位置 |
+|------------|------|------|
+| ISessionStore | ✅ | 7092843 |
+| IInlineSessionStore | ✅ | 7227306 |
+| IModelStore | ✅ | 7191686 |
+| IEntitlementStore | ✅ | 7264735 |
+| ISessionRelationStoreInternal | ✅ | 7209315 |
+
+## [Error] 域交叉验证
+
+| 错误码枚举 | 出现次数 | 首次位置 |
+|-----------|---------|---------|
+| kg.ABNORMAL_ACCOUNT_LOGOUT | 1 | 7300485 |
+| kg.ACCOUNT_DELETED | 1 | 7300566 |
+| kg.CAN_NOT_USE_SOLO_AGENT | 1 | 8716750 |
+| kg.CLAUDE_MODEL_FORBIDDEN | 1 | 8717190 |
+| kg.CLIENT_NETWORK_ERROR | 3 | 8706194 |
+| kg.CLIENT_NETWORK_ERROR_INTERNAL | 2 | 8706261 |
+| kg.CONNECTION_ERROR | 1 | 8706131 |
+| kg.CONTENT_SECURITY_BLOCKED | 1 | 8715027 |
+| kg.CURRENT_SYSTEM_NOT_SUPPORT_AI | 1 | 8709696 |
+| kg.CUSTOM_MODEL_ORIGIN_ERROR | 3 | 7300001 |
+| kg.DEFAULT | 7 | 7299816 |
+| kg.ENTERPRISE_ALL_MODEL_TENANT_QUOTA_EXCEEDED | 1 | 8711249 |
+| kg.ENTERPRISE_ALL_MODEL_USER_QUOTA_EXCEEDED | 1 | 8711295 |
+| kg.ENTERPRISE_NOT_ALLOWED_ADD_CUSTOM_MODEL | 1 | 7300844 |
+| kg.ENTERPRISE_PER_MODEL_TENANT_QUOTA_EXCEEDED | 1 | 8711339 |
+| kg.ENTERPRISE_PER_MODEL_USER_QUOTA_EXCEEDED | 1 | 8711385 |
+| kg.ENTERPRISE_QUOTA_CONFIG_INVALID | 1 | 8711429 |
+| kg.ENTERPRISE_SEAT_MODEL_USAGE_EXHAUSTED | 1 | 8711208 |
+| kg.ENTERPRISE_SUBSCRIPTION_EXPIRED | 1 | 8711464 |
+| kg.ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST | 1 | 7301073 |
+| kg.ENTERPRISE_TOKEN_EXPIRATION | 1 | 7301152 |
+| kg.ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED | 1 | 7301111 |
+| kg.EXTERNAL_LLM_MODEL_NOT_FOUND | 2 | 9962921 |
+| kg.EXTERNAL_LLM_REQUEST_FAILED | 3 | 7299970 |
+| kg.FIREWALL_BLOCKED | 1 | 8718141 |
+| kg.FREE_ACTIVITY_QUOTA_EXHAUSTED | 2 | 7301230 |
+| kg.INLINE_CHAT_EMPTY_RESULT | 1 | 9918490 |
+| kg.INTERNAL_PPE_ENV_NOT_EXIST | 1 | 8707695 |
+| kg.INVALID_TOOL_CALL | 1 | 8720708 |
+| kg.LLM_STOP_CONTENT_LOOP | 1 | 8707861 |
+| kg.LLM_STOP_DUP_TOOL_CALL | 1 | 8707835 |
+| kg.LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT | 1 | 8709794 |
+| kg.MODEL_AUTO_SELECTION_FAILED | 1 | 8706416 |
+| kg.MODEL_FAIL | 1 | 8706447 |
+| kg.MODEL_NOT_EXISTED | 2 | 7300637 |
+| kg.MODEL_OUTPUT_TOO_LONG | 1 | 8707782 |
+| kg.MODEL_PREMIUM_QUOTA_DRAINED | 1 | 8711715 |
+| kg.MODEL_RESPONSE_FAILED_ERROR | 1 | 8706385 |
+| kg.MODEL_RESPONSE_TIMEOUT_ERROR | 2 | 7516605 |
+| kg.NETWORK_CHANGED | 1 | 8706218 |
+| kg.NETWORK_DISCONNECTED | 1 | 8706237 |
+| kg.NETWORK_ERROR | 1 | 8706151 |
+| kg.NETWORK_ERROR_INTERNAL | 1 | 8706168 |
+| kg.OS_SUSPEND_TIMEOUT | 1 | 7516686 |
+| kg.PASSWORD_CHANGED | 1 | 7300964 |
+| kg.PAYGO_ARREARS | 1 | 8712521 |
+| kg.PREMIUM_MODE_USAGE_LIMIT | 5 | 7301418 |
+| kg.REPO_LEVEL_MODEL_UNAVAILABLE | 2 | 7300717 |
+| kg.REQUEST_TIMEOUT_ERROR | 1 | 8706294 |
+| kg.REQUEST_TIMEOUT_ERROR_INTERNAL | 1 | 8706319 |
+| kg.RISK_REQUEST | 2 | 7300063 |
+| kg.RISK_REQUEST_V2 | 2 | 7300079 |
+| kg.SERVER_CRASH | 1 | 8706115 |
+| kg.STANDARD_MODE_USAGE_LIMIT | 4 | 8045039 |
+| kg.TASK_TURN_EXCEEDED_ERROR | 1 | 8707807 |
+| kg.TOOL_CALL_RETRY_LIMIT | 1 | 8721749 |
+
+| 关键错误码 | 存在 | 位置 |
+|-----------|------|------|
+| TASK_TURN_EXCEEDED | ✅ | 8707807 |
+| PREMIUM_MODE_USAGE_LIMIT | ✅ | 7301418 |
+| STANDARD_MODE_USAGE_LIMIT | ✅ | 8045039 |
+| FIREWALL_BLOCKED | ✅ | 8718141 |
+| J=!![ 出现次数 | 1 |
+| J=!![ 位置 | 8707777 |
+| handleCommonError 出现次数 | 5 |
+| handleCommonError 位置 | 7300455, 7546052, 7549616, 7692177, 9959714 |
+
+## [Commercial] 域交叉验证
+
+| 注册模式 | 存在 | 位置 |
+|---------|------|------|
+| Symbol.for | ✅ | 7197015 |
+| Symbol | ❌ | N/A |
+| isCommercialUser 出现次数 | 4 |
+| isCommercialUser 位置 | 7267803, 7267968, 7268053, 8688169 |
+| entitlementInfo 出现次数 | 10 |
+| entitlementInfo 位置 | 7264804, 7264904, 7264952, 7267718, 7280616, 7817315, 8052472, 8053363, 8276324, 8687648 |
+| isFreeUser 出现次数 | 2 |
+| isFreeUser 位置 | 8688156, 8705828 |
+
+## 潜在新域探索
+
+### [Network] 候选域
+
+| 锚点 | 出现次数 | 位置 |
+|------|---------|------|
+| fetch( | 16 | 225215, 589740, 1746300, 1832019, 1876092 |
+| XMLHttpRequest | 9 | 225865, 341267, 590509, 643982, 1876853 |
+| axios | 1 | 6524279 |
+| interceptor | 8 | 6518966, 6519989, 6520152, 6524293, 6524414 |
+
+| 评估维度 | 结果 |
+|---------|------|
+| 独立实体数 | 4 / 4 |
+| 总命中数 | 12 |
+| DI 接口存在 | 是 |
+| 功能性锚点存在 | 是 |
+| 新域评分 | 5 / 5 |
+| 判定 | 🟢 新域候选 (≥3 独立实体) |
+
+### [Model] 候选域
+
+| 锚点 | 出现次数 | 位置 |
+|------|---------|------|
+| IModelService | 16 | 2530642, 2530680, 6991623, 7055279, 7055323 |
+| IModelStorageService | 1 | 7182365 |
+| computeSelectedModel | 3 | 7213492, 7215828, 7223323 |
+| modelList | 20 | 7023445, 7192056, 7193677, 7213580, 7215928 |
+
+| 评估维度 | 结果 |
+|---------|------|
+| 独立实体数 | 4 / 4 |
+| 总命中数 | 12 |
+| DI 接口存在 | 是 |
+| 功能性锚点存在 | 是 |
+| 新域评分 | 5 / 5 |
+| 判定 | 🟢 新域候选 (≥3 独立实体) |
+
+### [History] 候选域
+
+| 锚点 | 出现次数 | 位置 |
+|------|---------|------|
+| IPastChatExporter | 1 | 7574983 |
+| chatHistory | 3 | 7142004, 7885174, 8886379 |
+| exportChat | 0 | N/A |
+| pastChat | 4 | 7575864, 7576174, 7577034, 7577361 |
+
+| 评估维度 | 结果 |
+|---------|------|
+| 独立实体数 | 3 / 4 |
+| 总命中数 | 12 |
+| DI 接口存在 | 是 |
+| 功能性锚点存在 | 是 |
+| 新域评分 | 5 / 5 |
+| 判定 | 🟢 新域候选 (≥3 独立实体) |
+
+### [Auth] 候选域
+
+| 锚点 | 出现次数 | 位置 |
+|------|---------|------|
+| ICredentialFacade | 1 | 7021013 |
+| login | 210 | 82053, 154153, 154186, 199811, 203770 |
+| logout | 30 | 6055046, 6150237, 6233630, 6697236, 6697290 |
+| authenticate | 6 | 6676823, 6815869, 6956668, 9582533, 9582555 |
+| token | 1002 | 19119, 40380, 44834, 45044, 60924 |
+
+| 评估维度 | 结果 |
+|---------|------|
+| 独立实体数 | 5 / 5 |
+| 总命中数 | 15 |
+| DI 接口存在 | 是 |
+| 功能性锚点存在 | 是 |
+| 新域评分 | 5 / 5 |
+| 判定 | 🟢 新域候选 (≥3 独立实体) |
+
+### [Telemetry] 候选域
+
+| 锚点 | 出现次数 | 位置 |
+|------|---------|------|
+| ITeaFacade | 1 | 7140161 |
+| ISlardarFacade | 1 | 7139445 |
+| TeaReporter | 3 | 914, 935, 2166 |
+| slardar | 51 | 155688, 2655769, 5870999, 7044926, 7045135 |
+
+| 评估维度 | 结果 |
+|---------|------|
+| 独立实体数 | 4 / 4 |
+| 总命中数 | 12 |
+| DI 接口存在 | 是 |
+| 功能性锚点存在 | 是 |
+| 新域评分 | 5 / 5 |
+| 判定 | 🟢 新域候选 (≥3 独立实体) |
+
+## 验证汇总
+
+| 指标 | 值 |
+|------|-----|
+| 目标文件大小 | 10 MB |
+| 目标文件字符数 | 10490415 |
+| ✅ PASS | 11 |
+| ⚠️ WARN/DRIFT | 0 |
+| ❌ FAIL | 2 |
+| 总检查项 | 13 |
+
+### 深度分析 ⭐⭐⭐
+
+#### DI 域计数纠正
+
+| 指标 | 文档记录 | 实际值 | 原因 |
+|------|---------|--------|------|
+| uJ({identifier: 注册数 | 51 | **186** | 文档记录的是"服务"数，实际 `uJ({identifier:` 匹配所有 DI 装饰器注册点（含方法级注册），186 是精确值 |
+| uX( 注入数 | 101 | **817** (816注入+1定义) | 文档记录的是"类级注入"，实际 `uX(` 匹配所有属性注入点，816 是精确值 |
+
+> **结论**: DI 文档中的 51/101 是早期版本或仅统计了类级注册/注入。当前版本实际注册点 186、注入点 816。`di-service-registry.md` 需更新。
+
+#### J 变量完整定义 @8708083
+
+```javascript
+J=!![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR, kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP, kg.DEFAULT].includes(_)
+```
+
+**关键发现**: J 变量包含 **5** 个错误码（文档仅记录 4 个）：
+- `kg.MODEL_OUTPUT_TOO_LONG` ← **新发现！** 未在文档中记录
+- `kg.TASK_TURN_EXCEEDED_ERROR` ✅ 已知
+- `kg.LLM_STOP_DUP_TOOL_CALL` ✅ 已知
+- `kg.LLM_STOP_CONTENT_LOOP` ✅ 已知
+- `kg.DEFAULT` ✅ 已知
+
+#### X 变量新发现 @8708083 附近
+
+```javascript
+X=!![kg.MODEL_NOT_EXISTED].includes(_)
+```
+
+X 是一个独立的"模型不存在"标志变量，之前未被记录。
+
+#### 完整标志变量链 @8708083
+
+```javascript
+X=!![kg.MODEL_NOT_EXISTED].includes(_)
+J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)
+ee=!![kg.PREMIUM_MODE_USAGE_LIMIT,kg.STANDARD_MODE_USAGE_LIMIT].includes(_)
+```
+
+#### kg 错误码枚举扩展
+
+文档记录 ~30 个，实际发现 **56** 个。新增关键错误码：
+
+| 新增错误码 | 首次位置 | 含义推断 |
+|-----------|---------|---------|
+| kg.ABNORMAL_ACCOUNT_LOGOUT | 7300485 | 账号异常登出 |
+| kg.ACCOUNT_DELETED | 7300566 | 账号已删除 |
+| kg.CUSTOM_MODEL_ORIGIN_ERROR | 7300001 | 自定义模型源错误 |
+| kg.ENTERPRISE_ALL_MODEL_TENANT_QUOTA_EXCEEDED | 8711249 | 企业租户全模型配额超限 |
+| kg.ENTERPRISE_ALL_MODEL_USER_QUOTA_EXCEEDED | 8711295 | 企业用户全模型配额超限 |
+| kg.ENTERPRISE_PER_MODEL_TENANT_QUOTA_EXCEEDED | 8711339 | 企业租户单模型配额超限 |
+| kg.ENTERPRISE_PER_MODEL_USER_QUOTA_EXCEEDED | 8711385 | 企业用户单模型配额超限 |
+| kg.ENTERPRISE_SEAT_MODEL_USAGE_EXHAUSTED | 8711208 | 企业席位模型用量耗尽 |
+| kg.ENTERPRISE_SUBSCRIPTION_EXPIRED | 8711464 | 企业订阅过期 |
+| kg.ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST | 7301073 | 企业 Token 账号不存在 |
+| kg.ENTERPRISE_TOKEN_EXPIRATION | 7301152 | 企业 Token 过期 |
+| kg.ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED | 7301111 | 企业 Token 订阅过期 |
+| kg.EXTERNAL_LLM_MODEL_NOT_FOUND | 9962921 | 外部 LLM 模型未找到 |
+| kg.FREE_ACTIVITY_QUOTA_EXHAUSTED | 7301230 | 免费活动配额耗尽 |
+| kg.INLINE_CHAT_EMPTY_RESULT | 9918490 | 内联聊天空结果 |
+| kg.INTERNAL_PPE_ENV_NOT_EXIST | 8707695 | 内部 PPE 环境不存在 |
+| kg.MODEL_NOT_EXISTED | 7300637 | 模型不存在 |
+| kg.MODEL_OUTPUT_TOO_LONG | 8707782 | 模型输出过长 |
+| kg.MODEL_PREMIUM_QUOTA_DRAINED | 8711715 | 高级模型配额耗尽 |
+| kg.OS_SUSPEND_TIMEOUT | 7516686 | OS 挂起超时 |
+| kg.PASSWORD_CHANGED | 7300964 | 密码已更改 |
+| kg.PAYGO_ARREARS | 8712521 | 按量付费欠费 |
+| kg.RISK_REQUEST | 7300063 | 风险请求 |
+| kg.CURRENT_SYSTEM_NOT_SUPPORT_AI | 8709696 | 当前系统不支持 AI |
+| kg.ENTERPRISE_NOT_ALLOWED_ADD_CUSTOM_MODEL | 7300844 | 企业不允许添加自定义模型 |
+| kg.REPO_LEVEL_MODEL_UNAVAILABLE | 7300717 | 仓库级模型不可用 |
+
+#### SSE 事件枚举纠正
+
+- 事件枚举前缀是 **Ot.**（不是 D7）
+- `Ot.Queueing` 出现 0 次 → Queueing 事件可能使用不同枚举名或已移除
+- 其余 10/11 事件类型验证通过
+
+#### 5 个新域确认
+
+| 域 | 评分 | 核心实体 | 补丁潜力 |
+|----|------|---------|---------|
+| **Network** | 5/5 | fetch(16), XMLHttpRequest(9), axios(1), interceptor(8) | ⭐⭐ 请求拦截/修改 |
+| **Model** | 5/5 | IModelService(16), IModelStorageService(1), computeSelectedModel(3), modelList(20) | ⭐⭐⭐⭐⭐ 模型选择/模式解锁 |
+| **History** | 5/5 | IPastChatExporter(1), chatHistory(3), pastChat(4) | ⭐⭐ 历史导出 |
+| **Auth** | 5/5 | ICredentialFacade(1), login(210), logout(30), authenticate(6), token(1002) | ⭐⭐⭐ 凭证/身份伪造 |
+| **Telemetry** | 5/5 | ITeaFacade(1), ISlardarFacade(1), TeaReporter(3), slardar(51) | ⭐⭐ 遥测屏蔽 |
+
+> **Model 域** 补丁潜力最高：`computeSelectedModelAndMode` @7215828 是模式选择核心，`IModelStorageService` @7182365 是模型配置存储，配合 Commercial 域的 `isCommercialUser()` 可实现完整的模式/模型解锁。
+
+
+
+## [2026-04-26 04:16] P1盲区系统性扫描
+
+> 区间1(UI下半: 8930000-9910446) + 区间2(命令注册: 9910446-10743303) + 区间3(首部: 0-41400) + 区间4(尾部)
+> 共发现 31 个目标
+
+### [2026-04-26 04:16] sX().createElement 发现 @8981240 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @8981240
+- 所属域标签: [React]
+#### 数据/证据
+```
+enFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @8981278 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @8981278
+- 所属域标签: [React]
+#### 数据/证据
+```
+s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @8981339 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @8981339
+- 所属域标签: [React]
+#### 数据/证据
+```
+.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX().createElement(Cr.EllipsisTooltip,{className:"auto-run-sett
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9082633 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9082633
+- 所属域标签: [React]
+#### 数据/证据
+```
+.77931 13.2188 3.77931",fill:t}),sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",stroke:t,strokeWidth:"2.8125"}),sX().createElement("path",{d:"M15.9688
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9082845 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9082845
+- 所属域标签: [React]
+#### 数据/证据
+```
+2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",stroke:t,strokeWidth:"2.8125"}),sX().createElement("path",{d:"M15.9688 3.79694L11.1641 6.57094V1.02295L15.9688 3.79694Z",fill:t,stroke:t,strokeWidth:"0.03125"}),sX().createElement("path",{d:"M0 7.78125C0.46875 7.78125 2.28125 8.18578 3.21875 8.71703C4.15625 9.24828 4.15625 9.24828 
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9082974 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9082974
+- 所属域标签: [React]
+#### 数据/证据
+```
+rokeWidth:"2.8125"}),sX().createElement("path",{d:"M15.9688 3.79694L11.1641 6.57094V1.02295L15.9688 3.79694Z",fill:t,stroke:t,strokeWidth:"0.03125"}),sX().createElement("path",{d:"M0 7.78125C0.46875 7.78125 2.28125 8.18578 3.21875 8.71703C4.15625 9.24828 4.15625 9.24828 6.09375 10.6233C8.54678 12.3641 10.2812 11.7812 13.125 11.7812",fill:t}),sX().createElement("path",{d:"M0 7.78125C0.46875 7.78125
+```
+
+### [2026-04-26 04:16] useEffect 发现 @9186326 ⭐***
+> 区间1采样命中 useEffect
+#### 位置信息
+- 偏移量: @9186326
+- 所属域标签: [React]
+#### 数据/证据
+```
+t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().createElement(epU,{id:e,taskId:i})}),[i]),f=s("ai.chat.reasoningContent.title",{},"Thought");ret
+```
+
+### [2026-04-26 04:16] useState 发现 @9186206 ⭐***
+> 区间1采样命中 useState
+#### 位置信息
+- 偏移量: @9186206
+- 所属域标签: [React]
+#### 数据/证据
+```
+(),expand:!(e?.thought||e?.toolName),reasoningContent:e.reasoningContent||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({m
+```
+
+### [2026-04-26 04:16] useState 发现 @9186231 ⭐***
+> 区间1采样命中 useState
+#### 位置信息
+- 偏移量: @9186231
+- 所属域标签: [React]
+#### 数据/证据
+```
+?.toolName),reasoningContent:e.reasoningContent||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().c
+```
+
+### [2026-04-26 04:16] useRef 发现 @9186271 ⭐***
+> 区间1采样命中 useRef
+#### 位置信息
+- 偏移量: @9186271
+- 所属域标签: [React]
+#### 数据/证据
+```
+Content||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().createElement(epU,{id:e,taskId:i})}),[i])
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9389825 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9389825
+- 所属域标签: [React]
+#### 数据/证据
+```
+.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(0,sK.memo)(({taskChunks:e,taskGroups:t,thinkingElement:i,onUpdateTaskExecutionStatus:r,isLat
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9389855 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9389855
+- 所属域标签: [React]
+#### 数据/证据
+```
+.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(0,sK.memo)(({taskChunks:e,taskGroups:t,thinkingElement:i,onUpdateTaskExecutionStatus:r,isLatest:n})=>{let o=(0,JP.Sz)(Jj,e
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9390656 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9390656
+- 所属域标签: [React]
+#### 数据/证据
+```
+nId,t.agentStatus)}return e},[d]),p=(0,Ir.Z)(e=>{u.executeCommand("icube.subAgentDetail.open",e)}),g=(e,t)=>{let i=[],o=[],a=()=>{o.length>0&&(i.push(sX().createElement("div",{className:"ai-agent-task-browser-group",key:`browser-group-${o[0].id}`,style:{display:"flex",flexDirection:"column",gap:"4px"}},o.map((i,o)=>{let a=e.indexOf(i)===e.length-1;return sX().createElement(evV,{key:i.id,item:i,isL
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9799784 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9799784
+- 所属域标签: [React]
+#### 数据/证据
+```
+=r.parsedQuery?.length?Cy(r.parsedQuery):r.content,!r.content&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createEle
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9799844 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9799844
+- 所属域标签: [React]
+#### 数据/证据
+```
+t&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container
+```
+
+### [2026-04-26 04:16] sX().createElement 发现 @9799913 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9799913
+- 所属域标签: [React]
+#### 数据/证据
+```
+]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container"],onClick:i?.current?.handleCopy},sX().createElement("div",{classNam
+```
+
+### [2026-04-26 04:16] 文件首部: __esModule 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @142
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="ed
+```
+
+### [2026-04-26 04:16] 文件首部: __esModule 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @888
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+,{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extension_version:i?.extensionV
+```
+
+### [2026-04-26 04:16] 文件首部: __esModule 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @1671
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+finedValues(e){let t={};for(let[i,r]of Object.entries(e))void 0!==r&&(t[i]=r);return t}}},39124:function(e,t,i){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.createInternalContributionSdk=function(e){let t=new r.AIContributionTracker(e);return{reportAICodeContribution:e=>t.reportAICodeContribution(e),updateGitUrls:e=>t.updateGitUrls(e)}};let r=i(31397)},31397:function(e,t,i){"use
+```
+
+### [2026-04-26 04:16] 文件首部: Object.defineProperty 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @117
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r
+```
+
+### [2026-04-26 04:16] 文件首部: Object.defineProperty 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @683
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+_EVENT="ai_contribution_code",t.BYTEDANCE_SCOPE="bytedance"},32499:function(e,t,i){"use strict";t.createInternalContributionSdk=void 0;var r=i(39124);Object.defineProperty(t,"createInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,
+```
+
+### [2026-04-26 04:16] 文件首部: Object.defineProperty 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @863
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+eInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extens
+```
+
+### [2026-04-26 04:16] 文件首部前500字符 ⭐****
+> webpack bootstrap 入口代码
+#### 位置信息
+- 偏移量: @0
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="edit",r.GenerateCode="generate",r.Question="question",r.LineDoc="lines_doc",r.Search="search",r.NewBuilder="ne
+```
+
+### [2026-04-26 04:16] 文件尾部最后200字符 ⭐*****
+> IIFE 闭合与模块导出
+#### 位置信息
+- 偏移量: @10743103
+- 所属域标签: [Export]
+#### 数据/证据
+```
+AITaskPanelComponent:eYi,AIConversationSettingsComponent:eRw,RuleMetadataFormComponent:eYG,DSLAgentPaneComponent:ePi,SubAgentDetailComponent:ePo,KnowledgesInitPopupComponent:ePd},apis:FW}})(),l})()});
+```
+
+### [2026-04-26 04:16] 候选命令模式 @9971712 ⭐***
+> 疑似命令注册模式
+#### 位置信息
+- 偏移量: @9971712
+- 所属域标签: [Command]
+#### 数据/证据
+```
+"complete",e=>{if(!Q(i))return null;z.current.uploadEndTime=Date.now();let r=e.uploadResult,o=r?.Uri||"";d(e=>({...e,uri:o})),W("icube_custom_agent_avatar_upload_success"),C.current=!0,x.current=0,z.current.auditStartTime=Date.now(),Y(o,t?.agent_id,{uri:o,file:n,url:u})}),a.on("error",e=>{if(!Q(i))r
+```
+
+### [2026-04-26 04:16] 候选命令模式 @9971990 ⭐***
+> 疑似命令注册模式
+#### 位置信息
+- 偏移量: @9971990
+- 所属域标签: [Command]
+#### 数据/证据
+```
+"error",e=>{if(!Q(i))return null;v.error("icube_custom_agent_avatar_upload_error",e),G(e?.extra?.message)}),z.current.uploadStartTime=Date.now(),a.start(l)}e.target.value=""}catch(e){if(!Q(i))return null;G(JSON.stringify(e))}finally{if(!Q(i))return null;e.target.value=""}},[Q,r,O?.userId,O?.scope,b,
+```
+
+### [2026-04-26 04:16] 候选命令模式 @9974448 ⭐***
+> 疑似命令注册模式
+#### 位置信息
+- 偏移量: @9974448
+- 所属域标签: [Command]
+#### 数据/证据
+```
+"click",function(e){e.stopPropagation()}),t?.agent_id&&t?.avatar_id){let e={url:await g.getAgentAvatarBase64ById(t?.avatar_id)};l(e),d(e),p(e)}else l(void 0),d(void 0),p(void 0)},[t?.agent_id,t?.avatar_id,g]);return(0,sK.useEffect)(()=>{J()},[J]),(0,sK.useEffect)(()=>{let e=b.onReceiveAuditResult(Z)
+```
+
+### [2026-04-26 04:16] UI组件: 聊天输入 (ChatInput) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @9015579
+- 所属域标签: [React]
+#### 数据/证据
+```
+sPath.replace(`${a.uri.fsPath}/`,""):"",uri:t,selections:[]}}),r=[...i?.map(e=>({filePath:e.uri.path,relatePath:e?.relatePath,name:`${z(e.uri.path)}`,title:e.uri.path,type:"file"})),_],d=(0,Cr.convertChatInputParsedQueryToMessage)(r);u.sendChatMessage({message:d,sessionId:l.getCurrentSession()?.sessionId,parsedQuery:r,multiMedia:[],triggerMode:void 0,isInputOptimized:!1,asrTimes:0}),w(!0),j(!0)},[S,R,_,l,j,n,o,a,u,t,s]),F=(0,sK.useMemo)(()=>g||A||!P||b||O?.length===0,[g,A,P,b,O?.length]),U=(0,sK
+```
+
+### [2026-04-26 04:16] UI组件: 文件差异 (FileDiff) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @8932385
+- 所属域标签: [React]
+#### 数据/证据
+```
+p=(0,sK.useMemo)(()=>!!es?.find(e=>e?.relativePath===$),[es,$]),eg=(0,Ir.Z)(()=>{if(!l?.result?.data?.can_show_diff||a&&ep){eu();return}eo({location:"file_card_open_diff"});let e=_?Cy(_):void 0;p.openFileDiffViewInSummaryFromSnapshot({sessionId:b,messageId:w||"",toolcallId:[l?.toolCallId||""],title:e,location:"single_file_open_diff"})}),ef=uB(Hp),em=(0,Ir.Z)(e=>{Q.click("lint_error"),el?.filePath&&ef.openFile(el?.filePath,e?.range?eg4(e?.range):void 0)}),e_=(0,sK.useMemo)(()=>{if(l&&CO(l))return
+```
+
+### [2026-04-26 04:16] UI组件: 工具调用 (ToolCall) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @9067039
+- 所属域标签: [React]
+#### 数据/证据
+```
+return sX().createElement(Cr.SearchCodebaseCard,{keywords:h,status:a,fileList:d,onFileClick:l})}let em0=(e,t,i)=>{let r=(0,sK.useMemo)(()=>{if(t){if(e===CE.Running||e===CE.Canceled)return Cr.TasksListToolCall.Status.Canceled;if(e!==CE.Success)return Cr.TasksListToolCall.Status.Unknown}return e===CE.Running?Cr.TasksListToolCall.Status.Generating:e===CE.Success?i.length?i.some(e=>e.status===Cr.TasksListToolCall.TaskStatus.InProgress)?Cr.TasksListToolCall.Status.InProgress:i.every(e=>e.status===Cr.
+```
+
+### [2026-04-26 04:16] UI组件: 确认状态 (confirm_status) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @8975688
+- 所属域标签: [React]
+#### 数据/证据
+```
+Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h||""}),{file_paths:f}=r?.params??{},{confirm_info:_}=r??{},{terminal_id:y}=r?.result?.data??{},{status:v}=r?.result??{},{confirm_status:b,auto_confirm:w}=_??{},{toolCallStatus:S}=ep0({isHistory:e,toolCallResultStatus:v,confirmStatus:b}),E=egd({isHistory:e,toolCallId:r?.id,toolCallName:r?.toolName}),A=(0,sK.useCallback)(async e=>{await a.updateRunCommandToolStatusFromUser({planItemId:r?.planItemId,agentMessageId:p||"",
+
+---
+
+## 📇 按域搜索索引
+
+### [DI] 依赖注入
+- DI 容器系统完整映射 @6268469 ⭐⭐⭐⭐⭐
+- DI Token 注册表 Symbol.for 54个 @6473533 ⭐⭐⭐⭐⭐
+- DI Token 注册表 Symbol 52个 @7087490 ⭐⭐⭐⭐
+- uj.getInstance().resolve() 45次调用 @6268469 ⭐⭐⭐⭐⭐
+- uJ 装饰器 51服务注册 @7017457 ⭐⭐⭐⭐⭐
+- DI 依赖图核心服务注入关系 @6268469 ⭐⭐⭐⭐⭐
+- Symbol.for→Symbol 迁移完整映射 @7092843 ⭐⭐⭐⭐⭐
+- BR和FX不是DI Token(纠正) @7551518 ⭐⭐⭐⭐⭐
+- 补丁变量验证结果 @6275751 ⭐⭐⭐⭐
+- createDecorator DI装饰器工厂 @853508 ⭐⭐⭐⭐⭐
+- ServiceCollection+InstantiationService @1227889 ⭐⭐⭐⭐
+- VS Code DI注入机制 __instance__ @2607740 ⭐⭐⭐⭐⭐
+- P0盲区组成分析 @54415 ⭐⭐⭐⭐
+- 31个I*Service DI Token完整映射 @7182322 ⭐⭐⭐⭐⭐
+- eY0模块入口对象 registerAdapter @10476892 ⭐⭐⭐⭐⭐
+
+### [SSE] 流管道
+- SSE流管道完整拓扑 @7300000 ⭐⭐⭐⭐⭐
+- SSE事件枚举13种 @7300000 ⭐⭐⭐⭐⭐
+- EventHandlerFactory中央调度器 @7300000 ⭐⭐⭐⭐⭐
+- ChatStreamService层级 Bo/Bv/BE @7524723 ⭐⭐⭐⭐⭐
+- SSE流生命周期 @7300000 ⭐⭐⭐⭐⭐
+- 15个Parser类完整列表 @7300000 ⭐⭐⭐⭐⭐
+- 错误分发关键条件 @7542473 ⭐⭐⭐⭐⭐
+- PlanItemStreamParser @7502500 ⭐⭐⭐⭐
+- ErrorStreamParser zU @7508572 ⭐⭐⭐⭐⭐
+- TaskAgentMessageParser.parse @7615777 ⭐⭐⭐⭐
+- SSE事件枚举纠正 Ot.前缀 @7300000 ⭐⭐⭐
+
+### [Store] 状态管理
+- Zustand Store架构完整映射8个 @7087490 ⭐⭐⭐⭐⭐
+- 两种currentSession模式 @7087490 ⭐⭐⭐⭐⭐
+- setCurrentSession调用点 @7087490 ⭐⭐⭐⭐⭐
+- 关键subscribe调用3处 @7584046 ⭐⭐⭐⭐⭐
+- 无Immer使用展开运算符 @7087490 ⭐⭐⭐⭐⭐
+- Store-React连接uB Hook @6270579 ⭐⭐⭐⭐⭐
+- confirm_info流经PlanItemStreamParser @7502500 ⭐⭐⭐⭐⭐
+- IEntitlementStore Nu类 @7264682 ⭐⭐⭐⭐⭐
+- ICredentialStore MX类 @7154491 ⭐⭐⭐⭐
+- IModelStore k2类 @7191708 ⭐⭐⭐⭐⭐
+
+### [Error] 错误处理
+- 错误处理系统完整映射 @54000 ⭐⭐⭐⭐⭐
+- kg错误码枚举完整列表30+ @54415 ⭐⭐⭐⭐⭐
+- 错误传播路径3条 PATH A/B/C @54000 ⭐⭐⭐⭐⭐
+- stopStreaming沉默杀手 @7538139 ⭐⭐⭐⭐⭐
+- agentProcess v3 resumeChat @7502500 ⭐⭐⭐⭐⭐
+- 付费限制错误码纠正 4008/4009/700 @8707858 ⭐⭐⭐⭐⭐
+- kg错误码枚举扩展56个 @54415 ⭐⭐⭐⭐
+- 变量重命名J→K(纠正:J仍为当前名) @8707716 ⭐⭐⭐⭐⭐
+- efg可恢复错误列表14个 @8705916 ⭐⭐⭐⭐
+- J变量完整定义含5个错误码 @8708083 ⭐⭐⭐⭐
+- X变量新发现 MODEL_NOT_EXISTED @8708083 ⭐⭐⭐
+- ee变量配额限制标志 @8707858 ⭐⭐⭐⭐
+- IStuckDetectionService @7537021 ⭐⭐⭐⭐⭐
+- 错误码两套体系 服务端o+客户端eA @51947 ⭐⭐⭐⭐⭐
+
+### [React] 组件层
+- React组件层级完整映射 @8000000+ ⭐⭐⭐⭐⭐
+- 三层架构L1/L2/L3 @8000000+ ⭐⭐⭐⭐⭐
+- 组件树完整结构 @8000000+ ⭐⭐⭐⭐⭐
+- 17+Alert渲染点 @8700000 ⭐⭐⭐⭐⭐
+- 冻结行为rAF→Scheduler暂停 @8000000+ ⭐⭐⭐⭐⭐
+- L1冻结原则2026-04-22验证 @8709284 ⭐⭐⭐⭐⭐
+- sX().memo(Jj)自动续接宿主 @8709284 ⭐⭐⭐⭐
+- egR RunCommandCard组件 @8635000 ⭐⭐⭐⭐
+- 16个React组件导出列表 @10490209 ⭐⭐⭐⭐
+- ChatInput组件 @9015579 ⭐⭐⭐⭐
+- FileDiff组件 @8932385 ⭐⭐⭐
+- ToolCall组件 @9067039 ⭐⭐⭐⭐
+- confirm_status UI引用 @8975688 ⭐⭐⭐⭐
+- P1盲区组成分析 @8930000 ⭐⭐⭐⭐
+
+### [Event] 事件总线
+- 事件总线与遥测系统完整映射 @7458679 ⭐⭐⭐⭐⭐
+- TEA遥测事件 teaEventChatFail @7458679 ⭐⭐⭐⭐⭐
+- SSE事件总线EventHandlerFactory @7300000 ⭐⭐⭐⭐⭐
+- Zustand Store订阅3处 @7584046 ⭐⭐⭐⭐⭐
+- DOM事件监听cancelEventKey @7610443 ⭐⭐⭐⭐⭐
+- 无Node.js EventEmitter @7300000 ⭐⭐⭐⭐⭐
+- 补丁Hook点可行性评估 @7458679 ⭐⭐⭐⭐⭐
+- HaltChainable事件链机制 @2317698 ⭐⭐⭐⭐⭐
+- 5个新域候选 Network/Model/History/Auth/Telemetry ⭐⭐⭐⭐
+
+### [IPC] 进程间通信
+- IPC进程间通信完整映射 @7610443 ⭐⭐⭐⭐⭐
+- 三层IPC架构 Server→Main→Renderer @7610443 ⭐⭐⭐⭐⭐
+- Shell执行命令9个icube.shellExec @7610443 ⭐⭐⭐⭐⭐
+- 主进程事件总线YTr/GZt @7610443 ⭐⭐⭐⭐⭐
+- 取消机制cancelEventKey @7610443 ⭐⭐⭐⭐⭐
+- 无ipcRenderer @7610443 ⭐⭐⭐⭐⭐
+- 25个VS Code命令注册 @10477819 ⭐⭐⭐⭐⭐
+
+### [Setting] 设置系统
+- 设置系统完整映射 @7438613 ⭐⭐⭐⭐⭐
+- AI工具调用设置4个key @7438613 ⭐⭐⭐⭐⭐
+- 聊天工具设置3个key @7438613 ⭐⭐⭐⭐⭐
+- 全局设置GlobalAutoApprove @7438613 ⭐⭐⭐⭐
+- ConfirmMode枚举已移除 @8069382 ⭐⭐⭐⭐⭐
+- 无onDidChangeConfiguration @7438613 ⭐⭐⭐⭐⭐
+- IModelTipConfigService @7268582 ⭐⭐⭐⭐⭐
+- IPrivacyModeService @8036543 ⭐⭐⭐⭐⭐
+- IContributionService @8095684 ⭐⭐⭐⭐⭐
+
+### [Sandbox] 沙箱
+- 沙箱与命令执行管道完整映射 @8069382 ⭐⭐⭐⭐⭐
+- BlockLevel枚举6值 @8069382 ⭐⭐⭐⭐⭐
+- AutoRunMode枚举5值 @8069382 ⭐⭐⭐⭐⭐
+- getRunCommandCardBranch决策矩阵 @8069620 ⭐⭐⭐⭐⭐
+- 命令执行管道完整流程 @7318521 ⭐⭐⭐⭐⭐
+- SAFE_RM沙箱安全规则 @8069382 ⭐⭐⭐⭐⭐
+- provideUserResponse调用点4处 @7502574 ⭐⭐⭐⭐⭐
+- IAutoAcceptService @8039940 ⭐⭐⭐⭐⭐
+- IRunCommandFeatureService @8063616 ⭐⭐⭐⭐⭐
+- IFileOpFeatureService @8086208 ⭐⭐⭐⭐⭐
+- IFileDiffTruncationService @7562542 ⭐⭐⭐⭐⭐
+- IFileDiffService @7565469 ⭐⭐⭐⭐⭐
+
+### [MCP] 工具调用
+- MCP/工具调用系统完整映射 @41400 ⭐⭐⭐⭐⭐
+- ToolCallName枚举80+工具 @7076154 ⭐⭐⭐⭐⭐
+- ToolCallName完整枚举38个 @40836 ⭐⭐⭐⭐⭐
+- 工具调用生命周期8步 @7318521 ⭐⭐⭐⭐⭐
+- confirm_info数据结构 @7502500 ⭐⭐⭐⭐⭐
+- MCP集成run_mcp共享确认管道 @41400 ⭐⭐⭐⭐⭐
+- UserConfirmStatusEnum @44416 ⭐⭐⭐⭐⭐
+
+### [Commercial] 商业权限
+- ICommercialPermissionService完整方法映射 @7267682 ⭐⭐⭐⭐⭐
+- isFreeUser完整实现链efi() @8687513 ⭐⭐⭐⭐⭐
+- IEntitlementStore完整状态结构 @7264682 ⭐⭐⭐⭐⭐
+- ICredentialStore完整状态结构 @7154491 ⭐⭐⭐⭐
+- 付费限制错误码纠正 @8707858 ⭐⭐⭐⭐⭐
+- 用量配额相关代码8处 @8707858 ⭐⭐⭐⭐
+- efr枚举免费用户配额状态20个 @55610 ⭐⭐⭐⭐
+- 新补丁目标候选清单6个 @7267682 ⭐⭐⭐⭐
+- 跳过付费限制补丁可行性评估 @7267682 ⭐⭐⭐⭐
+- ICommercialApiService @7559975 ⭐⭐⭐⭐⭐
+- bJ枚举用户身份类型7值 @6479431 ⭐⭐⭐⭐⭐
+- bK枚举用户scope 3值 @6479143 ⭐⭐⭐⭐⭐
+
+### [Docset] 文档集
+- ai.IDocsetService @3546309 ⭐⭐⭐⭐⭐
+- ai.IDocsetStore @7244780 ⭐⭐⭐⭐⭐
+- ai.IDocsetCkgLocalApiService @7715114 ⭐⭐⭐⭐⭐
+- ai.IDocsetOnlineApiService @7720270 ⭐⭐⭐⭐⭐
+- ai.IWebCrawlerFacade @7725207 ⭐⭐⭐⭐⭐
+- IKnowledgesTaskService @7589570 ⭐⭐⭐⭐⭐
+- IKnowledgesPersistenceService @8113678 ⭐⭐⭐⭐⭐
+- IKnowledgesStagingService @8122442 ⭐⭐⭐⭐⭐
+- IKnowledgesFeatureService @8130079 ⭐⭐⭐⭐⭐
+- IKnowledgesSourceMaterialService @8132725 ⭐⭐⭐⭐⭐
+- IKnowledgesNotificationService @8139976 ⭐⭐⭐⭐⭐
+- IKnowledgesStatusBarService @8186683 ⭐⭐⭐⭐⭐
+- icube.knowledges.* 7个命令注册 @10487427 ⭐⭐⭐⭐⭐
+
+### [Model] 模型选择
+- 模型选择限制代码 @7185314 ⭐⭐⭐⭐⭐
+- kG枚举模式类型 Manual/Auto/Max @7185314 ⭐⭐⭐⭐⭐
+- kH枚举模型层级3级 @7185314 ⭐⭐⭐⭐⭐
+- IModelService NR类 @7271527 ⭐⭐⭐⭐⭐
+- IModelStorageService @7182365 ⭐⭐⭐⭐⭐
+- IModelStore k2类 @7191708 ⭐⭐⭐⭐⭐
+- computeSelectedModelAndMode逻辑 @7216438 ⭐⭐⭐⭐⭐
+- force-max-mode补丁候选 @7216438 ⭐⭐⭐
+- bypass-free-user-model-notice候选 @7280685 ⭐⭐⭐⭐
+- IModeStorageService @7194537 ⭐⭐⭐⭐⭐
+
+---
+
+## 📇 按偏移量范围索引
+
+### 0-1M (0-1000000)
+- @0 AMD define入口+AIScene枚举 ⭐⭐⭐⭐⭐
+- @117 Object.defineProperty webpack bootstrap ⭐⭐⭐⭐
+- @142 __esModule webpack模块 ⭐⭐⭐⭐
+- @888 TeaReporter类 ⭐⭐⭐⭐
+- @40836 ToolCallName完整枚举38个 ⭐⭐⭐⭐⭐
+- @44416 UserConfirmStatusEnum ⭐⭐⭐⭐⭐
+- @46816 RunningStatus枚举Io ⭐⭐⭐⭐⭐
+- @47202 ChatTurnStatus枚举bQ ⭐⭐⭐⭐
+- @51947 服务端错误码枚举o ⭐⭐⭐⭐⭐
+- @54000 kg错误码枚举第一段 ⭐⭐⭐⭐
+- @54415 kg错误码枚举完整列表 ⭐⭐⭐⭐⭐
+- @55610 efr枚举免费用户配额状态 ⭐⭐⭐⭐
+- @853508 createDecorator DI装饰器工厂 ⭐⭐⭐⭐⭐
+- @1197068 DcsParser终端转义序列 ⭐⭐⭐
+- @1227889 ServiceCollection+InstantiationService ⭐⭐⭐⭐
+- @2317698 HaltChainable事件链机制 ⭐⭐⭐⭐⭐
+- @2539813 CommandsRegistry+ICommandService ⭐⭐⭐⭐⭐
+- @2540057 registerCommand ⭐⭐⭐⭐⭐
+- @2607740 VS Code DI注入__instance__ ⭐⭐⭐⭐⭐
+- @3546309 ai.IDocsetService ⭐⭐⭐⭐⭐
+- @435246 webpack内嵌runtime ⭐⭐⭐
+
+### 1M-5M (1000000-5000000)
+- @1802391 styled-components inject(非DI) ⭐⭐
+- @2534601 API路由机制iCubeApi/ugApi/iCubeAgentApi ⭐⭐⭐⭐⭐
+- @255810 TEA上传统计mcs端点 ⭐⭐⭐
+- @2665348 AI.NEED_CONFIRM枚举 ⭐⭐⭐
+- @2796260 Pause/Send按钮ei组件 ⭐⭐⭐
+- @3211326 needConfirm Zustand store ⭐⭐⭐
+- @5870448 ByteGate API网关 ⭐⭐⭐⭐
+- @5871017 Slardar PC监控 ⭐⭐⭐⭐
+
+### 5M-8M (5000000-8000000)
+- @6268469 DI容器类uj ⭐⭐⭐⭐⭐
+- @6270579 uB useInject Hook+hX ⭐⭐⭐⭐⭐
+- @6273630 uj class定义 ⭐⭐⭐⭐⭐
+- @6275751 uj.getInstance ⭐⭐⭐⭐⭐
+- @6473533 bY LogService Token ⭐⭐⭐⭐⭐
+- @6479143 bK枚举用户scope ⭐⭐⭐⭐⭐
+- @6479431 bJ枚举用户身份类型 ⭐⭐⭐⭐⭐
+- @668815 AWS凭证处理 ⭐⭐⭐
+- @7015771 Ei CredentialFacade Token ⭐⭐⭐⭐⭐
+- @7017457 uJ装饰器服务注册开始 ⭐⭐⭐⭐⭐
+- @7061974 Symbol.for注册开始 ⭐⭐⭐⭐⭐
+- @7076154 ToolCallName枚举第二段 ⭐⭐⭐⭐⭐
+- @7087490 xC SessionStore Token ⭐⭐⭐⭐⭐
+- @7092843 Symbol("ISessionStore") ⭐⭐⭐⭐
+- @7126296 xJ EditorFacade Token ⭐⭐⭐⭐⭐
+- @7134895 Ma TeaFacade Token ⭐⭐⭐⭐⭐
+- @7135785 Ma TeaFacade Token(旧) ⭐⭐⭐⭐⭐
+- @7140149 ITeaFacade Symbol.for ⭐⭐⭐⭐⭐
+- @7148876 bY LogService注册 ⭐⭐⭐⭐⭐
+- @7150072 M0 SessionService Token ⭐⭐⭐⭐⭐
+- @7152097 SessionService注册Ci ⭐⭐⭐⭐
+- @7154464 ICredentialStore Token ⭐⭐⭐⭐
+- @7154491 MX CredentialStore类 ⭐⭐⭐⭐
+- @7160512 eA客户端错误码枚举 ⭐⭐⭐⭐⭐
+- @7161400 kg错误码枚举第二段 ⭐⭐⭐⭐
+- @7177093 kv ModelService Token ⭐⭐⭐⭐⭐
+- @7182322 IModelService Symbol.for ⭐⭐⭐⭐⭐
+- @7185314 kG/kH枚举模式+模型层级 ⭐⭐⭐⭐⭐
+- @7186457 k1 ModelStore Token ⭐⭐⭐⭐⭐
+- @7191686 IModelStore Symbol ⭐⭐⭐⭐⭐
+- @7197015 ICommercialPermissionService Token ⭐⭐⭐⭐⭐
+- @7203850 IN SessionRelationStore Token ⭐⭐⭐⭐
+- @7216438 computeSelectedModelAndMode ⭐⭐⭐⭐⭐
+- @7221939 I2 InlineSessionStore Token ⭐⭐⭐⭐
+- @7224039 I7 ProjectStore ⭐⭐⭐
+- @7248275 TG AgentExtensionStore ⭐⭐⭐
+- @7258315 Na SkillStore ⭐⭐⭐
+- @7259427 Nc EntitlementStore Token ⭐⭐⭐⭐⭐
+- @7264682 Nu EntitlementStore类 ⭐⭐⭐⭐⭐
+- @7264735 IEntitlementStore Symbol ⭐⭐⭐⭐⭐
+- @7267682 NS ICommercialPermissionService类 ⭐⭐⭐⭐⭐
+- @7280685 checkFreeUserPremiumModelNotice ⭐⭐⭐⭐
+- @7300000 EventHandlerFactory Bt ⭐⭐⭐⭐⭐
+- @7300455 handleCommonError ⭐⭐⭐⭐⭐
+- @7300921 De.handleError ⭐⭐⭐⭐⭐
+- @7314000 MetadataParser+UserMessageContextParser ⭐⭐⭐⭐
+- @7318521 DG.parse数据解析层 ⭐⭐⭐⭐⭐
+- @7322410 NotificationStreamParser ⭐⭐⭐⭐⭐
+- @7323241 data-source-auto-confirm补丁 ⭐⭐⭐
+- @7327208 IAgentService Symbol ⭐⭐⭐⭐⭐
+- @7438613 AI.toolcall.confirmMode ⭐⭐⭐⭐⭐
+- @7450318 jN IPlanService Token ⭐⭐⭐⭐⭐
+- @7456691 IPlanService Symbol.for ⭐⭐⭐⭐⭐
+- @7458679 teaEventChatFail ⭐⭐⭐⭐⭐
+- @7482422 FeeUsageStreamParser za ⭐⭐⭐⭐
+- @7497479 TextMessageChatStreamParser ⭐⭐⭐⭐⭐
+- @7502500 PlanItemStreamParser._handlePlanItem ⭐⭐⭐⭐⭐
+- @7503299 PlanItemStreamParser DI Token ⭐⭐⭐⭐
+- @7508572 ErrorStreamParser zU ⭐⭐⭐⭐⭐
+- @7511057 DoneStreamParser zW ⭐⭐⭐⭐
+- @7512721 QueueingStreamParser zV ⭐⭐⭐⭐
+- @7513080 getErrorInfoWithError(e) ⭐⭐⭐
+- @7515007 UserMessageStreamParser zJ ⭐⭐⭐⭐⭐
+- @7516765 TokenUsageStreamParser z2 ⭐⭐⭐⭐⭐
+- @7517392 ContextTokenUsageStreamParser z3 ⭐⭐⭐⭐⭐
+- @7518028 SessionTitleMessageStreamParser z8 ⭐⭐⭐⭐⭐
+- @7524723 Bs class ChatParserContext ⭐⭐⭐
+- @7528742 _onError(e,t,i) ⭐⭐⭐
+- @7533741 ChatStreamService._stopStreaming实现 ⭐⭐⭐
+- @7537021 IStuckDetectionService ⭐⭐⭐⭐⭐
+- @7538139 stopStreaming沉默杀手 ⭐⭐⭐⭐⭐
+- @7540700 createStream+resumeChat蓝图 ⭐⭐⭐⭐
+- @7540953 _aiAgentChatService.resumeChat ⭐⭐⭐⭐
+- @7541121 ISideChatStreamService ⭐⭐⭐⭐⭐
+- @7542473 BP.onError关键代码 ⭐⭐⭐⭐⭐
+- @7543791 StoreService.stopStreaming ⭐⭐⭐⭐
+- @7545196 BO SessionServiceV2 Token ⭐⭐⭐⭐
+- @7548009 IInlineChatStreamService ⭐⭐⭐⭐⭐
+- @7553132 ISessionServiceV2 Symbol ⭐⭐⭐⭐
+- @7559975 ICommercialApiService ⭐⭐⭐⭐⭐
+- @7562542 IFileDiffTruncationService ⭐⭐⭐⭐⭐
+- @7565469 IFileDiffService ⭐⭐⭐⭐⭐
+- @7574983 IPastChatExporter ⭐⭐⭐⭐
+- @7584046 subscribe#1消息数+会话ID ⭐⭐⭐
+- @7588518 subscribe#8消息数变化 ⭐⭐⭐
+- @7589570 IKnowledgesTaskService ⭐⭐⭐⭐⭐
+- @7598504 FW核心服务门面对象 ⭐⭐⭐⭐⭐
+- @7605848 runningStatusMap subscribe ⭐⭐⭐
+- @7610443 F3/sendToAgentBackground ⭐⭐⭐⭐⭐
+- @7614717 ResumeChat服务端方法调用 ⭐⭐⭐
+- @7615777 TaskAgentMessageParser.parse ⭐⭐⭐⭐
+- @7715114 ai.IDocsetCkgLocalApiService ⭐⭐⭐⭐⭐
+- @7720270 ai.IDocsetOnlineApiService ⭐⭐⭐⭐⭐
+- @7725207 ai.IWebCrawlerFacade ⭐⭐⭐⭐⭐
+- @7766628 ITaskListApiService ⭐⭐⭐⭐⭐
+- @7892948 IASRService ⭐⭐⭐⭐⭐
+- @7903529 IHuoshanAsrClientService ⭐⭐⭐⭐⭐
+- @8027658 IAWSASRClientService ⭐⭐⭐⭐⭐
+- @8036543 IPrivacyModeService ⭐⭐⭐⭐⭐
+- @8039940 IAutoAcceptService ⭐⭐⭐⭐⭐
+
+### 8M-10M+ (8000000-EOF)
+- @8063616 IRunCommandFeatureService ⭐⭐⭐⭐⭐
+- @8069382 BlockLevel/AutoRunMode枚举 ⭐⭐⭐⭐⭐
+- @8069620 getRunCommandCardBranch ⭐⭐⭐⭐
+- @8070328 bypass-runcommandcard-redlist补丁 ⭐⭐⭐
+- @8078831 P7.Default RunCommandCard分支 ⭐⭐⭐
+- @8081330 Cr.AutoRunMode枚举 ⭐⭐⭐⭐
+- @8081401 Cr.BlockLevel枚举 ⭐⭐⭐⭐
+- @8086208 IFileOpFeatureService ⭐⭐⭐⭐⭐
+- @8095684 IContributionService ⭐⭐⭐⭐⭐
+- @8113678 IKnowledgesPersistenceService ⭐⭐⭐⭐⭐
+- @8122442 IKnowledgesStagingService ⭐⭐⭐⭐⭐
+- @8130079 IKnowledgesFeatureService ⭐⭐⭐⭐⭐
+- @8132725 IKnowledgesSourceMaterialService ⭐⭐⭐⭐⭐
+- @8139976 IKnowledgesNotificationService ⭐⭐⭐⭐⭐
+- @8186683 IKnowledgesStatusBarService ⭐⭐⭐⭐⭐
+- @8629200 UI确认状态检查 ⭐⭐⭐
+- @8635000 egR RunCommandCard组件 ⭐⭐⭐⭐
+- @8636941 ey useMemo有效确认状态 ⭐⭐⭐
+- @8637300 confirm_info解构 ⭐⭐⭐
+- @8640019 自动确认useEffect ⭐⭐⭐
+- @8687513 efi() Hook isFreeUser计算 ⭐⭐⭐⭐⭐
+- @8688095 isFreeUser=n计算 ⭐⭐⭐⭐
+- @8692994 usageLimitConfig配额限制配置 ⭐⭐⭐⭐
+- @8695303 efg可恢复错误列表 ⭐⭐⭐
+- @8696378 J变量可续接错误标志 ⭐⭐⭐
+- @8697580 ec callback retry/resume ⭐⭐⭐
+- @8697620 ed callback 继续按钮 ⭐⭐⭐
+- @8700000 ErrorMessageWithActions开始 ⭐⭐⭐
+- @8702300 if(V&&J) Alert分支 ⭐⭐⭐
+- @8705916 efg可恢复错误列表(新偏移) ⭐⭐⭐⭐
+- @8707613 变量重命名J→K区域 ⭐⭐⭐⭐⭐
+- @8707716 J=!![定义 ⭐⭐⭐⭐⭐
+- @8707777 J=!![位置(交叉验证) ⭐⭐⭐⭐
+- @8707858 ee配额限制标志 ⭐⭐⭐⭐
+- @8709284 sX().memo(Jj)组件 ⭐⭐⭐⭐
+- @8713483 if(V&&J)位置(交叉验证) ⭐⭐⭐⭐⭐
+- @8717132 CLAUDE_MODEL_FORBIDDEN Alert ⭐⭐⭐⭐
+- @8718083 FIREWALL_BLOCKED Alert ⭐⭐⭐
+- @8719877 PREMIUM/STANDARD_MODE_USAGE_LIMIT Alert ⭐⭐⭐⭐
+- @8930000-8970000 Browser Action渲染 ⭐⭐⭐
+- @8932385 FileDiff组件 ⭐⭐⭐
+- @8975688 confirm_status UI引用 ⭐⭐⭐⭐
+- @8981240 AutoRunSetting sX().createElement ⭐⭐⭐
+- @9015579 ChatInput组件 ⭐⭐⭐⭐
+- @9067039 ToolCall组件 ⭐⭐⭐⭐
+- @9186206 useState推理内容组件 ⭐⭐⭐
+- @9389825 TaskCard sX().createElement ⭐⭐⭐
+- @9441960 MaxMode tooltip sX().createElement ⭐⭐⭐
+- @9799784 WorktreeHeader sX().createElement ⭐⭐⭐
+- @9891397 IDSLAgentStore Symbol ⭐⭐⭐⭐
+- @9910446 DEFAULT错误组件 ⭐⭐⭐
+- @9971712 候选命令模式 ⭐⭐⭐
+- @10471008 eYZ.onUsageLimit ⭐⭐⭐⭐
+- @10476397 registerAdapter=uj.provide ⭐⭐⭐⭐⭐
+- @10476892 eY0模块入口对象 ⭐⭐⭐⭐⭐
+- @10477819-10489027 25个VS Code命令注册 ⭐⭐⭐⭐⭐
+- @10490209 16个React组件导出 ⭐⭐⭐⭐
+- @10490600-10490721 IIFE闭合结构 ⭐⭐⭐⭐
+
+---
+
+## 📇 按功能索引
+
+### 确认/自动确认
+- DG.parse L3数据源自动确认 @7318521 L3 ⭐⭐⭐⭐⭐
+- PlanItemStreamParser._handlePlanItem @7502500 L2 ⭐⭐⭐⭐⭐
+- knowledge分支provideUserResponse @7502574 L2 ⭐⭐⭐⭐
+- else分支provideUserResponse @7503319 L2 ⭐⭐⭐⭐
+- data-source-auto-confirm补丁 @7323241 L3 ⭐⭐⭐
+- auto-confirm-commands补丁 @7502500 L2 ⭐⭐⭐⭐
+- service-layer-runcommand-confirm补丁 @7502500 L2 ⭐⭐⭐⭐
+- getRunCommandCardBranch决策 @8069620 L1 ⭐⭐⭐⭐
+- bypass-runcommandcard-redlist补丁 @8070328 L1 ⭐⭐⭐
+- egR RunCommandCard组件 @8635000 L1 ⭐⭐⭐⭐
+- 自动确认useEffect @8640019 L1 ⭐⭐⭐
+- UserConfirmStatusEnum @44416 枚举 ⭐⭐⭐⭐⭐
+- confirm_info数据结构 @7502500 数据 ⭐⭐⭐⭐⭐
+- AI.toolcall.confirmMode @7438613 配置 ⭐⭐⭐⭐⭐
+- IAutoAcceptService @8039940 L2 ⭐⭐⭐⭐⭐
+
+### 续接/自动续接
+- teaEventChatFail最早错误信号 @7458679 L2 ⭐⭐⭐⭐⭐
+- stopStreaming沉默杀手 @7538139 L2 ⭐⭐⭐⭐⭐
+- _aiAgentChatService.resumeChat @7540953 L2 ⭐⭐⭐⭐
+- createStream中resumeChat蓝图 @7540700 L2 ⭐⭐⭐⭐
+- subscribe#8消息数变化 @7588518 L2 ⭐⭐⭐
+- efg可恢复错误列表14个 @8705916 L1 ⭐⭐⭐⭐
+- J变量可续接错误标志 @8707716 L1 ⭐⭐⭐⭐⭐
+- if(V&&J) Alert分支 @8702300 L1 ⭐⭐⭐
+- guard-clause-bypass补丁 !q&&!J @8712898 L1 ⭐⭐⭐
+- auto-continue-thinking补丁迭代v3-v17 ⭐⭐⭐⭐⭐
+- v8架构缺陷根因 @7502500 分析 ⭐⭐⭐⭐⭐
+- v11.6挂钩subscribe#8 @7588518 L2 ⭐⭐⭐⭐⭐
+- v13 teaEventChatFail+qMT轮询 @7458679 L2 ⭐⭐⭐⭐⭐
+- v14 Hybrid flag+visibilitychange @7458679 L2 ⭐⭐⭐⭐⭐
+- v17 Final teaEventChatFail+context参数 @7458679 L2 ⭐⭐⭐⭐⭐
+- IStuckDetectionService @7537021 L2 ⭐⭐⭐⭐⭐
+
+### 沙箱/命令执行
+- BlockLevel枚举6值 @8069382 L1 ⭐⭐⭐⭐⭐
+- AutoRunMode枚举5值 @8069382 L1 ⭐⭐⭐⭐⭐
+- getRunCommandCardBranch决策矩阵 @8069620 L1 ⭐⭐⭐⭐
+- provideUserResponse知识分支 @7502574 L2 ⭐⭐⭐⭐
+- provideUserResponse其他分支 @7503319 L2 ⭐⭐⭐⭐
+- icube.shellExec.* 9个命令 @7610443 IPC ⭐⭐⭐⭐⭐
+- SAFE_RM沙箱安全规则 @8069382 配置 ⭐⭐⭐⭐⭐
+- IRunCommandFeatureService @8063616 L2 ⭐⭐⭐⭐⭐
+- IFileOpFeatureService @8086208 L2 ⭐⭐⭐⭐⭐
+- IFileDiffTruncationService @7562542 L2 ⭐⭐⭐⭐⭐
+- IFileDiffService @7565469 L2 ⭐⭐⭐⭐⭐
+
+### 错误处理
+- kg错误码枚举完整56个 @54415 枚举 ⭐⭐⭐⭐⭐
+- efg可恢复错误列表14个 @8705916 L1 ⭐⭐⭐⭐
+- J变量5个错误码 @8707716 L1 ⭐⭐⭐⭐⭐
+- ee变量配额限制2个 @8707858 L1 ⭐⭐⭐⭐
+- X变量MODEL_NOT_EXISTED @8708083 L1 ⭐⭐⭐
+- handleCommonError @7300455 L2 ⭐⭐⭐⭐⭐
+- teaEventChatFail @7458679 L2 ⭐⭐⭐⭐⭐
+- ErrorStreamParser zU @7508572 L2 ⭐⭐⭐⭐⭐
+- getErrorInfoWithError @7513080 L2 ⭐⭐⭐
+- _onError(e,t,i) @7528742 L2 ⭐⭐⭐
+- TaskAgentMessageParser.parse @7615777 L2 ⭐⭐⭐⭐
+- 17+Alert渲染点 @8700000 L1 ⭐⭐⭐⭐⭐
+- 错误传播路径3条 PATH A/B/C ⭐⭐⭐⭐⭐
+- 错误码两套体系 服务端o+客户端eA @51947 ⭐⭐⭐⭐⭐
+
+### 设置/配置
+- AI.toolcall.confirmMode @7438613 ⭐⭐⭐⭐⭐
+- AI.toolcall.v2.command.* @7438600 ⭐⭐⭐⭐⭐
+- chat.tools.* 3个key @7438613 ⭐⭐⭐⭐⭐
+- GlobalAutoApprove @7438613 ⭐⭐⭐⭐
+- ConfirmMode枚举已移除 @8069382 ⭐⭐⭐⭐⭐
+- IModelTipConfigService @7268582 ⭐⭐⭐⭐⭐
+- IPrivacyModeService @8036543 ⭐⭐⭐⭐⭐
+- IContributionService @8095684 ⭐⭐⭐⭐⭐
+- IModeStorageService @7194537 ⭐⭐⭐⭐⭐
+
+### 商业权限/付费限制
+- ICommercialPermissionService NS类6方法 @7267682 L2 ⭐⭐⭐⭐⭐
+- isFreeUser efi() Hook @8687513 L1 ⭐⭐⭐⭐⭐
+- IEntitlementStore Nu类 @7264682 L2 ⭐⭐⭐⭐⭐
+- ICredentialStore MX类 @7154491 L2 ⭐⭐⭐⭐
+- bJ枚举用户身份7值 @6479431 枚举 ⭐⭐⭐⭐⭐
+- bK枚举用户scope 3值 @6479143 枚举 ⭐⭐⭐⭐⭐
+- 付费限制错误码纠正4008/4009/700 @8707858 ⭐⭐⭐⭐⭐
+- ee变量配额限制 @8707858 L1 ⭐⭐⭐⭐
+- efr枚举免费用户配额20个 @55610 枚举 ⭐⭐⭐⭐
+- bypass-commercial-permission补丁候选 @7267682 L2 ⭐⭐⭐⭐⭐
+- bypass-usage-limit补丁候选 @8707858 L1 ⭐⭐⭐⭐
+- ICommercialApiService @7559975 L2 ⭐⭐⭐⭐⭐
+- PREMIUM_MODE_USAGE_LIMIT Alert @8719877 L1 ⭐⭐⭐⭐
+- CLAUDE_MODEL_FORBIDDEN Alert @8717132 L1 ⭐⭐⭐⭐
+- FIREWALL_BLOCKED Alert @8718083 L1 ⭐⭐⭐
+
+### 模型选择
+- kG枚举模式类型 @7185314 枚举 ⭐⭐⭐⭐⭐
+- kH枚举模型层级 @7185314 枚举 ⭐⭐⭐⭐⭐
+- IModelService NR类 @7271527 L2 ⭐⭐⭐⭐⭐
+- IModelStorageService @7182365 L2 ⭐⭐⭐⭐⭐
+- IModelStore k2类 @7191708 L2 ⭐⭐⭐⭐⭐
+- computeSelectedModelAndMode @7216438 L2 ⭐⭐⭐⭐⭐
+- force-max-mode补丁候选 @7216438 L2 ⭐⭐⭐
+- bypass-free-user-model-notice候选 @7280685 L2 ⭐⭐⭐⭐
+- Max Mode tooltip @9441960 L1 ⭐⭐⭐
+
+---
+
+## 📇 按 confidence 索引
+
+### ⭐⭐⭐⭐⭐ High Confidence
+- DI容器系统完整映射 @6268469
+- DI Token注册表Symbol.for 54个 @6473533
+- uj.getInstance().resolve() 45次 @6268469
+- uJ装饰器51服务注册 @7017457
+- DI依赖图核心服务注入关系 @6268469
+- Symbol.for→Symbol迁移完整映射 @7092843
+- BR和FX不是DI Token(纠正) @7551518
+- SSE流管道完整拓扑 @7300000
+- SSE事件枚举13种 @7300000
+- EventHandlerFactory中央调度器 @7300000
+- ChatStreamService层级 @7524723
+- 15个Parser类完整列表 @7300000
+- 错误分发关键条件 @7542473
+- Zustand Store架构完整映射 @7087490
+- 错误处理系统完整映射 @54000
+- kg错误码枚举完整列表 @54415
+- 错误传播路径3条 @54000
+- stopStreaming沉默杀手 @7538139
+- React组件层级完整映射 @8000000+
+- L1冻结原则验证 @8709284
+- 事件总线与遥测系统完整映射 @7458679
+- IPC进程间通信完整映射 @7610443
+- 设置系统完整映射 @7438613
+- 沙箱与命令执行管道完整映射 @8069382
+- MCP/工具调用系统完整映射 @41400
+- ICommercialPermissionService完整方法映射 @7267682
+- isFreeUser完整实现链 @8687513
+- IEntitlementStore完整状态结构 @7264682
+- 付费限制错误码纠正 @8707858
+- 变量重命名J→K(纠正) @8707716
+- v8架构缺陷根因 @7502500
+- v10 SSE事件两条路径 @7508572
+- v11 React Scheduler后台冻结+store.subscribe @7502500
+- v12 TaskAgentMessageParser.parse变异源头 @7615777
+- v13 teaEventChatFail后台触发成功 @7458679
+- v14 Hybrid flag+visibilitychange @7458679
+- v17 Final 历史性突破 @7458679
+- createDecorator DI装饰器工厂 @853508
+- VS Code DI注入__instance__ @2607740
+- HaltChainable事件链机制 @2317698
+- 31个I*Service DI Token完整映射 @7182322
+- eY0模块入口对象 @10476892
+- 25个VS Code命令注册 @10477819
+- ToolCallName完整枚举38个 @40836
+- UserConfirmStatusEnum @44416
+- 错误码两套体系 @51947
+- IStuckDetectionService @7537021
+- ISideChatStreamService @7541121
+- IInlineChatStreamService @7548009
+- ICommercialApiService @7559975
+- IAutoAcceptService @8039940
+- IRunCommandFeatureService @8063616
+- IFileOpFeatureService @8086208
+- IFileDiffTruncationService @7562542
+- IFileDiffService @7565469
+- IKnowledgesTaskService @7589570
+- ai.IDocsetService @3546309
+- ai.IDocsetStore @7244780
+- ai.IDocsetCkgLocalApiService @7715114
+- ai.IDocsetOnlineApiService @7720270
+- ai.IWebCrawlerFacade @7725207
+- kG/kH枚举模式+模型层级 @7185314
+- IModelService NR类 @7271527
+- computeSelectedModelAndMode @7216438
+- bJ枚举用户身份类型 @6479431
+- bK枚举用户scope @6479143
+
+### ⭐⭐⭐⭐ Medium-High Confidence
+- DI Token注册表Symbol 52个 @7087490
+- 补丁变量验证结果 @6275751
+- PlanItemStreamParser @7502500
+- TaskAgentMessageParser.parse @7615777
+- sX().memo(Jj)自动续接宿主 @8709284
+- egR RunCommandCard组件 @8635000
+- ChatInput组件 @9015579
+- ToolCall组件 @9067039
+- confirm_status UI引用 @8975688
+- P1盲区组成分析 @8930000
+- P0盲区组成分析 @54415
+- ICredentialStore完整状态结构 @7154491
+- 用量配额相关代码 @8707858
+- efr枚举免费用户配额状态 @55610
+- 新补丁目标候选清单6个 @7267682
+- 跳过付费限制补丁可行性 @7267682
+- 16个React组件导出 @10490209
+- IIFE闭合结构 @10490600
+- efg可恢复错误列表 @8705916
+- ee变量配额限制 @8707858
+- PREMIUM_MODE_USAGE_LIMIT Alert @8719877
+- CLAUDE_MODEL_FORBIDDEN Alert @8717132
+- IModelStore k2类 @7191708
+- bypass-free-user-model-notice候选 @7280685
+- IDSLAgentStore Symbol @9891397
+- IPastChatExporter @7574983
+- IKnowledgesPersistenceService @8113678
+- IKnowledgesStagingService @8122442
+- IKnowledgesFeatureService @8130079
+- IKnowledgesSourceMaterialService @8132725
+- IKnowledgesNotificationService @8139976
+- IKnowledgesStatusBarService @8186683
+- icube.knowledges.* 7个命令 @10487427
+- IModeStorageService @7194537
+- IModelTipConfigService @7268582
+- IPrivacyModeService @8036543
+- IContributionService @8095684
+- kg错误码枚举扩展56个 @54415
+- J变量完整定义含5个错误码 @8708083
+- ErrorStreamParser zU @7508572
+
+### ⭐⭐⭐ Medium Confidence
+- data-source-auto-confirm补丁 @7323241
+- bypass-runcommandcard-redlist补丁 @8070328
+- subscribe#1消息数+会话ID @7584046
+- subscribe#8消息数变化 @7588518
+- runningStatusMap subscribe @7605848
+- efg可恢复错误列表(旧偏移) @8695303
+- J变量可续接错误标志(旧偏移) @8696378
+- if(V&&J) Alert分支 @8702300
+- FileDiff组件 @8932385
+- 候选命令模式 @9971712
+- DEFAULT错误组件 @9910446
+- DcsParser终端转义序列 @1197068
+- webpack内嵌runtime @435246
+- force-max-mode补丁候选 @7216438
+- bypass-usage-limit补丁候选 @8707858
+- FIREWALL_BLOCKED Alert @8718083
+- 负面结果记录 @7267682
+- X变量新发现 @8708083
+- SSE事件枚举纠正Ot.前缀 @7300000
+- API路由机制 @2534601
+```
+
+$content
+### [2026-04-26 04:20] P0盲区深度探索 — Phase 2+3 完整结果 ⭐⭐⭐⭐⭐
+
+> P0盲区(54415-6268469, ~6.2MB) 10KB级细扫 + 双向扩展深挖，发现5个新DI token、31个I*Service完整映射、4个API端点、VS Code DI注入机制
+
+#### 位置信息
+- **偏移量范围**: 54415-6268469 (~6.2MB)
+- **所属域标签**: [DI] [Event] [IPC] [Commercial] [Docset]
+
+#### Phase 2 扫描统计
+- 采样点: 607 (每10240字符取400字符)
+- 高价值命中: 28 (DI/类/API/Symbol)
+- 中价值命中: 70 (字符串/URL)
+- 低价值命中: 39 (第三方库)
+
+#### P0区间组成确认
+- ~90% 第三方库 (React 30采样, Chevrotain 8采样, D3/Mermaid/YAML/Markdown/Radix/Langium)
+- ~5% i18n本地化字符串 (6096015+)
+- ~3% TEA遥测SDK (535695-627855)
+- ~2% 业务逻辑 (DI tokens, API配置, 上传系统)
+
+#### 核心发现 1: ai.* DI Token 家族 (5个新发现)
+
+| Token | 偏移量 | 说明 |
+|-------|--------|------|
+| Symbol.for("ai.IDocsetService") | @3546309 | 文档集服务接口 |
+| Symbol.for("ai.IDocsetStore") | @7244780 | 文档集Zustand Store |
+| Symbol.for("ai.IDocsetCkgLocalApiService") | @7715114 | CKG本地API服务 |
+| Symbol.for("ai.IDocsetOnlineApiService") | @7720270 | CKG在线API服务 |
+| Symbol.for("ai.IWebCrawlerFacade") | @7725207 | Web爬虫门面 |
+
+IDocsetStore 状态结构:
+- builtinDocsets: [] (内置文档集)
+- builtinDocsetVersion: "" (版本)
+- customDocsets: [] (自定义文档集)
+- searchableBuiltinDocsets: [] (可搜索内置)
+- enterpriseDocsetIdsToRefresh: [] (企业刷新列表)
+
+IWebCrawlerFacade 方法:
+- crawlForPages(entryPoint, prefix) — 爬取页面
+- getCrawlStatus(stubId) — 获取爬取状态
+- abortCrawl(stubId) — 中止爬取
+- onCrawlProgress(stubId, callback) — 进度监听
+
+#### 核心发现 2: 完整 I*Service DI Token 映射 (31个)
+
+| Token | 偏移量 | 域 |
+|-------|--------|-----|
+| IModelService | @7182322 | [Store] |
+| IModelStorageService | @7182353 | [Store] |
+| IModeStorageService | @7194537 | [Store] |
+| IModelTipConfigService | @7268582 | [Setting] |
+| IChatAgentGuideStorageService | @7296236 | [Store] |
+| ISimpleBoolCacheService | @7297005 | [Store] |
+| IModelReportService | @7298383 | [Event] |
+| IInlineSessionStoreService | @7318186 | [Store] |
+| IPlanService | @7456691 | [SSE] |
+| IStuckDetectionService | @7537021 | [Error] |
+| ISideChatStreamService | @7541121 | [SSE] |
+| IInlineChatStreamService | @7548009 | [SSE] |
+| ICommercialApiService | @7559975 | [Commercial] |
+| IFileDiffTruncationService | @7562542 | [Sandbox] |
+| IFileDiffService | @7565469 | [Sandbox] |
+| IKnowledgesTaskService | @7589570 | [Docset] |
+| ITaskListApiService | @7766628 | [IPC] |
+| IASRService | @7892948 | [IPC] |
+| IHuoshanAsrClientService | @7903529 | [IPC] |
+| IAWSASRClientService | @8027658 | [IPC] |
+| IPrivacyModeService | @8036543 | [Setting] |
+| IAutoAcceptService | @8039940 | [Sandbox] |
+| IRunCommandFeatureService | @8063616 | [Sandbox] |
+| IFileOpFeatureService | @8086208 | [Sandbox] |
+| IContributionService | @8095684 | [Setting] |
+| IKnowledgesPersistenceService | @8113678 | [Docset] |
+| IKnowledgesStagingService | @8122442 | [Docset] |
+| IKnowledgesFeatureService | @8130079 | [Docset] |
+| IKnowledgesSourceMaterialService | @8132725 | [Docset] |
+| IKnowledgesNotificationService | @8139976 | [Docset] |
+| IKnowledgesStatusBarService | @8186683 | [Docset] |
+
+#### 核心发现 3: VS Code DI 注入机制 (__instance__ Symbol)
+
+@2607740: Inject 装饰器使用 Symbol("__instance__") 实现延迟注入:
+```
+t.Inject = function(e) {
+    return function(i, r) {
+        let n = Symbol("__instance__");
+        Object.defineProperty(i, r, {
+            get() {
+                if (void 0 === this[n]) {
+                    let i = o.icubeStore.serviceCollection?.get(e);
+                    if (!i) throw Error(`No instantiation service found for ${r}`);
+                    if (i instanceof a.SyncDescriptor) {
+                        let n = o.icubeStore.serviceCollection?.get(t.IInstantiationService);
+                        if (!n) throw Error(`No instantiation service found for ${r}`);
+                        return n.resolveSingletonInstance(e, i);
+                    }
+                    this[n] = i;
+                }
+                return this[n];
+            },
+            enumerable: true, configurable: true
+        });
+    };
+};
+```
+关键: icubeStore.serviceCollection 是 DI 容器入口，SyncDescriptor 用于单例延迟解析。
+
+#### 核心发现 4: API 端点映射
+
+| 端点 | 偏移量 | 用途 |
+|------|--------|------|
+| https://a0ai-api.byteintlapi.com | @5874509 | AI API (externalCopilotDomains) |
+| https://bytegate-sg.byteintlapi.com | @5870448 | ByteGate API 网关 |
+| https://pc-mon-sg.byteintlapi.com | @5871017 | Slardar PC 监控 |
+| https://mcs-nontt.byteintlapi.com | @255810 | TEA 上传统计 |
+| https://libraweb-va.tiktok.com | @5870752 | TEA AB 实验服务 |
+
+API 路由机制 @2534601:
+- iCubeApi — 主 API
+- ugApi — UG API
+- iCubeAgentApi — Agent API
+- getApi(tag, path) — 根据 ApiTagEnum 路由到不同后端
+
+#### 核心发现 5: P0 区间 Symbol 清单
+
+Symbol.for (21个，大部分为 React 内部):
+- react.element @176352, react.transitional.element @176382, react.forward_ref @176425
+- react.fragment @750411, react.portal @1693182, react.strict_mode @1693242
+- react.profiler @1693276, react.provider @1693307, react.context @1693338
+- react.server_context @1693368, react.suspense @1693439, react.suspense_list @1693470
+- react.memo @1693506, react.lazy @1693533, react.offscreen @1693560
+- react.module.reference @1693853
+- nodejs.util.inspect.custom @1275920
+- debug.description @2514093
+- radix-ui @3276368
+- **ai.IDocsetService @3546309** ⭐
+- @reflect-metadata:registry @3552466
+
+Symbol() (12个):
+- AsyncReaderEndOfStream @2260804 — 流读取终止
+- **HaltChainable @2317698** — VS Code 事件链中断
+- MicrotaskDelay @2498078 — 微任务延迟
+- undefined_placeholder @2501836 — Optional 工具
+- **__instance__ @2607740** — DI 注入键 ⭐
+- radix.slottable @3716986 — Radix UI
+- RADIX:SYNC_STATE @3719039 — Radix 状态同步
+- implicit @4295005 — Chevrotain 隐式
+- Datatype @4423600 — 数据类型
+- OperationCancelled @4435676 — 操作取消
+- ref_resolving @4443026 — 引用解析
+- isProxy @4491911 — 代理检测
+
+#### 核心发现 6: HaltChainable 事件链机制
+
+@2317698: VS Code Event.chain() 实现可中断事件链:
+```
+e.chain = function(e, t) {
+    return (i, r, n) => {
+        let o = t(new u);
+        return e(function(e) {
+            let t = o.evaluate(e);
+            t !== l && i.call(r, t);
+        }, void 0, n);
+    };
+};
+let l = Symbol("HaltChainable");
+class u {
+    constructor() { this.steps = []; }
+    map(e) { return this.steps.push(e), this; }
+    forEach(e) { return this.steps.push(t => (e(t), t)), this; }
+    filter(e) { return this.steps.push(t => e(t) ? t : l), this; }
+    reduce(e, t) { ... }
+    latch(e) { ... }
+    evaluate(e) { for (let t of this.steps) if ((e = t(e)) === l) break; return e; }
+}
+```
+用途: 事件链的 map/filter/forEach 操作，filter 返回 HaltChainable 即中断传播。
+
+#### 新域候选
+
+- **[Docset]** — 文档集管理域 (IDocsetService + IDocsetStore + CkgLocalApi + OnlineApi + WebCrawler + 6个Knowledges服务)
+- **[DI-Inject]** — VS Code DI 注入机制 (__instance__ Symbol, Inject 装饰器, SyncDescriptor, icubeStore.serviceCollection)
+
+#### 搜索模板
+
+| 目标 | 搜索关键词 | 稳定性 |
+|------|-----------|--------|
+| Docset DI tokens | Symbol.for("ai.IDoc | ⭐⭐⭐⭐⭐ |
+| DI 注入机制 | Symbol("__instance__") | ⭐⭐⭐⭐ |
+| HaltChainable | Symbol("HaltChainable") | ⭐⭐⭐⭐ |
+| API 路由 | iCubeAgentApi | ⭐⭐⭐⭐⭐ |
+| AI API 端点 | a0ai-api.byteintlapi | ⭐⭐⭐⭐ |
+| ByteGate 网关 | bytegate-sg.byteintlapi | ⭐⭐⭐⭐ |
+| IStuckDetectionService | Symbol.for("IStuckDetectionService") | ⭐⭐⭐⭐⭐ |
+| IAutoAcceptService | Symbol.for("IAutoAcceptService") | ⭐⭐⭐⭐⭐ |
+| IPrivacyModeService | Symbol.for("IPrivacyModeService") | ⭐⭐⭐⭐⭐ |
+| ICommercialApiService | Symbol.for("ICommercialApiService") | ⭐⭐⭐⭐⭐ |
+
+#### 验证状态
+- **confidence**: high
+- **verified_by**: Phase 2 10KB采样 + Phase 3 双向扩展 + Phase 3++ 精确搜索
+- **last_verified**: 2026-04-26
+
+---
+
+
+## [2026-04-26 04:27] P1盲区系统性扫描 — 深度发现
+
+> 扫描范围: 文件首部(0-41400)、UI下半(8930000-9910446)、命令注册层(9910446-10490721)、文件尾部
+> 文件实际字符数: 10,490,721 (与预估 10,490,415 基本一致)
+> 关键修正: registerCommand 不在尾部，而在 @2540057 (文件中部)
+
+### [2026-04-26 04:27] 文件首部: AMD define 入口 + AIScene 枚举 ⭐⭐⭐⭐⭐
+> 文件以 AMD define 开头，声明依赖 katex/react/react-dom，首个模块定义 AIScene 枚举
+#### 位置信息
+- 偏移量: @0
+- 所属域标签: [Bootstrap] [Enum]
+#### 数据/证据
+``````
+define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";
+(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",
+r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="edit",
+r.GenerateCode="generate",r.Question="question",r.LineDoc="lines_doc",
+r.Search="search",r.NewBuilder="new_builder"
+``````
+
+### [2026-04-26 04:27] ToolCallName 完整枚举 (38个工具名) ⭐⭐⭐⭐⭐
+> 所有 Agent 工具调用名称的完整枚举，包含新增的 MCP/Supabase/Vercel 等工具
+#### 位置信息
+- 偏移量: @40836 (ToolCallName=r)
+- 所属域标签: [Enum] [Agent]
+#### 数据/证据
+``````
+RunCommand='run_command', OpenPreview='open_preview',
+OpenPreviewAndWaitForError='open_preview_and_wait_for_error', OpenFolder='open_folder',
+CreateFile='create_file', ViewFile='view_file', ViewFiles='view_files',
+ViewFolder='view_folder', EditFileSearchReplace='edit_file_search_replace',
+WriteToFile='write_to_file', ShowDiff='show_diff',
+SearchByReference='search_by_reference', SearchByDefinition='search_by_definition',
+SearchByRegex='search_by_regex', FileSearch='file_search',
+CheckCommandStatus='check_command_status', DeleteFile='delete_file',
+UpdateShallowMemento='update_shallow_memento', CondenseShallowMemento='condense_shallow_memento',
+MCPCall='run_mcp', Finish='finish', WebSearch='web_search',
+ResponseToUser='response_to_user', SearchCodebase='search_codebase',
+TodoWrite='todo_write', CreateRequirement='create_requirement',
+EditProductDocumentFastApply='edit_product_document_fast_apply',
+EditProductDocumentUpdate='edit_product_document_update',
+EditProductDocumentUpdateFC='edit_product_document_update_fc',
+WriteToProductDocument='write_to_product_document',
+DeployToVercel='deploy_to_remote', SupabaseApplyMigration='supabase_apply_migration',
+SupabaseGetProject='supabase_get_project', GetLLMConfig='get_llm_config',
+GetStripeConfig='stripe_get_config', GetPreviewConsoleLogs='get_preview_console_logs',
+InitEnvironment='init_env', AgentFinish='agent_finish'
+``````
+
+### [2026-04-26 04:27] UserConfirmStatusEnum 完整枚举 ⭐⭐⭐⭐⭐
+> 命令确认状态枚举：Unconfirmed/Confirmed/Skipped/Canceled
+#### 位置信息
+- 偏移量: @44416 (枚举定义)
+- 所属域标签: [Enum] [Confirm]
+#### 数据/证据
+``````
+(w=l||(t.UserConfirmStatusEnum=l={})).Unconfirmed='unconfirmed',
+w.Confirmed='confirmed',w.Skipped='skipped',w.Canceled='canceled'
+``````
+
+### [2026-04-26 04:27] CommandsRegistry + ICommandService DI 注册 ⭐⭐⭐⭐⭐
+> VS Code 命令注册系统核心类，ICommandService 通过 createDecorator 注册为 DI token
+#### 位置信息
+- 偏移量: CommandsRegistry @2539813, ICommandService @2539832, registerCommand @2540057
+- 所属域标签: [Command] [DI]
+#### 数据/证据
+``````
+t.ICommandService=(0,l.createDecorator)('commandService'),
+t.CommandsRegistry=new class{
+  constructor(){this._commands=new Map,this._unregisterCommands=new Map,
+    this._onDidRegisterCommand=new r.Emitter,this.onDidRegisterCommand=this._onDidRegisterCommand.event}
+  registerCommand(e,t){
+    if(!e)throw Error('invalid command');
+    if('string'==typeof e){if(!t)throw Error('invalid command');
+      return i.add(this.registerCommand({id:e,handler:t})),...}
+``````
+
+### [2026-04-26 04:27] createDecorator — DI 装饰器工厂 ⭐⭐⭐⭐⭐
+> 所有 DI service token 的创建工厂，serviceRegistry 是全局注册表
+#### 位置信息
+- 偏移量: @853508
+- 所属域标签: [DI]
+#### 数据/证据
+``````
+t.serviceRegistry=new Map,
+t.createDecorator=function(e){
+  if(t.serviceRegistry.has(e))return t.serviceRegistry.get(e);
+  let n=function(e,t,o){
+    if(3!=arguments.length)throw Error('@IServiceName-decorator can only be used to decorate a parameter');
+``````
+
+### [2026-04-26 04:27] uj — DI 容器核心类 ⭐⭐⭐⭐⭐
+> 全局 DI 容器单例，管理所有服务绑定和解析，是 registerAdapter/bootstrapApplicationContainer 的底层
+#### 位置信息
+- 偏移量: uj class @6273630, uj.getInstance @6275751
+- 所属域标签: [DI] [Core]
+#### 数据/证据
+``````
+class uj{
+  static getInstance(){return uj.instance||(uj.instance=new uj),uj.instance}
+  constructor(){this.initialized=!1,this.bindings=new Map,this.singletons=new Map}
+  initialize(e){!this.initialized&&(this.externalOptions=e,
+    this.getDependencyRegistry().getRegistrations().forEach(e=>{
+      this.register(e.identifier,e.implementation,e.singleton)}),this.initialized=!0)}
+  register(e,t,i=!0){if(this.bindings.has(e))
+    throw Error(Identifier  has already been registered.);...}
+  provide(e,t){uj.applyContainerToInstance(...)}
+``````
+
+### [2026-04-26 04:27] eY0 — 模块入口对象 (registerAdapter + bootstrapApplicationContainer) ⭐⭐⭐⭐⭐
+> 模块对外暴露的入口对象，包含 registerAdapter/getRegisteredAdapter/bootstrapApplicationContainer 三个方法
+#### 位置信息
+- 偏移量: @10476892 (eY0=)
+- 所属域标签: [Export] [DI] [Bootstrap]
+#### 数据/证据
+``````
+eY0={
+  registerAdapter:function(e,t){uj.getInstance().provide(e,t)},
+  getRegisteredAdapter:function(e){return uj.getInstance().resolve(e)},
+  bootstrapApplicationContainer:function(e){
+    let t=uj.getInstance();
+    t.initialize({nativeIDECreateDecorator:e?.nativeIDECreateDecorator,
+      nativeIDEInstantiationService:e?.nativeIDEInstantiationService}),
+    t.resolve(Dr).initialize(),t.resolve(Dp).initialize(),
+    t.resolve(kh).initialize(),t.resolve(H2).migrateChatHistory(),
+    t.resolve(eto).initialize(),FW.prepareSessionService();...
+``````
+
+### [2026-04-26 04:27] 25个 VS Code 命令注册 (bootstrapApplicationContainer) ⭐⭐⭐⭐⭐
+> 在 bootstrapApplicationContainer 中通过 e?.CommandsRegistry 注册的全部命令
+#### 位置信息
+- 偏移量: 10477819-10489027
+- 所属域标签: [Command] [Bootstrap]
+#### 数据/证据
+``````
+命令ID列表:
+1.  workbench.action.chat.icube.send.internal @10477819
+2.  workbench.action.chat.icube.send.codeReview @10478151
+3.  icube.common.openUsageLimitModalAICompletion @10479695
+4.  workbench.action.icubeAIGetNetworkData @10479839
+5.  python-helper.environmentChanged @10479977
+6.  icube.session.updateWorktreeAfterMerge @10480095
+7.  icube.chat.acceptSessionTodo @10480290
+8.  icube.ai.reportAICodeContribution @10480449
+9.  icube.debug.fetchEnterpriseDocsets @10480590
+10. icube.dslAgent.startGlobalLogStream @10480798
+11. icube.dslAgent.stopGlobalLogStream @10480933
+12. icube.dslAgent.openEditor @10481066
+13. icube.chat.stopSession @10483844
+14. icube.chat.sendToAgentNonBlocking @10483991
+15. icube.chat.sendToAgentBackground.deepwiki @10485192
+16. icube.chat.getSessionRunningStatus @10485648
+17. icube.chat.forkSession @10485803
+18. icube.knowledges.init @10487427
+19. icube.knowledges.retryInit @10487683
+20. icube.knowledges.rebuild @10487950
+21. icube.knowledges.update @10488215
+22. icube.knowledges.pause @10488493
+23. icube.knowledges.continue @10488622
+24. icube.knowledges.statusClick @10488891
+25. icube.knowledges.showDebugStatus @10489027
+``````
+
+### [2026-04-26 04:27] FW — 核心服务门面对象 ⭐⭐⭐⭐⭐
+> FW 是 ai-chat 模块的核心服务门面，包含 directlySendToSideChat/sendToAgent/prepareSessionService 等关键方法
+#### 位置信息
+- 偏移量: FW={ @7598504, apis:FW @10490700
+- 所属域标签: [Service] [Core]
+#### 数据/证据
+``````
+FW={
+  directlySendToSideChat:async function e(e){
+    let t=uj.getInstance(),i=t.resolve(M0),r=t.resolve(BR);
+    if(i.getRunningStatus()!==Io.WaitingInput){
+      Df.dispatch({type:'updateInputText',payload:e});return}
+    r.sendChatMessage({message:e,parsedQuery:[e],sessionId:...})},
+  directlySendParsedQueryToSideChat:async function e(e){...},
+  sendToAgent:..., prepareSessionService:..., ...
+}
+// 最终导出: apis:FW
+``````
+
+### [2026-04-26 04:27] 16个 React 组件导出列表 ⭐⭐⭐⭐
+> 模块导出的全部 React 组件，包括 ChatView/InlineChat/Agent/Settings 等
+#### 位置信息
+- 偏移量: @10490209
+- 所属域标签: [React] [Export]
+#### 数据/证据
+``````
+components:{
+  ChatViewPaneComponent:eM8,
+  InlineChatViewPaneComponent:ePL,
+  CustomAgentPaneComponent:eLX,
+  AIModelsSettingsComponent:eH6,
+  AIContextSettingsComponent:eH8,
+  AIKnowledgesSettingsComponent:eYe,
+  AgentExtensionPaneComponent:eRB,
+  AIRulesSettingsComponent:eH9,
+  AIWorktreeSettingsComponent:eH7,
+  AgentImportComponent:eYN,
+  AITaskPanelComponent:eYi,
+  AIConversationSettingsComponent:eRw,
+  RuleMetadataFormComponent:eYG,
+  DSLAgentPaneComponent:ePi,
+  SubAgentDetailComponent:ePo,
+  KnowledgesInitPopupComponent:ePd
+}
+``````
+
+### [2026-04-26 04:27] 文件尾部 IIFE 闭合结构 ⭐⭐⭐⭐
+> 文件以三重闭包结束: 内层IIFE → AMD define return → define 调用
+#### 位置信息
+- 偏移量: @10490600-10490721
+- 所属域标签: [Bootstrap] [Export]
+#### 数据/证据
+``````
+...KnowledgesInitPopupComponent:ePd},apis:FW}})(),l})()});
+// 结构: define([...],function(e,t,i){return(()=>{...})()})
+// 三层闭合: })() — 内层IIFE, l})() — AMD factory, }); — define 调用
+``````
+
+### [2026-04-26 04:27] ServiceCollection + InstantiationService ⭐⭐⭐⭐
+> VS Code 风格的 DI 服务集合和实例化服务
+#### 位置信息
+- 偏移量: @1227889
+- 所属域标签: [DI]
+#### 数据/证据
+``````
+class o{
+  constructor(...e){for(let[t,i]of(this._entries=new Map,e))this.set(t,i)}
+  set(e,t){let i=this._entries.get(e);return this._entries.set(e,t),i}
+  forEach(e){for(let[t,i]of this._entries.entries())e(t,i)}
+  has(e){return this._entries.has(e)}
+  get(e){return this._entries.get(e)}
+}
+t.ServiceCollection=o,
+t.InstantiationService=class{
+  constructor(){this._services=new o,this._services.set(r.IInstantiationService,this)}
+  setService(e,t){this._services.set(e,t)}
+``````
+
+### [2026-04-26 04:27] 区间1 UI组件: ChatInput @9015579 ⭐⭐⭐⭐
+> 聊天输入组件，用户与 AI 交互的入口
+#### 位置信息
+- 偏移量: @9015579
+- 所属域标签: [React] [UI]
+#### 数据/证据
+``````
+ChatInput 关键词命中 @9015579
+``````
+
+### [2026-04-26 04:27] 区间1 UI组件: FileDiff @8932385 ⭐⭐⭐
+> 文件差异展示组件
+#### 位置信息
+- 偏移量: @8932385
+- 所属域标签: [React] [UI]
+#### 数据/证据
+``````
+FileDiff 关键词命中 @8932385
+``````
+
+### [2026-04-26 04:27] 区间1 UI组件: ToolCall @9067039 ⭐⭐⭐⭐
+> 工具调用展示组件，Agent 执行工具时的 UI
+#### 位置信息
+- 偏移量: @9067039
+- 所属域标签: [React] [UI] [Agent]
+#### 数据/证据
+``````
+ToolCall 关键词命中 @9067039
+``````
+
+### [2026-04-26 04:27] 区间1 confirm_status @8975688 ⭐⭐⭐⭐
+> UI下半部分中的 confirm_status 引用，可能是 RunCommandCard 的确认状态渲染逻辑
+#### 位置信息
+- 偏移量: @8975688
+- 所属域标签: [React] [Confirm]
+#### 数据/证据
+``````
+confirm_status 关键词命中 @8975688 (区间1)
+``````
+
+### [2026-04-26 04:27] webpack 内嵌 runtime (@435246) ⭐⭐⭐
+> 文件内嵌了一个独立的 webpack runtime，用于某个子模块的懒加载
+#### 位置信息
+- 偏移量: @435246
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+``````
+e.exports=function(){return i(11)('(r=>{var n={};
+function __webpack_require__(e){var t;return(n[e]||(t=n[e]={i:e,l:!1,exports:{}},
+r[e].call(t.exports,t,t.exports,__webpack_require__),t.l=!0,t)).exports}
+__webpack_require__.m=r,__webpack_require__.c=n,
+__webpack_require__.d=function(e,t,r){...},
+__webpack_require__.r=function(e){...}
+``````
+
+### [2026-04-26 04:27] DcsParser.registerHandler — 终端转义序列处理器 ⭐⭐⭐
+> xterm.js 的 DCS 转义序列解析器，registerHandler 注册处理函数
+#### 位置信息
+- 偏移量: @1197068
+- 所属域标签: [Terminal]
+#### 数据/证据
+``````
+t.DcsParser=class{
+  constructor(){this._handlers=Object.create(null),this._active=a,...}
+  registerHandler(e,t){void 0===this._handlers[e]&&(this._handlers[e]=[]);
+    let i=this._handlers[e];return i.push(t),{dispose:()=>{...}}}
+``````
+
+### [2026-04-26 04:27] inject( @1802391 — styled-components 注入 ⭐⭐
+> 此处 inject 是 styled-components 的 CSS 注入，非 DI inject
+#### 位置信息
+- 偏移量: @1802391
+- 所属域标签: [CSS] [styled-components]
+#### 数据/证据
+``````
+e.inject(i,r),[e.getName(r)]):[e]:ei(e)?eR(e):...
+// 这是 styled-components 的 StyleSheet.inject，不是 DI 注入
+``````
+
+
+
+## [2026-04-26 04:28] P1盲区系统性扫描
+
+> 区间1(UI下半: 8930000-9910446) + 区间2(命令注册: 9910446-10743609) + 区间3(首部: 0-41400) + 区间4(尾部)
+> 共发现 64 个目标
+
+### [2026-04-26 04:28] useMemo 发现 @8929851 ⭐***
+> 区间1采样命中 useMemo
+#### 位置信息
+- 偏移量: @8929851
+- 所属域标签: [React]
+#### 数据/证据
+```
+.toISOString()}`,{itemId:i,timestamp:Date.now()}),P(xc.Reject),g.publicLog2("icube-ai.agent.file-outside-workspace.skip")},[P,g,i]),B=uB(eej),F=(0,sK.useMemo)(()=>M?.run_mode,[M?.run_mode]),[U,W]=(0,sK.useState)(!1),G=(0,Ir.Z)(async e=>{if(e!==F){W(!0);try{if(!await B.switchRunMode(e,"card"))return;P(xc.AutoRunConfigChange)}finally{W(!1)}}}),H=(0,sK.useMemo)(()=>{if(!n)return"";let e=n.lastIndexOf
+```
+
+### [2026-04-26 04:28] useMemo 发现 @8930053 ⭐***
+> 区间1采样命中 useMemo
+#### 位置信息
+- 偏移量: @8930053
+- 所属域标签: [React]
+#### 数据/证据
+```
+useState)(!1),G=(0,Ir.Z)(async e=>{if(e!==F){W(!0);try{if(!await B.switchRunMode(e,"card"))return;P(xc.AutoRunConfigChange)}finally{W(!1)}}}),H=(0,sK.useMemo)(()=>{if(!n)return"";let e=n.lastIndexOf("/")>=0?"/":"\\";return n.substring(0,n.lastIndexOf(e))||""},[n]),Y=(0,Ir.Z)(async()=>{H&&(await B.addToAllowPaths([H],"card"),P(xc.AutoRunConfigChange))}),V=(0,sK.useMemo)(()=>[{mode:js.ALWAYS_ASK,tit
+```
+
+### [2026-04-26 04:28] useMemo 发现 @8930266 ⭐***
+> 区间1采样命中 useMemo
+#### 位置信息
+- 偏移量: @8930266
+- 所属域标签: [React]
+#### 数据/证据
+```
+\";return n.substring(0,n.lastIndexOf(e))||""},[n]),Y=(0,Ir.Z)(async()=>{H&&(await B.addToAllowPaths([H],"card"),P(xc.AutoRunConfigChange))}),V=(0,sK.useMemo)(()=>[{mode:js.ALWAYS_ASK,title:E("icd.ai.fileOp.mode.ask.title"),description:E("icd.ai.fileOp.mode.ask.desc")},{mode:js.WHITELIST,title:E("icd.ai.fileOp.mode.allowlist.title"),description:E("icd.ai.fileOp.mode.allowlist.desc")},{mode:js.ALWA
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @8981546 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @8981546
+- 所属域标签: [React]
+#### 数据/证据
+```
+enFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @8981584 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @8981584
+- 所属域标签: [React]
+#### 数据/证据
+```
+s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @8981645 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @8981645
+- 所属域标签: [React]
+#### 数据/证据
+```
+.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX().createElement(Cr.EllipsisTooltip,{className:"auto-run-sett
+```
+
+### [2026-04-26 04:28] useEffect 发现 @8981241 ⭐***
+> 区间1采样命中 useEffect
+#### 位置信息
+- 偏移量: @8981241
+- 所属域标签: [React]
+#### 数据/证据
+```
+?"SOLO":"IDE",t,a)},[p,a,n,r]),y=(0,sK.useCallback)(()=>{r.event(i4.AutoRunConfig.tips_close),i.setAutoRunTipsHiddenFlag(),d(!0)},[i,r]);return((0,sK.useEffect)(()=>Ol(t.onDidChangeConfiguration(e=>{e.affectsConfiguration(o)&&s(t.getConfiguration(o))})),[t,o]),(0,sK.useEffect)(()=>{d(i.getAutoRunTipsHiddenFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{
+```
+
+### [2026-04-26 04:28] useEffect 发现 @8981358 ⭐***
+> 区间1采样命中 useEffect
+#### 位置信息
+- 偏移量: @8981358
+- 所属域标签: [React]
+#### 数据/证据
+```
+lag(),d(!0)},[i,r]);return((0,sK.useEffect)(()=>Ol(t.onDidChangeConfiguration(e=>{e.affectsConfiguration(o)&&s(t.getConfiguration(o))})),[t,o]),(0,sK.useEffect)(()=>{d(i.getAutoRunTipsHiddenFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div"
+```
+
+### [2026-04-26 04:28] useEffect 发现 @8981418 ⭐***
+> 区间1采样命中 useEffect
+#### 位置信息
+- 偏移量: @8981418
+- 所属域标签: [React]
+#### 数据/证据
+```
+angeConfiguration(e=>{e.affectsConfiguration(o)&&s(t.getConfiguration(o))})),[t,o]),(0,sK.useEffect)(()=>{d(i.getAutoRunTipsHiddenFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9082632 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9082632
+- 所属域标签: [React]
+#### 数据/证据
+```
+",y:"0",width:"16",height:"16"},sX().createElement("path",{d:"M16 0H0V16H16V0Z",fill:"white"})),sX().createElement("g",{mask:"url(#mask0_3277_6067)"},sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9082696 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9082696
+- 所属域标签: [React]
+#### 数据/证据
+```
+",y:"0",width:"16",height:"16"},sX().createElement("path",{d:"M16 0H0V16H16V0Z",fill:"white"})),sX().createElement("g",{mask:"url(#mask0_3277_6067)"},sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",fill:t}),sX().cr
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9082750 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9082750
+- 所属域标签: [React]
+#### 数据/证据
+```
+",y:"0",width:"16",height:"16"},sX().createElement("path",{d:"M16 0H0V16H16V0Z",fill:"white"})),sX().createElement("g",{mask:"url(#mask0_3277_6067)"},sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",fill:t}),sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931
+```
+
+### [2026-04-26 04:28] useMemo 发现 @9186300 ⭐***
+> 区间1采样命中 useMemo
+#### 位置信息
+- 偏移量: @9186300
+- 所属域标签: [React]
+#### 数据/证据
+```
+.975,d:"M5.917 9.167 8.083 7 5.917 4.833"})))};new URL(s(33946),s.b).toString();let ey7="icb-plan-reasoning-content",eve=[epM,epx],evt=(e,t,i)=>(0,sK.useMemo)(()=>({show:(0!==t||!!i)&&!!e.reasoningContent?.trim?.(),expand:!(e?.thought||e?.toolName),reasoningContent:e.reasoningContent||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1)
+```
+
+### [2026-04-26 04:28] useMemo 发现 @9186746 ⭐***
+> 区间1采样命中 useMemo
+#### 位置信息
+- 偏移量: @9186746
+- 所属域标签: [React]
+#### 数据/证据
+```
+Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().createElement(epU,{id:e,taskId:i})}),[i]),f=s("ai.chat.reasoningContent.title",{},"Thought");return sX().createElement("div",{ref:l,className:s4()(ey7)},sX().createElement("div",{className:s4()(`${ey7}__title`)
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9389963 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9389963
+- 所属域标签: [React]
+#### 数据/证据
+```
+test:o}),{reasoningContent:g,expand:f,show:_}=evt(e,t,r);return!e.thought?.trim?.()&&!_&&(!e.toolName||[CS.Finish,CS.Task].includes(e.toolName))?null:sX().createElement("div",{className:"ai-agent-task",key:e.planItemId||t},_&&sX().createElement(evi,{reasoningContent:g,expand:f,taskId:e.id}),e.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9390039 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9390039
+- 所属域标签: [React]
+#### 数据/证据
+```
+rim?.()&&!_&&(!e.toolName||[CS.Finish,CS.Task].includes(e.toolName))?null:sX().createElement("div",{className:"ai-agent-task",key:e.planItemId||t},_&&sX().createElement(evi,{reasoningContent:g,expand:f,taskId:e.id}),e.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9390131 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9390131
+- 所属域标签: [React]
+#### 数据/证据
+```
+("div",{className:"ai-agent-task",key:e.planItemId||t},_&&sX().createElement(evi,{reasoningContent:g,expand:f,taskId:e.id}),e.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(0,sK.memo)(({taskChunks:e,taskGroups:t,thinkingElement:i,onUpdateTaskExecutionStatus:r,isLat
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9441960 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9441960
+- 所属域标签: [React]
+#### 数据/证据
+```
+tip_text.default",{},"Max Mode is designed for complex tasks, with extended context and flexible tool use, billed by token usage."),[i,n,o,r]);return sX().createElement(sX().Fragment,null,sX().createElement(ewh,null,t("ai.model.max_mode",{},"Max Mode")),sX().createElement(ewp,null,s),o&&sX().createElement(ewp,{className:"special-cost"},t("ai.model.max.tooltip_text.select.cost",{context:a},"Costs w
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9441998 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9441998
+- 所属域标签: [React]
+#### 数据/证据
+```
+gned for complex tasks, with extended context and flexible tool use, billed by token usage."),[i,n,o,r]);return sX().createElement(sX().Fragment,null,sX().createElement(ewh,null,t("ai.model.max_mode",{},"Max Mode")),sX().createElement(ewp,null,s),o&&sX().createElement(ewp,{className:"special-cost"},t("ai.model.max.tooltip_text.select.cost",{context:a},"Costs will rise significantly when the actual
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9442064 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9442064
+- 所属域标签: [React]
+#### 数据/证据
+```
+e, billed by token usage."),[i,n,o,r]);return sX().createElement(sX().Fragment,null,sX().createElement(ewh,null,t("ai.model.max_mode",{},"Max Mode")),sX().createElement(ewp,null,s),o&&sX().createElement(ewp,{className:"special-cost"},t("ai.model.max.tooltip_text.select.cost",{context:a},"Costs will rise significantly when the actual input exceeds { context } tokens.")))}},{key:"contextWindows",sho
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9800090 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9800090
+- 所属域标签: [React]
+#### 数据/证据
+```
+=r.parsedQuery?.length?Cy(r.parsedQuery):r.content,!r.content&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createEle
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9800150 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9800150
+- 所属域标签: [React]
+#### 数据/证据
+```
+t&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container
+```
+
+### [2026-04-26 04:28] sX().createElement 发现 @9800219 ⭐***
+> 区间1采样命中 sX().createElement
+#### 位置信息
+- 偏移量: @9800219
+- 所属域标签: [React]
+#### 数据/证据
+```
+]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container"],onClick:i?.current?.handleCopy},sX().createElement("div",{classNam
+```
+
+### [2026-04-26 04:28] useState 发现 @9902871 ⭐***
+> 区间1采样命中 useState
+#### 位置信息
+- 偏移量: @9902871
+- 所属域标签: [React]
+#### 数据/证据
+```
+terFrom:"custom_agent_mcp_marketplace_modal_empty_page",visibleModalTag:r}))}function eTc(e){let t="number"==typeof e?Array(e).fill(""):e,[i,r]=(0,sK.useState)(t);return{values:i,setValues:r,updateValue:(e,t)=>{r(i=>{let r=[...i];return r[e]=t,r})},clearValues:()=>{r(e=>e.map(()=>""))}}}let eTu={mcp_cannot_be_empty:"Cannot be empty",mcp_invalid_json_format:"Invalid JSON format",mcp_no_mcp_server:"
+```
+
+### [2026-04-26 04:28] registerAdapter 发现 @10729767 ⭐*****
+> 区间2采样命中 registerAdapter
+#### 位置信息
+- 偏移量: @10729767
+- 所属域标签: [Command]
+#### 数据/证据
+```
+itch knowledges-debug-switch=0.")}),r}"undefined"!=typeof window&&void 0===window.ResizeObserver&&(window.ResizeObserver=sq.Z);let eYJ="ai-chat",eY0={registerAdapter:function(e,t){uj.getInstance().provide(e,t)},getRegisteredAdapter:function(e){return uj.getInstance().resolve(e)},bootstrapApplicationContainer:function(e){let t=uj.getInstance();t.initialize({nativeIDECreateDecorator:e?.nativeIDECrea
+```
+
+### [2026-04-26 04:28] 文件首部: __esModule 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @142
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="ed
+```
+
+### [2026-04-26 04:28] 文件首部: __esModule 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @888
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+,{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extension_version:i?.extensionV
+```
+
+### [2026-04-26 04:28] 文件首部: __esModule 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @1671
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+finedValues(e){let t={};for(let[i,r]of Object.entries(e))void 0!==r&&(t[i]=r);return t}}},39124:function(e,t,i){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.createInternalContributionSdk=function(e){let t=new r.AIContributionTracker(e);return{reportAICodeContribution:e=>t.reportAICodeContribution(e),updateGitUrls:e=>t.updateGitUrls(e)}};let r=i(31397)},31397:function(e,t,i){"use
+```
+
+### [2026-04-26 04:28] 文件首部: Object.defineProperty 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @117
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r
+```
+
+### [2026-04-26 04:28] 文件首部: Object.defineProperty 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @683
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+_EVENT="ai_contribution_code",t.BYTEDANCE_SCOPE="bytedance"},32499:function(e,t,i){"use strict";t.createInternalContributionSdk=void 0;var r=i(39124);Object.defineProperty(t,"createInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,
+```
+
+### [2026-04-26 04:28] 文件首部: Object.defineProperty 发现 ⭐****
+> webpack bootstrap 结构元素
+#### 位置信息
+- 偏移量: @863
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+eInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extens
+```
+
+### [2026-04-26 04:28] 文件首部前500字符 ⭐****
+> webpack bootstrap 入口代码
+#### 位置信息
+- 偏移量: @0
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="edit",r.GenerateCode="generate",r.Question="question",r.LineDoc="lines_doc",r.Search="search",r.NewBuilder="ne
+```
+
+### [2026-04-26 04:28] 文件尾部最后200字符 ⭐*****
+> IIFE 闭合与模块导出
+#### 位置信息
+- 偏移量: @10743409
+- 所属域标签: [Export]
+#### 数据/证据
+```
+AITaskPanelComponent:eYi,AIConversationSettingsComponent:eRw,RuleMetadataFormComponent:eYG,DSLAgentPaneComponent:ePi,SubAgentDetailComponent:ePo,KnowledgesInitPopupComponent:ePd},apis:FW}})(),l})()});
+```
+
+### [2026-04-26 04:28] 命令注册: workbench.action.chat.icube.send.internal ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10729493
+- 所属域标签: [Command]
+#### 数据/证据
+```
+led to resolve Knowledges feature gate:",e)}),e?.CommandsRegistry){var r,n;(n=r=e.CommandsRegistry).registerCommand("workbench.action.chat.icube.send.internal",async(e,t,i)=>{if(!t||0===t.length)throw Error("no inputs provided");eYq("send.internal");let r=uj.getInstance().resolve(S2.IViewsService);return await r.openViewContainer(BG,!0),document.dispatchEve
+```
+
+### [2026-04-26 04:28] 命令注册: workbench.action.chat.icube.send.codeReview ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10729825
+- 所属域标签: [Command]
+#### 数据/证据
+```
+BG,!0),document.dispatchEvent(new CustomEvent("icube.ai-agent.focusInput")),FW.sendToAgent(t,i)}),n.registerCommand("workbench.action.chat.icube.send.codeReview",async(e,t,i)=>{let r,n;if(!t||0===t.length)throw Error("no inputs provided");let o=uj.getInstance();if("not-login"===o.resolve(S2.IICubeAuthService).getCurrentLoginStatusSync())throw Error("the code 
+```
+
+### [2026-04-26 04:28] 命令注册: icube.common.openUsageLimitModalAICompletion ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10731369
+- 所属域标签: [Command]
+#### 数据/证据
+```
+Id:i?.agentId}))});try{return await FW.sendToAgentBackground(t,u)}catch(e){throw e}finally{p()}}),n.registerCommand("icube.common.openUsageLimitModalAICompletion",async(e,t,i)=>{let r=uj.getInstance().resolve(eYV);await r.onUsageLimit(t,i)}),n.registerCommand("workbench.action.icubeAIGetNetworkData",async()=>{let e=uj.getInstance().resolve(Jf);return await e.g
+```
+
+### [2026-04-26 04:28] 命令注册: workbench.action.icubeAIGetNetworkData ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10731513
+- 所属域标签: [Command]
+#### 数据/证据
+```
+ModalAICompletion",async(e,t,i)=>{let r=uj.getInstance().resolve(eYV);await r.onUsageLimit(t,i)}),n.registerCommand("workbench.action.icubeAIGetNetworkData",async()=>{let e=uj.getInstance().resolve(Jf);return await e.getNetworkData()}),n.registerCommand("python-helper.environmentChanged",async()=>{uj.getInstance().resolve(ED).updatePythonActiveEnv()}),n.
+```
+
+### [2026-04-26 04:28] 命令注册: python-helper.environmentChanged ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10731651
+- 所属域标签: [Command]
+#### 数据/证据
+```
+eAIGetNetworkData",async()=>{let e=uj.getInstance().resolve(Jf);return await e.getNetworkData()}),n.registerCommand("python-helper.environmentChanged",async()=>{uj.getInstance().resolve(ED).updatePythonActiveEnv()}),n.registerCommand("icube.session.updateWorktreeAfterMerge",async(e,t)=>{let i=uj.getInstance().resolve(M0);i&&"function"==typeof i.upd
+```
+
+### [2026-04-26 04:28] 命令注册: icube.session.updateWorktreeAfterMerge ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10731769
+- 所属域标签: [Command]
+#### 数据/证据
+```
+ython-helper.environmentChanged",async()=>{uj.getInstance().resolve(ED).updatePythonActiveEnv()}),n.registerCommand("icube.session.updateWorktreeAfterMerge",async(e,t)=>{let i=uj.getInstance().resolve(M0);i&&"function"==typeof i.updateWorktreeAfterMerge&&await i.updateWorktreeAfterMerge(t)}),n.registerCommand("icube.chat.acceptSessionTodo",async(e,t)=>{l
+```
+
+### [2026-04-26 04:28] 命令注册: icube.chat.acceptSessionTodo ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10731964
+- 所属域标签: [Command]
+#### 数据/证据
+```
+solve(M0);i&&"function"==typeof i.updateWorktreeAfterMerge&&await i.updateWorktreeAfterMerge(t)}),n.registerCommand("icube.chat.acceptSessionTodo",async(e,t)=>{let i=uj.getInstance().resolve(Wm);t?.sessionId&&await i.acceptTodoFilesBySession(t.sessionId)}),n.registerCommand("icube.ai.reportAICodeContribution",async(e,t)=>{let i=uj.getInstance()
+```
+
+### [2026-04-26 04:28] 命令注册: icube.ai.reportAICodeContribution ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10732123
+- 所属域标签: [Command]
+#### 数据/证据
+```
+{let i=uj.getInstance().resolve(Wm);t?.sessionId&&await i.acceptTodoFilesBySession(t.sessionId)}),n.registerCommand("icube.ai.reportAICodeContribution",async(e,t)=>{let i=uj.getInstance().resolve(ee3);await i.reportAICodeContribution(t)}),n.registerCommand("icube.debug.fetchEnterpriseDocsets",async()=>{let e=uj.getInstance(),{IDocsetService:t}=await
+```
+
+### [2026-04-26 04:28] 命令注册: icube.debug.fetchEnterpriseDocsets ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10732264
+- 所属域标签: [Command]
+#### 数据/证据
+```
+tribution",async(e,t)=>{let i=uj.getInstance().resolve(ee3);await i.reportAICodeContribution(t)}),n.registerCommand("icube.debug.fetchEnterpriseDocsets",async()=>{let e=uj.getInstance(),{IDocsetService:t}=await Promise.resolve().then(s.bind(s,36518)),i=e.resolve(t);await i.debugFetchEnterpriseDocsets()}),n.registerCommand("icube.dslAgent.startGlobalL
+```
+
+### [2026-04-26 04:28] 命令注册: icube.dslAgent.startGlobalLogStream ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10732472
+- 所属域标签: [Command]
+#### 数据/证据
+```
+it Promise.resolve().then(s.bind(s,36518)),i=e.resolve(t);await i.debugFetchEnterpriseDocsets()}),n.registerCommand("icube.dslAgent.startGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.startGlobalLogStream()}),n.registerCommand("icube.dslAgent.stopGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.stopGlobalL
+```
+
+### [2026-04-26 04:28] 命令注册: icube.dslAgent.stopGlobalLogStream ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10732607
+- 所属域标签: [Command]
+#### 数据/证据
+```
+rtGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.startGlobalLogStream()}),n.registerCommand("icube.dslAgent.stopGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.stopGlobalLogStream()}),n.registerCommand("icube.dslAgent.openEditor",async(e,t,i)=>{let r=uj.getInstance(),n=r.resolve(eto),o=r.resolve(S2.IWebv
+```
+
+### [2026-04-26 04:28] 命令注册: icube.dslAgent.openEditor ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10732740
+- 所属域标签: [Command]
+#### 数据/证据
+```
+topGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.stopGlobalLogStream()}),n.registerCommand("icube.dslAgent.openEditor",async(e,t,i)=>{let r=uj.getInstance(),n=r.resolve(eto),o=r.resolve(S2.IWebviewWorkbenchService),a=r.resolve(S2.IFileService),s=r.resolve(Au),l=r.resolve(S2.IEditorService);try{if(eYQ.has(t)){let{webv
+```
+
+### [2026-04-26 04:28] 命令注册: icube.chat.stopSession ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10735518
+- 所属域标签: [Command]
+#### 数据/证据
+```
+.message})}})()}})}catch(e){throw console.error("[DSLAgentEditor] Failed to open editor:",e),e}}),n.registerCommand("icube.chat.stopSession",async(e,t)=>{if(!t?.sessionId)return;let i=uj.getInstance().resolve(BR);await i.stopChat(t.sessionId)}),n.registerCommand("icube.chat.sendToAgentNonBlocking",async(e,t,i)=>{if(!t||0===t.length)throw 
+```
+
+### [2026-04-26 04:28] 命令注册: icube.chat.sendToAgentNonBlocking ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10735665
+- 所属域标签: [Command]
+#### 数据/证据
+```
+e,t)=>{if(!t?.sessionId)return;let i=uj.getInstance().resolve(BR);await i.stopChat(t.sessionId)}),n.registerCommand("icube.chat.sendToAgentNonBlocking",async(e,t,i)=>{if(!t||0===t.length)throw Error("no inputs provided");let r=uj.getInstance(),n=r.resolve(S2.IViewsService),o=r.resolve(S2.IICubeAuthService),a=r.resolve(M0),s=r.resolve(BR),l=r.resolve
+```
+
+### [2026-04-26 04:28] 命令注册: icube.chat.sendToAgentBackground.deepwiki ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10736866
+- 所属域标签: [Command]
+#### 数据/证据
+```
+ed:!0}).catch(e=>{u.error("[sendToAgentNonBlocking] sendChatMessage failed:",e)}),{sessionId:p}}),n.registerCommand("icube.chat.sendToAgentBackground.deepwiki",async(e,t,i)=>{if(!t||0===t.length)throw Error("no inputs provided");if("not-login"===uj.getInstance().resolve(S2.IICubeAuthService).getCurrentLoginStatusSync())throw Error("the deepwiki background c
+```
+
+### [2026-04-26 04:28] 命令注册: icube.chat.getSessionRunningStatus ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10737322
+- 所属域标签: [Command]
+#### 数据/证据
+```
+ntName),i?.agentId&&(r.agentId=i.agentId),i?.modelName&&(r.modelName=i.modelName),await F6(t,r)}),n.registerCommand("icube.chat.getSessionRunningStatus",async(e,t)=>t?.sessionId?uj.getInstance().resolve(IN).getRunningStatus(t.sessionId):"WaitingInput"),n.registerCommand("icube.chat.forkSession",async(e,t)=>{if(!t?.sessionId)throw Error("[forkSession]
+```
+
+### [2026-04-26 04:28] 命令注册: icube.chat.forkSession ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10737477
+- 所属域标签: [Command]
+#### 数据/证据
+```
+ync(e,t)=>t?.sessionId?uj.getInstance().resolve(IN).getRunningStatus(t.sessionId):"WaitingInput"),n.registerCommand("icube.chat.forkSession",async(e,t)=>{if(!t?.sessionId)throw Error("[forkSession] sessionId is required");if(!t?.messageId)throw Error("[forkSession] messageId is required");eYq("forkSession");let i=uj.getInstance(),r=i.reso
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.init ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10739101
+- 所属域标签: [Command]
+#### 数据/证据
+```
+(BH),...Object.values(BY)])e.registerCommand(i,async(e,...r)=>t.executeCommand(`_${i}`,...r))}(r),r.registerCommand("icube.knowledges.init",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.executeTask(FE.Init,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to init know
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.retryInit ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10739357
+- 所属域标签: [Command]
+#### 数据/证据
+```
+Init,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to init knowledges:",e)}}),r.registerCommand("icube.knowledges.retryInit",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.executeTask(FE.Init,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to retry ini
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.rebuild ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10739624
+- 所属域标签: [Command]
+#### 数据/证据
+```
+triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to retry init knowledges:",e)}}),r.registerCommand("icube.knowledges.rebuild",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.executeTask(FE.Rebuild,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to rebuil
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.update ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10739889
+- 所属域标签: [Command]
+#### 数据/证据
+```
+d,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to rebuild knowledges:",e)}}),r.registerCommand("icube.knowledges.update",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.runHistoricalSessionUpdates({notify:!0,triggerSource:Fk.Command})}catch(e){i.error("[knowledges] F
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.pause ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10740167
+- 所属域标签: [Command]
+#### 数据/证据
+```
+:!0,triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to update knowledges:",e)}}),r.registerCommand("icube.knowledges.pause",async()=>{let e=uj.getInstance(),t=e.resolve(FC);await eY$(e)&&t.pauseCurrentTask()}),r.registerCommand("icube.knowledges.continue",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);tr
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.continue ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10740296
+- 所属域标签: [Command]
+#### 数据/证据
+```
+dges.pause",async()=>{let e=uj.getInstance(),t=e.resolve(FC);await eY$(e)&&t.pauseCurrentTask()}),r.registerCommand("icube.knowledges.continue",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.continueCurrentTask({triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to continue 
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.statusClick ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10740565
+- 所属域标签: [Command]
+#### 数据/证据
+```
+ggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to continue knowledges task:",e)}}),r.registerCommand("icube.knowledges.statusClick",async()=>{let e=uj.getInstance(),t=e.resolve(et8);await eY$(e)&&t.handleEntryClick()}),r.registerCommand("icube.knowledges.showDebugStatus",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolv
+```
+
+### [2026-04-26 04:28] 命令注册: icube.knowledges.showDebugStatus ⭐*****
+> VS Code 命令注册
+#### 位置信息
+- 偏移量: @10740701
+- 所属域标签: [Command]
+#### 数据/证据
+```
+atusClick",async()=>{let e=uj.getInstance(),t=e.resolve(et8);await eY$(e)&&t.handleEntryClick()}),r.registerCommand("icube.knowledges.showDebugStatus",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(S2.INotificationService);if(!await eY$(e)||!await eYX(e))return;await t.initialize();let r=t.getTaskProgress();if(!r){i.notify({severity:U
+```
+
+### [2026-04-26 04:28] bootstrapApplicationContainer 入口 ⭐*****
+> 模块初始化入口函数
+#### 位置信息
+- 偏移量: @10728701
+- 所属域标签: [Bootstrap]
+#### 数据/证据
+```
+bootstrapApplicationContainer:function(e){let t=uj.getInstance();t.initialize({nativeIDECreateDecorator:e?.nativeIDECreateDecorator,nativeIDEInstantiationService:e?.nativeIDEInstantiationService}),t.resolve(Dr).initialize(),t.resolve(Dp).initialize(),t.resolve(kh).initialize(),t.resolve(H2).migrateChatHistory(),t.resolve(eto).initialize(),FW.prepareSessionService();let i=t.resolve(bY);if(t.resolve(etO).isKnowledgesFeatureEnabled().then(e=>{if(!e){i.info("[ai-chat] Knowledges feature disabled by 
+```
+
+### [2026-04-26 04:28] eY0 模块入口对象 ⭐*****
+> registerAdapter + bootstrapApplicationContainer
+#### 位置信息
+- 偏移量: @10728566
+- 所属域标签: [Export]
+#### 数据/证据
+```
+eY0={registerAdapter:function(e,t){uj.getInstance().provide(e,t)},getRegisteredAdapter:function(e){return uj.getInstance().resolve(e)},bootstrapApplicationContainer:function(e){let t=uj.getInstance();t.initialize({nativeIDECreateDecorator:e?.nativeIDECreateDecorator,nativeIDEInstantiationService:e?.
+```
+
+### [2026-04-26 04:28] UI组件: 聊天输入 (ChatInput) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @9015885
+- 所属域标签: [React]
+#### 数据/证据
+```
+sPath.replace(`${a.uri.fsPath}/`,""):"",uri:t,selections:[]}}),r=[...i?.map(e=>({filePath:e.uri.path,relatePath:e?.relatePath,name:`${z(e.uri.path)}`,title:e.uri.path,type:"file"})),_],d=(0,Cr.convertChatInputParsedQueryToMessage)(r);u.sendChatMessage({message:d,sessionId:l.getCurrentSession()?.sessionId,parsedQuery:r,multiMedia:[],triggerMode:void 0,isInputOptimized:!1,asrTimes:0}),w(!0),j(!0)},[S,R,_,l,j,n,o,a,u,t,s]),F=(0,sK.useMemo)(()=>g||A||!P||b||O?.length===0,[g,A,P,b,O?.length]),U=(0,sK
+```
+
+### [2026-04-26 04:28] UI组件: 文件差异 (FileDiff) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @8932691
+- 所属域标签: [React]
+#### 数据/证据
+```
+p=(0,sK.useMemo)(()=>!!es?.find(e=>e?.relativePath===$),[es,$]),eg=(0,Ir.Z)(()=>{if(!l?.result?.data?.can_show_diff||a&&ep){eu();return}eo({location:"file_card_open_diff"});let e=_?Cy(_):void 0;p.openFileDiffViewInSummaryFromSnapshot({sessionId:b,messageId:w||"",toolcallId:[l?.toolCallId||""],title:e,location:"single_file_open_diff"})}),ef=uB(Hp),em=(0,Ir.Z)(e=>{Q.click("lint_error"),el?.filePath&&ef.openFile(el?.filePath,e?.range?eg4(e?.range):void 0)}),e_=(0,sK.useMemo)(()=>{if(l&&CO(l))return
+```
+
+### [2026-04-26 04:28] UI组件: 工具调用 (ToolCall) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @9067345
+- 所属域标签: [React]
+#### 数据/证据
+```
+return sX().createElement(Cr.SearchCodebaseCard,{keywords:h,status:a,fileList:d,onFileClick:l})}let em0=(e,t,i)=>{let r=(0,sK.useMemo)(()=>{if(t){if(e===CE.Running||e===CE.Canceled)return Cr.TasksListToolCall.Status.Canceled;if(e!==CE.Success)return Cr.TasksListToolCall.Status.Unknown}return e===CE.Running?Cr.TasksListToolCall.Status.Generating:e===CE.Success?i.length?i.some(e=>e.status===Cr.TasksListToolCall.TaskStatus.InProgress)?Cr.TasksListToolCall.Status.InProgress:i.every(e=>e.status===Cr.
+```
+
+### [2026-04-26 04:28] UI组件: 确认状态 (confirm_status) ⭐****
+> 区间1 UI组件关键词命中
+#### 位置信息
+- 偏移量: @8975994
+- 所属域标签: [React]
+#### 数据/证据
+```
+Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h||""}),{file_paths:f}=r?.params??{},{confirm_info:_}=r??{},{terminal_id:y}=r?.result?.data??{},{status:v}=r?.result??{},{confirm_status:b,auto_confirm:w}=_??{},{toolCallStatus:S}=ep0({isHistory:e,toolCallResultStatus:v,confirmStatus:b}),E=egd({isHistory:e,toolCallId:r?.id,toolCallName:r?.toolName}),A=(0,sK.useCallback)(async e=>{await a.updateRunCommandToolStatusFromUser({planItemId:r?.planItemId,agentMessageId:p||"",
+```
+
+
+## [2026-04-26 04:44] 搜索模板可用性验证报告 ⭐⭐⭐⭐
+
+> 自动化验证 explorer-protocol.md 附录A搜索模板在当前版本 (10490721 chars) 上的可用性
+
+### 验证结果
+
+| 模板ID | 搜索模式 | 首次偏移量 | 总命中数 | 状态 |
+|--------|---------|-----------|---------|------|
+| DI-01 | `uX(` | 6279517 | 817 | OK | | DI-02 | `uJ({identifier:` | 7022679 | 186 | OK | | DI-03 | `Symbol.for("` | 176352 | 185 | OK | | DI-04 | `Symbol("` | 2260804 | 77 | OK | | SSE-01 | `eventHandlerFactory` | 7534973 | 5 | OK | | SSE-02 | `Symbol.for("IPlanItemStreamParser")` | -1 | 0 | EMPTY | | SSE-07 | `handleSteamingResult` | 7328394 | 14 | OK | | STO-01 | `Symbol("ISessionStore")` | 7092843 | 1 | OK | | STO-04 | `.subscribe(` | 3106373 | 33 | OK | | STO-05 | `.getState()` | 1749634 | 234 | OK | | ERR-01 | `4000002` | 54440 | 7 | OK | | ERR-06 | `getErrorInfo` | 7299801 | 13 | OK | | ERR-07 | `handleCommonError` | 7300455 | 5 | OK | | ERR-11 | `teaEventChatFail` | 7458679 | 5 | OK | | RCT-01 | `sX().memo(` | 6417666 | 31 | OK | | RCT-08 | `getRunCommandCardBranch` | 8081545 | 2 | OK | | RCT-10 | `"unconfirmed"` | 44416 | 11 | OK | | EVT-01 | `Symbol.for("ITeaFacade")` | 7140149 | 1 | OK | | EVT-02 | `visibilitychange` | 210378 | 28 | OK | | EVT-05 | `icube.shellExec` | -1 | 0 | EMPTY | | COM-01 | `ICommercialPermissionService` | 7197035 | 1 | OK | | COM-02 | `isCommercialUser` | 7267803 | 4 | OK | | COM-03 | `IEntitlementStore` | 7264743 | 1 | OK | | GEN-06 | `provideUserResponse` | 7512531 | 10 | OK | | GEN-07 | `ToolCallName` | 40836 | 4 | OK | | GEN-08 | `BlockLevel` | 3304647 | 3 | OK |
+
+### 汇总
+
+| 指标 | 值 |
+|------|-----|
+| 目标文件 | index.js |
+| 文件字符数 | 10490721 |
+| OK (命中>0) | 24 |
+| EMPTY (命中=0) | 2 |
+| 总模板数 | 26 |
+| 验证时间 | 2026-04-26 04:44 |
+
+### EMPTY 模板分析
+
+- **SSE-02**: `Symbol.for("IPlanItemStreamParser")` — 当前版本中未找到，可能已重命名或移除 - **EVT-05**: `icube.shellExec` — 当前版本中未找到，可能已重命名或移除
+
+### 关键偏移量变化
+
+| DI-01 | 6279517 | | DI-02 | 7022679 | | DI-03 | 176352 | | DI-04 | 2260804 | | SSE-01 | 7534973 | | SSE-07 | 7328394 | | STO-01 | 7092843 | | STO-04 | 3106373 | | STO-05 | 1749634 | | ERR-01 | 54440 | | ERR-06 | 7299801 | | ERR-07 | 7300455 | | ERR-11 | 7458679 | | RCT-01 | 6417666 | | RCT-08 | 8081545 | | RCT-10 | 44416 | | EVT-01 | 7140149 | | EVT-02 | 210378 | | COM-01 | 7197035 | | COM-02 | 7267803 | | COM-03 | 7264743 | | GEN-06 | 7512531 | | GEN-07 | 40836 | | GEN-08 | 3304647 |

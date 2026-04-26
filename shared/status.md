@@ -58,14 +58,19 @@ format: registry
 ## 已知问题
 
 - **L1 冻结**: 切走窗口后 React 组件不渲染 → L1 补丁代码不执行 → v8 的 L1 部分在后台无效（L2 轮询器不受影响）
-- **Trae 已更新**: 文件从 ~10463462 增长到 10489266 chars，Symbol.for→Symbol 迁移，J→K 重命名，ConfirmMode 移除
+- **Trae 已更新**: 文件从 ~10463462 增长到 10490415 chars，Symbol.for→Symbol 迁移，J→K 重命名未发生，ConfirmMode 移除
 - **补丁搜索模式失效**: Symbol.for("IPlanItemStreamParser") 和 Symbol.for("ISessionStore") 不再存在，必须改为 Symbol()
+- **ICommercialPermissionService 不使用 Symbol**: 通过 aiAgent.ICommercialPermissionService 命名空间前缀注册，不是 Symbol 或 Symbol.for
+- **DI 注册数远超文档记录**: 实际 186 个注册（文档记录 51 个）、816 个注入（文档记录 101 个），di-service-registry.md 需大幅更新
+- **kg 错误码扩展到 56 个**: 含新增 MODEL_OUTPUT_TOO_LONG/MODEL_NOT_EXISTED
 - **J 变量含义变化**: 旧版 J=可恢复错误标志，新版 J=思考上限+循环标志，K=可恢复错误标志
 - **find_original 精确性**: 必须与实际文件内容完全一致，括号顺序差异即可导致匹配失败
 - **脏备份残留**: 回滚到旧备份后 apply 只追加不删除 → 可能有多余 provideUserResponse 调用
 - **J→K 重命名未发生**: handoff 中的 "J→K 变量重命名" 报告有误，当前版本 J 仍是"显示继续按钮"变量
 - **付费限制错误码纠正**: PREMIUM_MODE_USAGE_LIMIT=4008(非1016), STANDARD_MODE_USAGE_LIMIT=4009(非1017), FIREWALL_BLOCKED=700(非1023)
 - **P8.Default 变量未找到**: bypass-whitelist-sandbox-blocks 补丁可能需要更新变量名
+- **搜索模板 SSE-02/EVT-05 失效**: Symbol.for("IPlanItemStreamParser")→Symbol(), icube.shellExec 命名空间可能已变更
+- **偏移量漂移**: 部分关键偏移量与记录值有差异（eventHandlerFactory 漂移 +234973, getRunCommandCardBranch 漂移 +11925）
 
 ## 安全状态
 
@@ -78,6 +83,28 @@ format: registry
 ---
 
 ## 会话日志（仅保留最近）
+
+### [2026-04-26 06:00] 会话 #31 — 深度探索与文档强化：P0深挖+P1全扫+11域交叉验证+43处文档修正
+
+**操作**:
+1. 执行探险家协议启动清单（auto-heal 9/11 PASS, 目标文件 10490415 chars）
+2. P0 盲区 Phase 2+3 深度探索：607 采样点，28 高价值命中，Top 10 双向扩展
+3. P1 盲区全扫：UI 下半部 + 命令注册层 + 文件首尾
+4. 11 域交叉验证：DI 51→186 注册、101→816 注入、kg 错误码 56 个
+5. 架构文档审计：11 个文档 43 处过时信息修正
+6. discoveries.md 四维索引：按域/偏移量/功能/confidence 共 ~480 条目
+7. 搜索模板验证：24/26 OK，2 个 EMPTY（SSE-02/EVT-05）
+8. 新域探索：Docset/Model 域候选确认
+
+**关键发现**:
+- ICommercialPermissionService 使用 aiAgent. 命名空间前缀，不是 Symbol
+- DI 系统规模远超文档记录（186 注册 vs 51 记录）
+- 38 个 ToolCallName 完整枚举、25 个 VS Code 命令注册
+- Model 域补丁潜力 5/5（computeSelectedModelAndMode @7215828）
+
+**P2 写入**: discoveries.md (+深度探索+索引+模板报告), handoff.md (+82 行交接), status.md (更新已知问题), context.md (更新统计), docs/architecture/*.md (43 处修正)
+
+---
 
 ### [2026-04-25 23:50] 会话 #30 — v2 探索远征：版本适配 + 商业权限 + 新补丁目标
 
