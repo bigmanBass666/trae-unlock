@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: protocol
+focus: Explorer Agent 标准操作程序（SOP）——工具决策树、交叉验证流程、发现记录规范和盲区风险评估协议
+dependencies: [exploration-toolkit.md, source-architecture.md]
+consumers: Explorer
+created: 2026-04-25
+updated: 2026-04-26
+format: reference
+---
+
 # 探险家 Agent 探索协议
 
 > **版本**: 1.0 | **创建日期**: 2026-04-25 | **适用项目**: trae-unlock

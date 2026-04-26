@@ -1,8 +1,85 @@
-# Trae Source Architecture - 源码架构探索记录
+---
+domain: architecture-index
+sub_domain: null
+focus: 架构文档全域索引和导航入口
+dependencies: 无（它是被依赖方）
+consumers: 所有需要了解项目架构的人
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+document_count: 13
+---
 
-> last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
+# Trae Unlock 源码架构导航
 
-> 本文档记录了 Trae IDE 源码的完整架构和关键位置，供后续 AI 探索和修改时参考。
+> **定位**: 项目架构知识的索引入口
+> **使用方式**: 找到感兴趣的域 → 点击对应文档链接
+> **last_verified**: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
+
+## 域速查表
+
+### 主目录文档（10 个）
+
+| 文档 | 子域 | 焦点 | 行数 | 最后更新 | 优先级 |
+|------|------|------|------|---------|--------|
+| [source-architecture.md](source-architecture.md) | index | 全域索引 + 安装信息 + 关键位置索引 + 补丁规范 | 362 | 2026-04-26 | P0 |
+| [command-confirm-system.md](command-confirm-system.md) | command-confirm | 命令确认双层架构（服务层+React层） | 374 | 2026-04-26 | P0 |
+| [limitation-map.md](limitation-map.md) | limitations | 错误码枚举 + Alert 渲染点 + BlockLevel | 215 | 2026-04-26 | P0 |
+| [model-domain.md](model-domain.md) | model | 模型选择与模式路由（force-max-mode 等） | 571 | 2026-04-26 | P0 |
+| [exploration-toolkit.md](exploration-toolkit.md) | tools | L0-L3 工具金字塔（搜索/AST/模块级） | 1210 | 2026-04-26 | P1 |
+| [explorer-protocol.md](explorer-protocol.md) | protocol | Explorer Agent SOP 验证协议 | 1792 | 2026-04-26 | P1 |
+| [commercial-permission-domain.md](commercial-permission-domain.md) | permission | 商业权限域（ICommercialPermissionService 6方法） | 326 | 2026-04-26 | P1 |
+| [sse-pipeline-topology.md](sse-pipeline-topology.md) | sse | 13 事件 SSE 管道拓扑 | 107 | 2026-04-26 | P2 |
+| [sse-stream-parser.md](sse-stream-parser.md) | parser | PlanItemStreamParser 完整实现 | 223 | 2026-04-26 | P2 |
+| [store-architecture.md](store-architecture.md) | store | 8 个 Zustand Store 状态管理 | 91 | 2026-04-26 | P2 |
+
+### Reference 子目录文档（3 个）
+
+| 文档 | 子域 | 焦点 | 行数 | 最后更新 | 优先级 |
+|------|------|------|------|---------|--------|
+| [reference/di-service-registry.md](reference/di-service-registry.md) | di-registry | DI 服务注册表（186 服务 / 817 注入点） | 567 | 2026-04-26 | P2 |
+| [reference/docset-domain.md](reference/docset-domain.md) | docset | 文档集服务域（Docset/Store/CkgLocalApi/OnlineApi） | 675 | 2026-04-26 | P2 |
+| [reference/module-boundaries.md](reference/module-boundaries.md) | boundaries | 模块边界与依赖关系图 | 246 | 2026-04-26 | P2 |
+
+### 域依赖关系图
+
+```
+                    ┌─────────────────────┐
+                    │ source-architecture │ (索引入口)
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+    ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+    │ command-     │  │ limitation-  │  │ model-domain │
+    │ confirm      │  │ map          │  │              │
+    └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+           │                 │                 │
+           ▼                 ▼                 ▼
+    ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+    │ sse-stream-  │  │ commercial-  │  │ sse-pipeline │
+    │ parser       │  │ permission   │  │ -topology    │
+    └──────┬───────┘  └──────────────┘  └──────┬───────┘
+           │                                 │
+           ▼                                 ▼
+    ┌──────────────┐                ┌──────────────┐
+    │ store-       │                │ exploration- │
+    │ architecture │                │ toolkit      │
+    └──────────────┘                └──────┬───────┘
+                                           │
+                                           ▼
+                                   ┌──────────────┐
+                                   │ explorer-    │
+                                   │ protocol     │
+                                   └──────────────┘
+
+    Reference 层（被主文档引用）:
+    ┌──────────────────────────────────────────────┐
+    │ di-service-registry │ docset-domain │ module-boundaries │
+    └──────────────────────────────────────────────┘
+```
+
+---
 
 ## 安装信息
 
@@ -10,8 +87,6 @@
 - **版本**: v3.3.x
 - **打包状态**: 已解包（无 app.asar，直接编辑 JS 即可生效）
 - **主进程**: Electron
-
----
 
 ## 目录结构总览
 
@@ -44,31 +119,12 @@ D:\apps\Trae CN\resources\app\
 │
 └── resources/                              # 资源文件
     └── app/                               # 应用根目录
-        └── ...                             # (当前已在 app 内)
+        └ ...                             # (当前已在 app 内)
 ```
 
 ---
 
 ## 核心文件详解
-
-### 架构文档索引
-
-以下子系统文档包含更详细的分析：
-
-| 文档 | 内容 | 关键发现 |
-|------|------|---------|
-| [sse-stream-parser.md](sse-stream-parser.md) | SSE 流解析系统 | PlanItemStreamParser 完整生命周期、事件分发、状态管理 |
-| [command-confirm-system.md](command-confirm-system.md) | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
-| [limitation-map.md](limitation-map.md) | 限制点地图 | 错误码枚举、Alert 渲染点、BlockLevel、ToolCallName |
-| [module-boundaries.md](module-boundaries.md) | 模块边界与依赖 | DI 容器、服务注入、事件系统、模块依赖关系图 |
-| [di-service-registry.md](di-service-registry.md) | DI 服务注册表 | 186 个注册服务、817 个注入点、Symbol 迁移状态 |
-| [sse-pipeline-topology.md](sse-pipeline-topology.md) | SSE 管道拓扑 | 13 事件类型、15 Parser、EventHandlerFactory 分发逻辑 |
-| [store-architecture.md](store-architecture.md) | Store 架构 | 8 个 Zustand Store、两种 currentSession 模式、无 Immer |
-| [explorer-protocol.md](explorer-protocol.md) | 探险家协议 | 工具决策树、交叉验证流程、发现记录规范 |
-| [exploration-toolkit.md](exploration-toolkit.md) | 工具箱使用指南 | js-beautify、AST 搜索、模块级搜索的使用方法 |
-| [commercial-permission-domain.md](commercial-permission-domain.md) | 商业权限域 | ICommercialPermissionService 服务链、用户身份枚举、配额限制机制、补丁候选 |
-| *(待建)* Model 域 | 模型选择与模式控制 | computeSelectedModelAndMode @7215828、kG 枚举(Manual/Auto/Max)、force-max-mode 补丁候选 |
-| *(待建)* Docset 域 | 文档集服务 | ai.IDocsetService/Store/CkgLocalApi/OnlineApi、ai.IWebCrawlerFacade、WK 模块导出 |
 
 ### 1. ai-modules-chat/dist/index.js
 

@@ -1,8 +1,26 @@
+---
+domain: architecture
+sub_domain: store
+focus: Zustand Store 状态管理系统——8 个核心 Store 实例、DI Token 映射、两种 currentSession 模式和状态更新机制
+dependencies: [model-domain.md, commercial-permission-domain.md]
+consumers: Developer, Reviewer
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+---
+
 # Store 架构文档
 
 > Zustand Store 状态管理系统的完整架构映射
 
 > last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+
+## §1 概述
+
+> 本文档记录了 Trae AI 聊天模块中所有 Zustand Store 的架构映射。包括 8 个核心 Store 的 DI Token、混淆名、偏移量，以及 SessionStore 和 InlineSessionStore 两种不同的 currentSession 管理模式。
+>
+> **为什么重要**: Store 是前端状态的唯一数据源（SSOT），理解 Store 架构是定位任何状态相关 bug 或开发新功能的基础。
+> **在整体中的位置**: Store 位于 SSE 解析层（PlanItemStreamParser）和 React UI 层之间，通过 DI 容器注入到各服务中。
 
 ## 1. Store 实例
 

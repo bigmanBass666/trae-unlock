@@ -1,11 +1,28 @@
 ---
 module: discoveries
-description: 源码发现和代码定位（核心资产）
-read_priority: P2
-read_when: 需要查代码时
-write_when: 发现关键信息时
-format: registry
+description: 源码发现 + 代码定位（⭐ 核心资产）
+read_priority: P1
+read_when: 定位代码 / 理解架构 / 开发补丁时
+write_when: Explorer 发现新代码位置时追加
+format: log
+single_source_of_truth_for:
+  - 所有源码位置和偏移量
+  - 枚举值和常量定义
+  - 函数签名和调用关系
+  - SSE 事件和 Parser 映射
+  - DI 服务注册和注入点
+  - Store 状态结构
+  - UI 组件位置
+sync_with:
+  - docs/architecture/*.md (消费此数据的架构文档)
+  - unpacked/beautified.js (原始数据源)
+last_reviewed: 2026-04-26
 ---
+
+> ⚠️ **这是源码发现的唯一权威来源！**
+>
+> - 其他文件如需引用发现内容，请使用 `[→ 详见 discoveries.md](shared/discoveries.md)`
+> - **禁止**将 discoveries 的完整内容复制到其他文件
 
 # 源码探索经验
 

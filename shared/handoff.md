@@ -1,6 +1,20 @@
+---
+module: handoff-router
+description: 交接路由入口 — 指向 Explorer/Developer/Reviewer 交接单
+read_priority: P0
+read_when: 每次 AI 会话开始（第一件事）
+write_when: Explorer 或 Developer 会话结束时
+format: navigation
+role: router
+sync_with:
+  - shared/status.md (全局状态)
+  - shared/discoveries.md (源码发现)
+last_reviewed: 2026-04-26
+---
+
 # 会话交接路由 (Handoff Router)
 
-> ⚡ **使用说明**: Explorer 读 [handoff-explorer.md](./handoff-explorer.md), Developer 读 [handoff-developer.md](./handoff-developer.md). 本文件仅作路由入口和跨角色摘要。
+> ⚡ **使用说明**: Explorer 读 [handoff-explorer.md](./handoff-explorer.md), Developer 读 [handoff-developer.md](./handoff-developer.md). 本文件仅作路由入口。
 
 > **拆分时间**: 2026-04-26 18:39 — 从单一 handoff.md 拆分为角色专属文件
 
@@ -22,17 +36,7 @@
 
 ## 📊 项目全局状态
 
-| 指标 | 值 |
-|------|-----|
-| 目标文件大小 | 10,490,721 chars (~10.5MB) |
-| 美化后行数 | 347,099 行 |
-| 活跃补丁数 | **9 个** (含 v22 后台续接) |
-| DI 注册总数 | 186 个 |
-| DI 注入总数 | 817 次 |
-| 架构文档 | 11 个 (`docs/architecture/*.md`) |
-| 探索脚本 | 20+ 个 (`scripts/explore-*.ps1`) |
-| 最后备份 | 2026-04-25 18:48 (clean backup) |
-| 最后提交 | 2026-04-26 20:30 |
+> → [详见 status.md](shared/status.md) （唯一权威数据源）
 
 ## 🗺️ 文件导航
 

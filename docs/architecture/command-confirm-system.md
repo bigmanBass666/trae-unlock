@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: command-confirm
+focus: 命令确认双层架构——服务层 PlanItemStreamParser 与 React 层 RunCommandCard 的完整链路、BlockLevel 判定逻辑和自动确认注入点
+dependencies: [sse-stream-parser.md, limitation-map.md, store-architecture.md]
+consumers: Developer, Reviewer
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+---
+
 # 命令确认系统架构文档
 
 > last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)

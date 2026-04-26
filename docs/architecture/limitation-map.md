@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: limitations
+focus: Trae AI 聊天模块中所有可被补丁修改的限制点——错误码枚举（56个）、Alert 渲染点、BlockLevel 判定、ToolCallName 分类和 efh 可恢复错误列表
+dependencies: [command-confirm-system.md, commercial-permission-domain.md]
+consumers: Developer, Reviewer
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+---
+
 # 限制点地图
 
 > Trae AI 聊天模块中所有可被补丁修改的限制点

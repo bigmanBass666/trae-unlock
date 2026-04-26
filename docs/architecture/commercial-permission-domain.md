@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: permission
+focus: 商业权限域——ICommercialPermissionService 6方法、用户身份枚举（bJ）、配额限制机制和补丁候选分析
+dependencies: [model-domain.md, limitation-map.md, store-architecture.md]
+consumers: Developer, Reviewer
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+---
+
 # 商业权限域架构文档
 
 > Trae AI 聊天模块中商业权限判断系统的完整逆向工程

@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: tools
+focus: L0-L3 四层级工具金字塔——从 IndexOf 原始搜索到 AST 语义分析再到模块级索引的完整探索工具链使用手册
+dependencies: [explorer-protocol.md]
+consumers: Explorer, Developer
+created: 2026-04-25
+updated: 2026-04-26
+format: reference
+---
+
 # 探索工具箱使用指南 (Exploration Toolkit Guide)
 
 > **版本**: 1.0 | **创建日期**: 2026-04-25 | **适用项目**: trae-unlock

@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: model
+focus: 模型选择与模式路由系统——computeSelectedModelAndMode、kG 枚举（Manual/Auto/Max）、force-max-mode 补丁候选和付费限制机制
+dependencies: [commercial-permission-domain.md, store-architecture.md]
+consumers: Developer, Reviewer
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+---
+
 # Model 域架构文档
 
 > Trae AI 聊天模块中模型选择与模式路由系统的完整逆向工程

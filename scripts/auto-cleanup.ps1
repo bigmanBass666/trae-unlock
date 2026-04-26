@@ -3,10 +3,11 @@
     Auto-Cleanup Lifecycle System — 项目自动清理脚本
 
 .DESCRIPTION
-    三层自动化清理机制，保持项目永远整洁：
+    四层自动化清理机制，保持项目永远整洁：
     - Layer 1: Archive 目录配额 enforcement (< 20 文件)
     - Layer 2: Backups 滚动窗口 (5 clean + 10 normal)
     - Layer 3: 健康度监控 + 报告
+    - Layer 4: 文档质量校验 (DAS v1.0)
 
 .PARAMETER WhatIf
     预览模式：只显示将要删除的文件，不实际删除
@@ -41,6 +42,7 @@ $ErrorActionPreference = "Stop"
 $script:cleanupLog = @()
 $script:deletedCount = 0
 $script:skippedCount = 0
+$ScriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent
 
 # ============================================================
 # 配置区
@@ -350,6 +352,40 @@ function Invoke-AutoCleanup {
 
         # 显示报告
         Show-HealthReport
+
+        # === Layer 4: 文档质量校验 ===
+        $validateScript = Join-Path $ScriptDir "validate-docs.ps1"
+        if (Test-Path $validateScript) {
+            Write-Log "`n=== Layer 4: 文档质量校验 (DAS v1.0) ===" -Level "INFO"
+
+            try {
+                # 调用校验脚本并捕获输出
+                $validationOutput = & $validateScript 2>&1 | Out-String
+
+                if ($validationOutput) {
+                    # 提取评分行（包含 "文档质量评分" 的行）
+                    $scoreLine = $validationOutput | Select-String "文档质量评分" | Select-Object -First 1
+
+                    if ($scoreLine) {
+                        Write-Log $scoreLine.Line -Level "INFO"
+                    }
+
+                    # 显示简化的校验结果摘要
+                    $errorCount = ($validationOutput | Select-String "\[ERROR\]").Count
+                    $warningCount = ($validationOutput | Select-String "\[WARNING\]").Count
+
+                    if ($errorCount -gt 0) {
+                        Write-Log "❌ 发现 $errorCount 个文档质量问题 (ERROR)" -Level "ERROR"
+                    } elseif ($warningCount -gt 0) {
+                        Write-Log "⚠️ 发现 $warningCount 个优化建议 (WARNING)" -Level "WARNING"
+                    } else {
+                        Write-Log "✅ 文档质量校验通过" -Level "SUCCESS"
+                    }
+                }
+            } catch {
+                Write-Log "文档质量校验跳过: $($_.Exception.Message)" -Level "WARNING"
+            }
+        }
 
         # 总结
         $endTime = Get-Date

@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: parser
+focus: PlanItemStreamParser 完整实现——SSE 流解析器生命周期、事件分发、状态管理和服务层注入点（补丁核心目标）
+dependencies: [sse-pipeline-topology.md, command-confirm-system.md, store-architecture.md]
+consumers: Developer, Reviewer
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+---
+
 # SSE 流解析系统架构文档
 
 > PlanItemStreamParser — Trae AI 聊天系统的核心 SSE 流解析器

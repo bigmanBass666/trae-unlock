@@ -1,10 +1,19 @@
 ---
 module: status
-description: 当前状态和待办
+description: 当前状态 + 补丁表 + 待办事项 + 项目健康度
 read_priority: P1
-read_when: 每个新会话
-write_when: 每次会话结束时
+read_when: 每次会话开始
+write_when: 每次会话结束
 format: registry
+single_source_of_truth_for:
+  - 已应用补丁列表及状态
+  - 已完成功能清单
+  - 待办事项（高/中/低优先级）
+  - 项目健康度指标
+  - 清理历史记录
+sync_with:
+  - patches/definitions.json (数据源)
+last_reviewed: 2026-04-26
 ---
 
 # 当前状态
@@ -63,7 +72,7 @@ format: registry
 | 成功率 | **100%** (5/5) |
 | 用户干预 | **0 次** |
 
-## 已应用补丁列表
+## §已应用补丁列表
 
 | ID | 版本 | 层级 | 说明 | 状态 |
 |----|------|------|------|------|
@@ -78,7 +87,7 @@ format: registry
 
 **共 9 个活跃补丁（含 v22 后台续接）**
 
-## 待处理/待验证
+## §待办事项
 
 ### 高优先级
 - [x] ~~v8 用户测试~~ → **已由 v22 超越**
@@ -105,7 +114,7 @@ format: registry
 
 ---
 
-## 📊 项目健康度
+## §项目健康度
 
 > 最后清理：2026-04-26 | 下次建议清理：版本大更新后
 

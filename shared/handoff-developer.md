@@ -1,3 +1,18 @@
+---
+module: handoff-developer
+description: Developer 交接单 — 补丁开发/维护指南
+read_priority: P1
+read_when: Developer 角色开始工作时
+write_when: Developer 会话结束时
+format: navigation
+role: developer
+sync_with:
+  - shared/status.md (补丁状态 - 唯一权威)
+  - shared/discoveries.md (源码位置)
+  - patches/definitions.json (补丁定义)
+last_reviewed: 2026-04-26
+---
+
 # 开发者交接单 (Developer Handoff)
 
 > 本文件由 Developer Agent 写入，Explorer Agent 按需参考
@@ -7,15 +22,15 @@
 
 ## 当前补丁状态
 
-> 📌 **活跃补丁列表（9 个）** → [status.md](./status.md) §已应用补丁列表
+> 📋 **活跃补丁列表**: → [详见 status.md §已应用补丁列表](shared/status.md)
 >
-> 📌 **已完成功能总览** → [status.md](./status.md) §已完成功能
+> ✅ **已完成功能**: → [详见 status.md §已完成功能](shared/status.md)
 
 ### 🎉 v22 后台自动续接 — 历史性突破
 
-> 📌 **完整测试日志、性能指标、技术架构** → [status.md](./status.md) §v22 后台自动续接
+> 📊 **完整测试日志、性能指标、技术架构**: → [详见 status.md §v22 后台自动续接](shared/status.md)
 
-**核心成果**: 5 次完整后台续接循环，90+ 分钟无人值守运行，sendChatMessage 降级链路验证成功，完全绕过 React 冻结限制。
+**核心成果摘要**: 5 次完整后台续接循环，90+ 分钟无人值守运行，sendChatMessage 降级链路验证成功，完全绕过 React 冻结限制。100% 成功率，平均耗时 4 秒。
 
 ---
 
@@ -125,9 +140,9 @@
 
 ---
 
-## 安全状态
+## 🔒 安全状态
 
-> 最后备份: 2026-04-25 18:48 | 最后提交: 2026-04-26 20:30 | 目标文件: `@byted-icube/ai-modules-chat/dist/index.js` (~10.49MB)
+> → [详见 status.md](shared/status.md)
 
 ---
 

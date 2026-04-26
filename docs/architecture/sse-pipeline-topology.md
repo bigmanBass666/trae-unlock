@@ -1,7 +1,25 @@
+---
+domain: architecture
+sub_domain: sse
+focus: SSE 事件分发系统——13 事件类型枚举、15 个 Parser 类、EventHandlerFactory 中央调度器和 DI Token 映射
+dependencies: [sse-stream-parser.md]
+consumers: Developer, Reviewer
+created: 2026-04-26
+updated: 2026-04-26
+format: reference
+---
+
 # SSE 管道拓扑文档
 
 > SSE 事件分发系统的完整架构映射
 > last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490354 chars)
+
+## §1 概述
+
+> 本文档映射了 Trae AI 聊天模块的完整 SSE（Server-Sent Events）管道拓扑。记录了 13 种事件类型、对应的 Parser 类、DI Token 注册信息，以及 EventHandlerFactory (Bt) 的中央调度逻辑。
+>
+> **为什么重要**: SSE 管道是服务端与前端通信的唯一通道，理解拓扑结构是定位任何流式处理问题的基础。
+> **在整体中的位置**: 上游对接 DG.parse 响应解析，下游连接 PlanItemStreamParser 等具体 Parser 实现。
 
 ## 1. SSE 事件枚举 (D7)
 
