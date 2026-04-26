@@ -1,0 +1,293 @@
+=== Phase 2: Focused scan on business logic areas ===
+
+=== AWS-Credentials @ 668815 ===
+sKeyID,u=o.AccessKeyId,d=o.SecretAccessKey,h=o.SessionToken,o=o.CurrentTime,p=D.getDYAddHeader(this.currFileCtx.headers||this.config.headers),s={method:"GET",url:"".concat(r,"?").concat(s),timeout:this.config.gatewayTimeout||0,headers:p,region:t,params:n,pathname:D.getPathByURL(r)},p=new z.a(s,a),t=(this.config.useServerCurrentTime&&Math.abs(new Date(o)-new Date)>6e4&&(this.systemTimeGap=new Date(o)-new Date),this.systemTimeGap?new Date((new Date).getTime()+this.systemTimeGap):new Date);p.addAuthorization({accessKeyId:u||l,secretAccessKey:d,sessionToken:h},t),i.send(s)}},{key:"createImageXParams",value:function(){var e,t={Action:"ApplyImageUpload",Version:"2018-08-01"};return this.options.type===y&&(this.currFileCtx.serviceId||this.config.imageConfig&&this.config.imageConfig.serviceId?t.ServiceId=this.currFileCtx.serviceId||this.config.imageConfig.serviceId:t.SpaceName=this.config.videoConfig&&this.config.videoConfig.spaceName),this.options.type===v&&(t.ServiceId=this.currFileCtx.serviceId||this.config.objectConfig&&this.config.objectConfig.serviceId||this.config.imageConfig&&this.config.imageConfig.serviceId),this.currFileCtx.fileSize&&1<this.currFileCtx.fileSize.length&&(t.UploadNum=this.currFileCtx.fileSize.length),this.options.storeKey&&(e=this.options.storeKey,"[object Array]"===Object.prototype.toString.call(e)?t.StoreKeys=e:"[object String]"===Object.prototype.toString.call(e)&&(t.StoreKeys=[e])),t.NeedFallback=!0,t}},{key:"createVodParams",value:function(){var e=this.
+
+=== TEA-BaseLayer @ 259215 ===
+pp_id:e}})}setUserUniqueId(e){this.teaLog.config({user_unique_id:e})}baseSend(e,t){this.teaLog.event(e,t)}console(e){this.options.debug&&console.log(e)}}var ey="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof window?window:void 0!==i.g?i.g:"undefined"!=typeof self?self:{};function ev(e){return e&&e.__esModule&&Object.prototype.hasOwnProperty.call(e,"default")?e.default:e}var eb,ew,eS,eE={exports:{}},eA={exports:{}};function eC(){var e,t,i,r,n,o,a,s,l,u,d,h,p,g;return eS||(eS=1,eA.exports=e||(t=Math,r=Object.create||function(){function e(){}return function(t){var i;return e.prototype=t,i=new e,e.prototype=null,i}}(),a=(o=(n={}).lib={}).Base={extend:function(e){var t=r(this);return e&&t.mixIn(e),t.hasOwnProperty("init")&&this.init!==t.init||(t.init=function(){t.$super.init.apply(this,arguments)}),t.init.prototype=t,t.$super=this,t},create:function(){var e=this.extend();return e.init.apply(e,arguments),e},init:function(){},mixIn:function(e){for(var t in e)e.hasOwnProperty(t)&&(this[t]=e[t]);e.hasOwnProperty("toString")&&(this.toString=e.toString)},clone:function(){return this.init.prototype.extend(this)}},s=o.WordArray=a.extend({init:function(e,t){e=this.words=e||[],this.sigBytes=t!=i?t:4*e.length},toString:function(e){return(e||u).stringify(this)},concat:function(e){var t=this.words,i=e.words,r=this.sigBytes,n=e.sigBytes;if(this.clamp(),r%4)for(var o=0;o<n;o++){var a=i[o>>>2]>>>24-o%4*8&255;t[r+o>>>2]|=a<<24-(r+o)%4*8}else for(o=0;o<n;o+=4)t[r+o>>>2]=i[o>>>2];retur
+
+=== Upload-Response @ 361615 ===
+i.response);if(!(2e3===n.code&&n.data.partlist.length>0))return this.startPreUpload();{let{isAllFinished:o,needSliceArray:a,dynamicCrc32Array:s}=this.confirmCache(n.data.partlist),l=e.hasMerge?5:o?4:3,u=this.getHostFromUri(e.tosDomain),{serverSpeed:d}=this.getInfoFromSelectRoute(u);r=Object.assign(this.currFileCtx,e,{key:t,xhr:i,extra:{message:"prepare upload from cache success"},stage:"preUpload",type:"success",percent:0,cacheTask:l,proxyStsToken:this.options.stsToken,currentTask:1,status:1,isBreak:1,crc32Array:[],dynamicCrc32Array:s,needSliceArray:a,stageStartTime:this._st,stageEndTime:Date.now(),duration:Date.now()-this._st,totalDuration:Date.now()-this._st+this.currFileCtx.totalDuration,serverSpeed:d})}}catch{return this.startPreUpload()}return this.successProcess(r)}),i.on("error",e=>{e.status>=400?this.startPreUpload():this.fail({error:"request error",xhr:e})});let{userId:r}=this.config;i.send({method:"GET",url:e2.urlTemplate("{tosDomain}/upload/v1/{oid}?uploadid={uploadId}&action=part_list",{tosDomain:e.tosDomain,oid:e.oid,uploadId:e.UploadID}),headers:{Authorization:e.signature,"X-Storage-U":encodeURIComponent(r),...e.UploadHeader},timeout:3e4})}confirmCache(e){let{fileSize:t}=this.currFileCtx,[i,r,n]=e2.generateSliceArrays(t,e);return{isAllFinished:n,needSliceArray:i,dynamicCrc32Array:r}}getInfoFromSelectRoute(e){let t,i,r=-1;if(this.startOptions&&this.startOptions.enableSelectRoute){t=!0;let{selectRouteResult:n}=this.startOptions;if(n&&e){i=(n[0]&&n[0].domainName)==
+
+=== Config-ImportExport @ 5993615 ===
+nt configuration of Trae will be overwritten and cannot be restored.":"After importing, the current configuration of TRAE will be overwritten and cannot be restored.","Align Center":"Align Center","Align Left":"Align Left","Align Right":"Align Right","All":"All","Another service is currently using port {port} on {protocol}":"Another service is currently using port {port} on {protocol}","Any jpg, png, gif, mkv or mp4; up to 3 files":"Any jpg, png, gif, mkv or mp4; up to 3 files","App Log":"App Log","App Logs":"App Logs","App Logs: Logs generated during Trae usage.":"App Logs: Logs generated during TRAE usage.","Back":"Back","Basic":"General","Billing FAQ":"FAQ","Body text":"Body text","Bug Report":"Bug Report","Bulleted List":"Unordered List","ByteDance":"ByteDance","ByteDance User":"ByteDance SSO","Cancel":"Cancel","Change your theme at any time via the command menu or settings":"Change theme anytime via menu or settings","Check":"Check","Checking latest version...":"Checking latest version...","Choose Your Login Method":"Choose Your Login Method","Choose your style":"Choose your theme","Clear console error":"Clear","Click to learn how to install it":"Click to learn how to install it.","Close":"Close","Code Block":"Code Block","Collapse All Files":"Collapse All Files","Collapse file tree":"Collapse file tree","Committed":"Committed","Community Extension":"Community Extension","Configuration":"Configuration","Confirm":"Confirm","Connect Remote Host":"Connect Remote Host","Cons
+
+=== Localization-i18n @ 6096015 ===
+te.editorPanel.openAnyway":"Open Anyway","solo-lite.emptyPanel.fileTooLargeToPreview":"File is too large to preview.","solo-lite.emptyPanel.loading":"Loading...","solo-lite.emptyPanel.noCodeFileYet":"No code file yet. Open one of your assets on the left!","solo-lite.emptyPanel.previewNotAvailable":"Preview is not available for this format.","solo-lite.emptyPanel.remoteHtmlPreviewUnavailable":"Preview is not available for remote HTML files.","solo-lite.imagePanel.noImageToPreview":"No image to preview","solo-lite.mediaPanel.audioNotSupported":"Your browser does not support the audio tag.","solo-lite.mediaPanel.noMediaToPreview":"No media file to preview","solo-lite.mediaPanel.videoNotSupported":"Your browser does not support the video tag.","solo-lite.messageInput.selectFiles":"Select Files","solo-lite.openWithButton.defaultBrowser":"Default Browser","solo-lite.openWithButton.openIn":"Open in {app}","solo-lite.openWithButton.title":"Open file with local apps","solo-lite.project.openWith.localApp":"Open Project Folder in Local App","solo-lite.terminal.newTerminal":"New Terminal","solo-lite.terminalPanel.preparing":"Preparing environment","solo-lite.terminalPanel.sandbox":"Sandbox","solo-lite.terminalPanel.title":"Terminal","solo-lite.webview.selectElement":"Select Element","solo-lite.xlsxCsvPanel.loading":"Loading...","solo-lite.xlsxCsvPanel.unableToPreview":"Unable to preview file","solo-web.preview.download":"Download","solo-web.preview.notSupported":"Preview for .{ext} is temporarily unavailable","solo_lite_vm_storage_label":"MTC Workspace","solo_supabase_intro":"Supabase provides user authentication and data storage services. \\nAfter authorizing and connecting a Supabase project, you can view its project dashboard directly.","something_wrong____please_try_to_reload_or_copy_log_to_oncall":"Something went wrong... Please try to Restart or Get help","spaces_not_allowed":"Spaces are not allowed","ssl_time":"TLS Handshake Time","start_authorization":"Start Authorizati
+
+=== Lexer-Parser @ 3740815 ===
+)=>{this.lexerDefinitionErrors=this.lexerDefinitionErrors.concat(function(e,t){let i=[],r=function(e){let t=(0,eI.Z)(e,e=>!(0,y.Z)(e,e0));return{errors:(0,_.Z)(t,e=>({message:"Token Type: ->"+e.name+"<- missing static 'PATTERN' property",type:l.MISSING_PATTERN,tokenTypes:[e]})),valid:ez(e,t)}}(e);i=i.concat(r.errors);let n=function(e){let t=(0,eI.Z)(e,e=>{let t=e[e0];return!P(t)&&!(0,eC.Z)(t)&&!(0,y.Z)(t,"exec")&&!(0,A.Z)(t)});return{errors:(0,_.Z)(t,e=>({message:"Token Type: ->"+e.name+"<- static 'PATTERN' can only be a RegExp, a Function matching the {CustomPatternMatcherFunc} type or an Object matching the {ICustomPattern} interface.",type:l.INVALID_PATTERN,tokenTypes:[e]})),valid:ez(e,t)}}(r.valid),o=n.valid;return(i=(i=(i=(i=i.concat(n.errors)).concat(function(e){let t=[],i=(0,eI.Z)(e,e=>P(e[e0]));return(t=(t=(t=(t=t.concat(function(e){class t extends ev.e{constructor(){super(...arguments),this.found=!1}visitEndAnchor(e){this.found=!0}}let i=(0,eI.Z)(e,e=>{let i=e.PATTERN;try{let e=eZ(i),r=new t;return r.visit(e),r.found}catch(e){return e5.test(i.source)}});return(0,_.Z)(i,e=>({message:"Unexpected RegExp Anchor Error:\n	Token Type: ->"+e.name+"<- static 'PATTERN' cannot contain end of input anchor '$'\n	See chevrotain.io/docs/guide/resolving_lexer_errors.html#ANCHORS	for details.",type:l.EOI_ANCHOR_FOUND,tokenTypes:[e]}))}(i))).concat(function(e){class t extends ev.e{constructor(){super(...arguments),this.found=!1}visitStartAnchor(e){this.found=!0}}let i=(0,eI.Z)(e,e=>{l
+
+=== Deploy-AuthDialog @ 3024015 ===
+.createElement("div",{className:"deploy-authorization-dialog__select-specific-project"},a().createElement("div",{className:"deploy-authorization-dialog__unselect-icon-pre"}),a().createElement("div",{className:"deploy-authorization-dialog__unselect-item"},"Specific Projects"))):a().createElement("div",{className:"deploy-authorization-dialog__deploy-icon"},a().createElement(d,null)),a().createElement("div",{className:"deploy-authorization-dialog__deploy-title"},n("connect_deployment")),a().createElement("div",{className:"deploy-authorization-dialog__deploy-tips"},n("connect_deployment_tips")),a().createElement("div",{className:"deploy-authorization-dialog__deploy-action"},a().createElement(g.z,{className:"deploy-authorization-dialog__deploy-btn",type:"primary",size:"larger",onClick:u},n("start_authorization"))),a().createElement("div",{className:"deploy-authorization-dialog__auth-tips"},n("deployment_auth_suggest_before"),a().createElement("span",{className:"deploy-authorization-dialog__auth-all-project"},n("deployment_auth_scope_suggest")),n("deployment_auth_suggest_after"))))),document.getElementsByClassName("monaco-workbench")[0]||document.body)}},10877:function(e,t,i){"use strict";i(12650);var r=i(80643);r.ZP.div`
+  font-family: monospace;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  overflow: hidden;
+`,r.ZP.div`
+  padding: 8px 16px;
+  background-color: #f6f8fa;
+  border-bottom: 1px solid #e1e4e8;
+  font-weight: 600;
+  font-size: 14px;
+  color: #24292e;
+`,r.ZP.div`
+
+
+=== Symbol.for patterns ===
+  Symbol.for at 176352 : Symbol.for("react.element")
+  Symbol.for at 176382 : Symbol.for("react.transitional.element")
+  Symbol.for at 176425 : Symbol.for("react.forward_ref")
+  Symbol.for at 750338 : Symbol.for("react.element")
+  Symbol.for at 750368 : Symbol.for("react.transitional.element")
+  Symbol.for at 750411 : Symbol.for("react.fragment")
+  Symbol.for at 1275920 : Symbol.for("nodejs.util.inspect.custom")
+  Symbol.for at 1616597 : Symbol.for("react.element")
+  Symbol.for at 1664396 : Symbol.for("nodejs.util.inspect.custom")
+  Symbol.for at 1693152 : Symbol.for("react.element")
+  Symbol.for at 1693182 : Symbol.for("react.portal")
+  Symbol.for at 1693211 : Symbol.for("react.fragment")
+  Symbol.for at 1693242 : Symbol.for("react.strict_mode")
+  Symbol.for at 1693276 : Symbol.for("react.profiler")
+  Symbol.for at 1693307 : Symbol.for("react.provider")
+  Symbol.for at 1693338 : Symbol.for("react.context")
+  Symbol.for at 1693368 : Symbol.for("react.server_context")
+  Symbol.for at 1693405 : Symbol.for("react.forward_ref")
+  Symbol.for at 1693439 : Symbol.for("react.suspense")
+  Symbol.for at 1693470 : Symbol.for("react.suspense_list")
+  Symbol.for at 1693506 : Symbol.for("react.memo")
+  Symbol.for at 1693533 : Symbol.for("react.lazy")
+  Symbol.for at 1693560 : Symbol.for("react.offscreen")
+  Symbol.for at 1693853 : Symbol.for("react.module.reference")
+  Symbol.for at 1698233 : Symbol.for("react.element")
+  Symbol.for at 1698263 : Symbol.for("react.fragment")
+  Symbol.for at 1792312 : Symbol.for("react.memo")
+  Symbol.for at 1792347 : Symbol.for("react.forward_ref")
+  Symbol.for at 2514093 : Symbol.for("debug.description")
+  Symbol.for at 3227817 : Symbol.for("react.element")
+  Symbol.for at 3227847 : Symbol.for("react.transitional.element")
+  Symbol.for at 3227890 : Symbol.for("react.fragment")
+  Symbol.for at 3276368 : Symbol.for("radix-ui")
+  Symbol.for at 3546309 : Symbol.for("ai.IDocsetService")
+  Symbol.for at 3552466 : Symbol.for("@reflect-metadata:registry")
+  Symbol.for at 3715520 : Symbol.for("radix-ui")
+  Symbol.for at 6283875 : Symbol.for("radix-ui")
+  Symbol.for at 6308170 : Symbol.for("react.memo")
+  Symbol.for at 6308207 : Symbol.for("react.forward_ref")
+  Symbol.for at 6333136 : Symbol.for("radix-ui")
+  Symbol.for at 6381716 : Symbol.for("radix-ui")
+  Symbol.for at 6478694 : Symbol.for("aiAgent.ILogService")
+  Symbol.for at 7020993 : Symbol.for("aiAgent.ICredentialFacade")
+  Symbol.for at 7023459 : Symbol.for("aiAgent.IStorageFacade")
+  Symbol.for at 7032794 : Symbol.for("aiAgent.IEnvironmentFacade")
+  Symbol.for at 7036480 : Symbol.for("aiAgent.IFastApplyFacade")
+  Symbol.for at 7047446 : Symbol.for("aiAgent.IFileFacade")
+  Symbol.for at 7061974 : Symbol.for("IUtilFacade")
+  Symbol.for at 7080976 : Symbol.for("aiAgent.II18nService")
+  Symbol.for at 7102931 : Symbol.for("IWorkspaceFacade")
+  Symbol.for at 7122809 : Symbol.for("aiAgent.ICodeActionFacade")
+  Symbol.for at 7126937 : Symbol.for("aiAgent.IOpenerFacade")
+  Symbol.for at 7131550 : Symbol.for("IEditorFacade")
+  Symbol.for at 7136335 : Symbol.for("aiAgent.IFileIconFacade")
+  Symbol.for at 7138045 : Symbol.for("IViewsFacade")
+  Symbol.for at 7139425 : Symbol.for("aiAgent.ISlardarFacade")
+  Symbol.for at 7140149 : Symbol.for("ITeaFacade")
+  Symbol.for at 7141039 : Symbol.for("aiAgent.IFpsRecordFacade")
+  Symbol.for at 7142781 : Symbol.for("aiAgent.ISessionHistoryInfra")
+  Symbol.for at 7146769 : Symbol.for("ITelemetryFacade")
+  Symbol.for at 7147744 : Symbol.for("aiAgent.IThemeFacade")
+  Symbol.for at 7148804 : Symbol.for("aiAgent.IProductFacade")
+  Symbol.for at 7150757 : Symbol.for("aiAgent.IContextKeyFacade")
+  Symbol.for at 7151643 : Symbol.for("aiAgent.IConfigurationFacade")
+  Symbol.for at 7155301 : Symbol.for("aiAgent.ISessionService")
+  Symbol.for at 7155776 : Symbol.for("aiAgent.IAgentSessionService")
+  Symbol.for at 7157351 : Symbol.for("aiAgent.IAiClientManagerService")
+  Symbol.for at 7159423 : Symbol.for("aiAgent.IAiNativeModelService")
+  Symbol.for at 7159470 : Symbol.for("aiAgent.IAiAgentClientManagerService")
+  Symbol.for at 7160514 : Symbol.for("aiChat.IAIChatRequestErrorService")
+  Symbol.for at 7182322 : Symbol.for("IModelService")
+  Symbol.for at 7182353 : Symbol.for("IModelStorageService")
+  Symbol.for at 7183071 : Symbol.for("aiAgent.IProductService")
+  Symbol.for at 7194537 : Symbol.for("IModeStorageService")
+  Symbol.for at 7197015 : Symbol.for("aiAgent.ICommercialPermissionService")
+  Symbol.for at 7244780 : Symbol.for("ai.IDocsetStore")
+  Symbol.for at 7250128 : Symbol.for("aiChat.ICustomRulesService")
+  Symbol.for at 7263623 : Symbol.for("ISkillStore")
+  Symbol.for at 7268582 : Symbol.for("IModelTipConfigService")
+  Symbol.for at 7296236 : Symbol.for("IChatAgentGuideStorageService")
+  Symbol.for at 7297005 : Symbol.for("ISimpleBoolCacheService")
+  Symbol.for at 7298383 : Symbol.for("IModelReportService")
+  Symbol.for at 7302298 : Symbol.for("aiAgent.IAiAgentNativeChatService")
+  Symbol.for at 7302349 : Symbol.for("aiAgent.IChatSnapshotService")
+  Symbol.for at 7308214 : Symbol.for("aiAgent.IChatService")
+  Symbol.for at 7318186 : Symbol.for("IInlineSessionStoreService")
+  Symbol.for at 7322624 : Symbol.for("IUserMessageParser")
+  Symbol.for at 7323532 : Symbol.for("IGeneralMessageParser")
+  Symbol.for at 7328310 : Symbol.for("INotificationStreamParser")
+  Symbol.for at 7338648 : Symbol.for("aiAgent.IConfigurationConnectorService")
+  Symbol.for at 7384550 : Symbol.for("radix-ui")
+  Symbol.for at 7456691 : Symbol.for("IPlanService")
+  Symbol.for at 7475994 : Symbol.for("aiAgent.ICKGService")
+  Symbol.for at 7477627 : Symbol.for("aiAgent.IAskQuestionFeatureService")
+  Symbol.for at 7478120 : Symbol.for("IChatStreamRequestFactory")
+  Symbol.for at 7488276 : Symbol.for("IChatStreamEmitter")
+  Symbol.for at 7488312 : Symbol.for("IInlineChatStreamEmitter")
+  Symbol.for at 7504593 : Symbol.for("ITextMessageChatStreamParser")
+  Symbol.for at 7505448 : Symbol.for("IChatStreamWaitingMessageReporter")
+  Symbol.for at 7507770 : Symbol.for("IChatStreamBizReporter")
+
+=== Symbol(I*) DI tokens ===
+  Symbol(I*) at 7092843 : Symbol("ISessionStore")
+  Symbol(I*) at 7154464 : Symbol("ICredentialStore")
+  Symbol(I*) at 7160565 : Symbol("ICommercialActivityService")
+  Symbol(I*) at 7182506 : Symbol("IDynamicConfigStore")
+  Symbol(I*) at 7191686 : Symbol("IModelStore")
+  Symbol(I*) at 7195055 : Symbol("ISoloModeManagerStore")
+  Symbol(I*) at 7198625 : Symbol("ISessionRelationStorageService")
+  Symbol(I*) at 7209315 : Symbol("ISessionRelationStoreInternal")
+  Symbol(I*) at 7224995 : Symbol("IConfigurationStore")
+  Symbol(I*) at 7225752 : Symbol("IInlineChatPaneStore")
+  Symbol(I*) at 7227306 : Symbol("IInlineSessionStore")
+  Symbol(I*) at 7228494 : Symbol("IMarkdownContextMenuStore")
+  Symbol(I*) at 7229347 : Symbol("IProjectStore")
+  Symbol(I*) at 7230256 : Symbol("IChatTurnImageMenuStore")
+  Symbol(I*) at 7231686 : Symbol("IChatStore")
+  Symbol(I*) at 7253634 : Symbol("IAgentExtensionStore")
+  Symbol(I*) at 7255384 : Symbol("ITasksHubStore")
+  Symbol(I*) at 7256829 : Symbol("ITeamAgentSyncService")
+  Symbol(I*) at 7256864 : Symbol("ITeamAgentSubmittedService")
+  Symbol(I*) at 7256904 : Symbol("ITeamAgentFirstSubmittedService")
+  Symbol(I*) at 7257650 : Symbol("IAgentStore")
+  Symbol(I*) at 7261489 : Symbol("ILintErrorAutoFixStore")
+  Symbol(I*) at 7264735 : Symbol("IEntitlementStore")
+  Symbol(I*) at 7310448 : Symbol("IFastApplyStore")
+  Symbol(I*) at 7313578 : Symbol("ISessionStoreService")
+  Symbol(I*) at 7320304 : Symbol("IUserMessageContextParser")
+  Symbol(I*) at 7320629 : Symbol("IMetadataParser")
+  Symbol(I*) at 7324116 : Symbol("IPlanItemParser")
+  Symbol(I*) at 7327208 : Symbol("IAgentService")
+  Symbol(I*) at 7327235 : Symbol("IFeeUsageParser")
+  Symbol(I*) at 7489547 : Symbol("IFeeUsageStreamParser")
+  Symbol(I*) at 7492689 : Symbol("IChatStreamFirstTokenReporter")
+  Symbol(I*) at 7498037 : Symbol("IChatStreamBizReporter")
+  Symbol(I*) at 7502349 : Symbol("IMetadataStreamHandler")
+  Symbol(I*) at 7510424 : Symbol("IPlanItemStreamParser")
+  Symbol(I*) at 7517460 : Symbol("IDoneStreamParser")
+  Symbol(I*) at 7519120 : Symbol("IQueueingStreamParser")
+  Symbol(I*) at 7520352 : Symbol("ITimingEventStreamHandler")
+  Symbol(I*) at 7525532 : Symbol("IEventHandlerFactory")
+  Symbol(I*) at 7552044 : Symbol("ISessionServiceV2")
+  Symbol(I*) at 7617211 : Symbol("IAgentMessageParser")
+  Symbol(I*) at 7620532 : Symbol("IHistoryMessagesParser")
+  Symbol(I*) at 7768015 : Symbol("ITasksHubService")
+  Symbol(I*) at 7848163 : Symbol("IChatListService")
+  Symbol(I*) at 8039557 : Symbol("ILintErrorService")
+  Symbol(I*) at 8047771 : Symbol("ICommercialActivityStore")
+  Symbol(I*) at 8065166 : Symbol("ISandboxAPIService")
+  Symbol(I*) at 8068021 : Symbol("IButtonConfigFactory")
+  Symbol(I*) at 8068689 : Symbol("IWarningTipsConfigFactory")
+  Symbol(I*) at 8071872 : Symbol("IPopoverConfigFactory")
+  Symbol(I*) at 8072894 : Symbol("IAutoRunFeatureConfigService")
+  Symbol(I*) at 8626504 : Symbol("ITaskSectionStore")
+
+=== uJ({identifier: service registrations ===
+  uJ at 7022679 : 0),Er=Ee([uJ({identifier:Ei}),Et("design:type",Function),Et("design:paramtypes",[])],Er);var En=s(61478),Eo=s(24188),Ea=s(76498),Es=((N={})[N.APPLICATION=-1]="APPLICATION",N[N.PROFILE=0]="PROFILE",N[N
+  uJ at 7030045 : 0),E_=Ec([uJ({identifier:Eh}),Eu("design:type",Function),Eu("design:paramtypes",[])],E_);class Ey{constructor(e,t,i){this.namespace=e,this._scope=t,this._target=i;let r=uj.getInstance();this._storageS
+  uJ at 7035599 : 0),ER=ET([uJ({identifier:ED}),EN("design:type",Function),EN("design:paramtypes",[])],ER);var EP=s(22686),Ej=s(26225),Ez=s(82348),EB=s(39082),EF=s(34189),EU=s(2689),EW=s(12722),EG=s(58838),EH=s(65843),
+  uJ at 7045862 : l),EJ=Eq([uJ({identifier:E$}),EK("design:type",Function),EK("design:paramtypes",[])],EJ);var E0=s(5801),E1=s(47592),E2=s(12713),E4=s(17469),E5=s(81948),E3=s(27122),E6=((W={})[W.UPDATED=2]="UPDATED",W[
+  uJ at 7056718 : 0),Ad=Al([uJ({identifier:Au}),Ac("design:type",Function),Ac("design:paramtypes",[])],Ad);var Ah=((Z={})[Z.File=0]="File",Z[Z.Module=1]="Module",Z[Z.Namespace=2]="Namespace",Z[Z.Package=3]="Package",Z[
+  uJ at 7063458 : 0),Ak=AC([uJ({identifier:AM})],Ak);var AI=(($={}).WorkSpace="workspace",$.File="file",$.Code="code",$.Folder="folder",$.CodeSelection="code-selection",$.TerminalSelection="terminal-selection",$.FileSe
+  uJ at 7102392 : 0),xI=xS([uJ({identifier:xC}),xE("design:type",Function),xE("design:paramtypes",[])],xI);var xN=s(52169);function xD(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescripto
+  uJ at 7122246 : 0),xR=xD([uJ({identifier:xL}),xO("design:type",Function),xO("design:paramtypes",[])],xR);var xP=s(82817),xj=s(25669),xz=s(64087);function xB(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object
+  uJ at 7126310 : 0),xW=xB([uJ({identifier:xU}),xF("design:type",Function),xF("design:paramtypes",[])],xW);var xG=((ep={})[ep.Panel=1]="Panel",ep[ep.Editor=2]="Editor",ep),xH=s(73002),xY=s(44807);function xV(e,t,i,r){v
+  uJ at 7131518 : 0),xK=xV([uJ({identifier:xq})],xK);let xJ=Symbol.for("IEditorFacade");class x0{getActiveTextEditor(){let e=this._codeEditorService.getActiveCodeEditor();if(!e)return;let t=e.getModel();if(!t)return;le
+  uJ at 7133920 : 0),x0=x$([uJ({identifier:xJ})],x0);let x1={abap:{start:'"',end:""},bat:{start:"REM",end:""},bibtex:{start:"%",end:""},blade:{start:"#",end:""},c:{start:"//",end:""},clojure:{start:";",end:""},coffeesc
+  uJ at 7137506 : 0),x6=x2([uJ({identifier:x3}),x4("design:type",Function),x4("design:paramtypes",[])],x6);var x8=s(19987);function x9(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescripto
+  uJ at 7139393 : 0),Mt=x9([uJ({identifier:Me})],Mt);let Mr=Symbol.for("aiAgent.ISlardarFacade");class Mn{event(e){this.aiSlardarService.event({...e})}}function Mo(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=O
+  uJ at 7140117 : 0),Mn=Mi([uJ({identifier:Mr})],Mn);let Ma=Symbol.for("ITeaFacade");class Ms{event(e,t){this.iCubeTeaService.report(e,{...t,ai_chat_type:Ay.AIChat})}async getABTestConfigByKey(e,t){return this.iCubeTea
+  uJ at 7141007 : 0),Ms=Mo([uJ({identifier:Ma})],Ms);let Mc=Symbol.for("aiAgent.IFpsRecordFacade");class Mu{startRecord(e,t){this.fpsRecordService.startRecord(e,t)}stopRecord(e){this.fpsRecordService.stopRecord(e)}}Ml(
+  uJ at 7141482 : 0),Mu=Ml([uJ({identifier:Mc})],Mu);var Md=s(55018),Mh=s(76516),Mp=s(72851),Mg=s(61927);function Mf(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor(t,i):r;if("objec
+  uJ at 7146341 : 0),Mw=Mf([uJ({identifier:Mb}),Mm("design:type",Function),Mm("design:paramtypes",[])],Mw);var MS=s(63202);function ME(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescripto
+  uJ at 7147151 : 0),MC=ME([uJ({identifier:MA})],MC);var Mx=((ef={}).DARK="dark",ef.LIGHT="light",ef.HIGH_CONTRAST_DARK="hcDark",ef.HIGH_CONTRAST_LIGHT="hcLight",ef),MM=s(5026);function Mk(e,t,i,r){var n,o=arguments.le
+  uJ at 7148266 : 0),MN=Mk([uJ({identifier:MT}),MI("design:type",Function),MI("design:paramtypes",[])],MN);var MD=s(5775);function MO(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor
+  uJ at 7150671 : 0),MP=MO([uJ({identifier:MR}),ML("design:type",Function),ML("design:paramtypes",[])],MP);let Mz=Symbol.for("aiAgent.IContextKeyFacade");class MB{setGlobalContext(e,t){this.commandService.executeComman
+  uJ at 7151134 : 0),MB=Mj([uJ({identifier:Mz})],MB);var MF=s(49284),MU=s(89806),MW=s(90216);function MG(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor(t,i):r;if("object"==typeof R
+  uJ at 7153494 : 0),MV=MG([uJ({identifier:MY}),MH("design:type",Function),MH("design:paramtypes",[])],MV);class MQ{info(e,...t){this.utilFacade.log("info",`[ai-chat]${e}`,...t)}error(e,...t){this.utilFacade.log("error
+  uJ at 7154098 : 0),MQ=MZ([uJ({identifier:bY})],MQ);let Mq=(e,t)=>{if(e===t)return!0;if("object"!=typeof e||"object"!=typeof t||null===e||null===t)return!1;let i=Object.keys(e),r=Object.keys(t);if(i.length!==r.length)
+  uJ at 7155062 : ,i,a),a}([uJ({identifier:M$}),MK("design:type",Function),MK("design:paramtypes",[])],MX);var MJ=((em={}).InProgress="In progress",em.Completed="Completed",em.Interrupted="Interrupted",em.WaitingForYou
+  uJ at 7157319 : 0),M4=M1([uJ({identifier:Ci})],M4);let M5=Symbol.for("aiAgent.IAiClientManagerService");class M3{constructor(){this._promise=new Promise((e,t)=>{this._resolve=e,this._reject=t})}get promise(){return t
+  uJ at 7158806 : 0),M7=M8([uJ({identifier:M5})],M7);var ke=((e_={}).AWS="aws",e_),kt=((ey={})[ey.API_KEY=0]="API_KEY",ey[ey.AK_SK=1]="AK_SK",ey),ki=((ev={})[ev.builder=0]="builder",ev[ev.solo_coder=1]="solo_coder",ev[
+  uJ at 7160482 : 0),ku=kl([uJ({identifier:ks})],ku);let kd=Symbol.for("aiChat.IAIChatRequestErrorService"),kh=Symbol("ICommercialActivityService");var kp=((eE={})[eE.UNKNOWN=0]="UNKNOWN",eE[eE.TOOL_NAME_TOO_LONG=8]="T
+  uJ at 7182985 : ,i,a),a}([uJ({identifier:kS}),kw("design:type",Function),kw("design:paramtypes",[])],kE);let kA=Symbol.for("aiAgent.IProductService");function kC(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=O
+  uJ at 7184832 : 0),kM=kC([uJ({identifier:kA}),kx("design:type",Function),kx("design:paramtypes",[])],kM);let kk=new S6.Emitter,kI=new S6.Emitter,kT=new S6.Emitter,kN="icube.ai-chat.dragDropMention",kD="icube.ai-chat.
+  uJ at 7194451 : ,i,a),a}([uJ({identifier:k1}),kJ("design:type",Function),kJ("design:paramtypes",[])],k2);let k5=Symbol.for("IModeStorageService");var k3=s(56489),k6=s(25684),k8=s(10201);function k9(e,t,i,r){var n,o=a
+  uJ at 7195662 : 0),Ii=k9([uJ({identifier:Ie}),k7("design:type",Function),k7("design:paramtypes",[])],Ii);var Ir=s(32375),In=((eN={}).ChangeHeight="ChangeHeight",eN.UpdateRunningStatus="UpdateRunningStatus",eN.UpdateP
+  uJ at 7209045 : 0),IM=Ip([uJ({identifier:Ix})],IM);let IT={runningStatusMap:{},lastRunningAgentTypeMap:{},planModeMap:{},specModeMap:{},revertDiffListMap:new Map,reasoningContentVisibleListMap:new Map,sessionModelMap
+  uJ at 7222646 : 0),ID=Ik([uJ({identifier:IN}),II("design:type",Function),II("design:paramtypes",[])],ID);let Iz=[];function IB(){let e=uB(xC),t=uB(IN),i=uB(k1),r=uB(Il),n=uB(S2.IDynamicConfigService),o=e.useStore(e=>
+  uJ at 7225520 : 0),IQ=IY([uJ({identifier:IZ}),IV("design:type",Function),IV("design:paramtypes",[])],IQ);let IK=Object.freeze({userInput:"",userSubmitted:"",placeholder:"",showToolbar:!1,status:"",statusType:void 0,v
+  uJ at 7227161 : ,i,a),a}([uJ({identifier:I$}),Iq("design:type",Function),Iq("design:paramtypes",[])],IX);let I1={currentSession:null,promptHistory:[],historyOffset:-1},I2=Symbol("IInlineSessionStore");class I4 extend
+  uJ at 7228299 : 0),I4=IJ([uJ({identifier:I2}),I0("design:type",Function),I0("design:paramtypes",[])],I4);let I3=Object.freeze({visible:!1,position:[0,0],menuSize:[0,0],isSectionSelected:!1,role:bZ.System,turnIndex:0}
+  uJ at 7229261 : ,i,a),a}([uJ({identifier:I6}),I5("design:type",Function),I5("design:paramtypes",[])],I8);let I7=Symbol("IProjectStore"),Te={projectId:"",realProjectId:"",isCreatingProject:!1};class Ti extends Aq{cons
+  uJ at 7230092 : ,i,a),a}([uJ({identifier:I7}),I9("design:type",Function),I9("design:paramtypes",[])],Ti);let Tn=Object.freeze({visible:!1,position:[0,0],menuSize:[0,0],imageInfo:void 0}),To=Symbol("IChatTurnImageMenu
+  uJ at 7230951 : ,i,a),a}([uJ({identifier:To}),Tr("design:type",Function),Tr("design:paramtypes",[])],Ta);var Ts=((eR={}).PENDING="PENDING",eR.SUCCESS="SUCCESS",eR.FAILED="FAILED",eR);function Tl(e,t,i,r){var n,o=argu
+  uJ at 7233822 : 0),Th=Tl([uJ({identifier:Td}),Tc("design:type",Function),Tc("design:paramtypes",[])],Th);class Tm{event(e,t){return this._logService.info("[ai-chat][☕] event: ",e,"; params: ",t),this._tea.event(e,t)}
+  uJ at 7234317 : 0),Tm=Tg([uJ({identifier:Tm})],Tm);var T_=((eP={}).inlineChat="inline_chat",eP.sideChat="side_chat",eP.builder="builder",eP.customAgent="custom_agent",eP),Ty=((ej={}).builtin="builtin",ej.enterprise="
+  uJ at 7250026 : 0),TD=TC([uJ({identifier:TM}),Tx("design:type",Function),Tx("design:paramtypes",[])],TD);var TO=s(45515);let TL=Symbol.for("aiChat.ICustomRulesService");function TR(e,t,i,r){var n,o=arguments.length,a
+  uJ at 7253497 : 0),TB=TR([uJ({identifier:Tz}),TP("design:type",Function),TP("design:paramtypes",[])],TB);let TW={doNotShowModalAfterSubmit:!1,hasShownGuide:!1},TG=Symbol("IAgentExtensionStore");class TH extends Aq{co
+  uJ at 7254532 : 0),TH=TF([uJ({identifier:TG}),TU("design:type",Function),TU("design:paramtypes",[])],TH);var TY=((e8={}).Tasks="tasks",e8.Files="files",e8.Messages="messages",e8.Terminal="terminal",e8);class TV{stati
+  uJ at 7256727 : ,i,a),a}([uJ({identifier:TQ}),TZ("design:type",Function),TZ("design:paramtypes",[])],Tq);var TK=s(61303);let T$=Symbol("ITeamAgentSyncService"),TX=Symbol("ITeamAgentSubmittedService"),TJ=Symbol("ITeam
+  uJ at 7261403 : 0),T3=T0([uJ({identifier:T5}),T1("design:type",Function),T1("design:paramtypes",[])],T3);let T8=Symbol("ILintErrorAutoFixStore");class T9 extends Aq{constructor(){super({enabled:!0})}createActions(e){
+  uJ at 7261961 : ,i,a),a}([uJ({identifier:T8}),T6("design:type",Function),T6("design:paramtypes",[])],T9);var T7=s(78324);function Ne(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescripto
+  uJ at 7263537 : 0),Nn=Ne([uJ({identifier:Nr}),Ni("design:type",Function),Ni("design:paramtypes",[])],Nn);let Na=Symbol.for("ISkillStore");class Ns extends Aq{constructor(){super({globalSkillCount:0,projectSkillCount:
+  uJ at 7264649 : ,i,a),a}([uJ({identifier:Na}),No("design:type",Function),No("design:paramtypes",[])],Ns);let Nc=Symbol("IEntitlementStore");class Nu extends Aq{constructor(){super({entitlementInfo:null,saasEntitlemen
+  uJ at 7265404 : ,i,a),a}([uJ({identifier:Nc}),Nl("design:type",Function),Nl("design:paramtypes",[])],Nu);var Nd=s(23954);function Nh(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescripto
+  uJ at 7266895 : 0),Nf=Nh([uJ({identifier:Ng}),Np("design:type",Function),Np("design:paramtypes",[])],Nf);var Nm=s(46742),N_=s(27656),Ny=s(25486);let Nv=function(e,t,i){var r=!0,n=!0;if("function"!=typeof e)throw Type
+  uJ at 7268550 : 0),NS=Nb([uJ({identifier:Il})],NS);let NE=Symbol.for("IModelTipConfigService");var NA=s(69134);let NC=["warning","error","success","secondary","commercial"],Nx=(e,t)=>!e.identity||0===e.identity.lengt
+  uJ at 7271037 : ,i,a),a}([uJ({identifier:NE})],NT);var NN=s(88554),ND=s(94205);function NO(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor(t,i):r;if("object"==typeof Reflect&&"fun
+  uJ at 7290645 : 0),NR=NO([uJ({identifier:kv}),NL("design:type",Function),NL("design:paramtypes",[])],NR);class Nz{async generateKey(e){let t=await this._credentialConnectorService.getUserInfo();return`${t?.userId}_${
+  uJ at 7293318 : ,i,a),a}([uJ({identifier:kb})],NQ);let Nq="AI.agent.mode.op_version",NK="AI.agent.maxMode.feeWarningDate",N$="AI.agent.maxMode.feeWarningGotIt",NX="AI.agent.soloAgent.autoModeDisabled";class NJ extend
+  uJ at 7296204 : ,i,a),a}([uJ({identifier:k5})],NJ);let N0=Symbol.for("IChatAgentGuideStorageService");class N1 extends Nz{async generateGuideSeenKey(e){return await this.generateKey(`AI.agent.chat.guide.seen.${e}`)}a
+  uJ at 7296973 : ,i,a),a}([uJ({identifier:N0})],N1);let N2=Symbol.for("ISimpleBoolCacheService");class N4 extends Nz{async setBool(e,t){let i=await this.generateCacheKey(e),r=NW(t);if(r)return this._storageFacade.setS
+  uJ at 7298351 : ,i,a),a}([uJ({identifier:N2})],N4);let N6=Symbol.for("IModelReportService");class N8{reportSelectClick(e){let{currentAgent:t,currentSessionId:i}=this.sessionStore.getState(),r=t?.type||"",n=t?.type?th
+  uJ at 7299767 : 0),N8=N5([uJ({identifier:N6})],N8);class De{getErrorInfo(e=kg.DEFAULT,t){let{defaultErrorCode:i,originErrorMessage:r,errorData:n}=t||{},o=k_[e]||k_[i||kg.DEFAULT],a=this.i18nService.localize(o.key,n,o
+  uJ at 7302266 : 0),De=N9([uJ({identifier:kd})],De);let Di=Symbol.for("aiAgent.IAiAgentNativeChatService"),Dr=Symbol.for("aiAgent.IChatSnapshotService");function Dn(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r
+  uJ at 7303131 : 0),Do=Dn([uJ({identifier:Do})],Do);var Ds="function"==typeof Symbol&&Symbol.observable||"@@observable",Dl=()=>Math.random().toString(36).substring(7).split("").join("."),Dc={INIT:`@@redux/INIT${Dl()}`
+  uJ at 7311760 : 0),Dw=D_([uJ({identifier:Db}),Dy("design:type",Function),Dy("design:paramtypes",[])],Dw);let DS=new S6.Emitter,DE=new S6.Emitter,DA=new S6.Emitter,DC=new S6.Emitter,Dx={_onChatMessage:new S6.Emitter,o
+  uJ at 7318154 : 0),Dz=DR([uJ({identifier:Dj})],Dz);let DU=Symbol.for("IInlineSessionStoreService");class DW{updateSession(e,t){let{currentSession:i}=this.store.getState();this.store.actions.setCurrentSession({...i,..
+  uJ at 7319733 : 0),DW=DB([uJ({identifier:DU})],DW);class DY{}class DV extends DY{}function DZ(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor(t,i):r;if("object"==typeof Reflect&&"
+  uJ at 7320597 : }}}Dq=DZ([uJ({identifier:DQ})],Dq);let DK=Symbol("IMetadataParser");class D$ extends DY{parse(e,t){let i=this.userMessageContextParser.parse(e.user_message_context??{}),r={status:e.status,sessionId:e.
+  uJ at 7322592 : 0),D$=DZ([uJ({identifier:DK})],D$);let DJ=Symbol.for("IUserMessageParser");class D0{parse(e,t){return{...this.metadataParser.parse(e,t),role:bZ.User,content:e.content?.find(e=>e.type===Cw.Text)?.text_
+  uJ at 7323500 : 0),D0=DX([uJ({identifier:DJ})],D0);let D2=Symbol.for("IGeneralMessageParser");class D4{parse(e,t){let i=this.metadataParser.parse(e,t),{content:r}=e,n={proposal:r?.content??"",proposalReasoningContent
+  uJ at 7324084 : 0),D4=D1([uJ({identifier:D2})],D4);let D5=Symbol("IPlanItemParser");class D3 extends DY{parse(e,t){let{tool_call_info:i,thought:r,id:n,confirm_info:o,reasoning_content:a,agent_id:s,agent_display_name:
+  uJ at 7327176 : ,i,a),a}([uJ({identifier:D5})],D3);let D6=Symbol("IAgentService"),D8=Symbol("IFeeUsageParser");class D9{parse(e){return{...e}}}D9=function(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.g
+  uJ at 7327621 : ,i,a),a}([uJ({identifier:D8})],D9);var D7=((te={}).InlineChat="inline_chat",te.SideChat="side_chat",te.BackgroundChat="background_chat",te.ProactiveChat="proactive_chat",te),Oe=((tt={})[tt.Success=0]=
+  uJ at 7329083 : ,i,a),a}([uJ({identifier:Oi})],Or);var On=((tr={}).SANDBOX_TO_MAIN_BROADCAST_ICUBE_RESOURCE_USAGE_CONFIG_CHANGED="vscode:sandbox::main-broadcast-icubeResourceUsageConfigChanged",tr.MAIN_TO_SANDBOX_SEN
+  uJ at 7344819 : 0),Om=Op([uJ({identifier:Of}),Og("design:type",Function),Og("design:paramtypes",[])],Om);let O_={"task-notification-settings":"index-module__task-notification-settings___hTyay","task-notification-sett
+  uJ at 7475488 : 0),jP=jL([uJ({identifier:jP})],jP);var jj=s(5468),jz=s.n(jj),jB=s(5803);function jF(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor(t,i):r;if("object"==typeof Refl
+  uJ at 7477038 : 0),jG=jF([uJ({identifier:jW})],jG);var jH=s(20293),jY=s(29291),jV=s(7305),jZ=s(47401),jQ=s(77218),jq=s(4382),jK=s(22449);let j$=function(e,t){var i,r;return t=(0,jV.Z)(t,e),i=e,null==(e=(r=t).length<2
+  uJ at 7488168 : 0),j9=j3([uJ({identifier:j8})],j9);var ze=((tp={}).Cancel="Cancel",tp.Error="Error",tp.Complete="Complete",tp);let zt=Symbol.for("IChatStreamEmitter"),zi=Symbol.for("IInlineChatStreamEmitter");class z
+  uJ at 7489150 : r{}zn=j7([uJ({identifier:zt})],zn);class zo extends zr{}zo=j7([uJ({identifier:zi})],zo);class za{static getInstance(){return za.instance||(za.instance=new za),za.instance}register(e,t){this.eventHandl
+  uJ at 7489203 : r{}zo=j7([uJ({identifier:zi})],zo);class za{static getInstance(){return za.instance||(za.instance=new za),za.instance}register(e,t){this.eventHandlerMap.set(e,t)}getHandler(e){return this.eventHandler
+  uJ at 7490665 : ,i,a),a}([uJ({identifier:zl})],zc);class zh extends bV.Disposable{constructor(){super(),this._register(this.chatStreamEmitter.onStreamingStop(e=>{this.onStreamingStop(e)})),this._register(this.chatStr
+  uJ at 7498005 : ,i,a),a}([uJ({identifier:zp})],zg);let zf=Symbol("IChatStreamBizReporter");class zm extends zh{onBeforeStreamingStart(e){let{requestObject:t,context:i}=e,r=this.createFrontResponsePayload({requestObje
+  uJ at 7502317 : ,i,a),a}([uJ({identifier:zf})],zm);let zv=Symbol("IMetadataStreamHandler");class zb extends DV{parse(e,t){let i=this.metadataParser.parse(e,t);return this._chatStreamFirstTokenReporter.updateChatFirst
+  uJ at 7504214 : 0),zb=z_([uJ({identifier:zv})],zb);let zw="AI thinking";function zS(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor(t,i):r;if("object"==typeof Reflect&&"function"=
+  uJ at 7505416 : 0),zA=zS([uJ({identifier:zE})],zA);let zC=Symbol.for("IChatStreamWaitingMessageReporter");class zx extends zh{onSendChatMessageStart(e){let{sessionId:t}=e;this._startWaitingMessage(t,"firstToken")}onS
+  uJ at 7506839 : ,i,a),a}([uJ({identifier:zC})],zx);let zM="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";class zk{dispatchStart(){window.dispatchEvent(this.createEvent("start"))}dispatchEnd(){window
+  uJ at 7509913 : 0),zD=zI([uJ({identifier:zN})],zD);let zO=Symbol.for("aiAgent.ITaskService");function zL(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnPropertyDescriptor(t,i):r;if("object"==typeof
+  uJ at 7515351 : 0),zj=zL([uJ({identifier:zP})],zj);let zF=Symbol.for("IErrorStreamParser");class zU extends DV{parse(e,t){e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR&&t.osStatus&&t.osStatus.get(b3.Suspend)&&(e.code=kg.O
+  uJ at 7517428 : 0),zU=zz([uJ({identifier:zF})],zU);let zH=Symbol("IDoneStreamParser");class zY extends DV{parse(e,t){return this.chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenDone(e,t),{status:e.statu
+  uJ at 7519088 : 0),zY=zW([uJ({identifier:zH})],zY);let zQ=Symbol("IQueueingStreamParser");class zq extends DV{parse(e,t){return(this._chatStreamFirstTokenReporter.updateChatFirstTokenPayloadWhenQueuingEvent(e,t),this
+  uJ at 7520320 : 0),zq=zV([uJ({identifier:zQ})],zq);let zX=Symbol("ITimingEventStreamHandler");class zJ extends DV{parse(e,t){return this._chatStreamFirstTokenReporter.updateChatFirstTokenPayloadWhenTimingEvent(e,t),t
+  uJ at 7521367 : 0),zJ=zK([uJ({identifier:zX})],zJ);let z1=Symbol.for("IUserMessageStreamParser");class z2 extends DV{parse(e,t){let i={...this.userMessageContextParser.parse(e.user_message_context??{}),sessionId:e.se
+  uJ at 7523126 : 0),z2=z0([uJ({identifier:z1})],z2);let z5=Symbol.for("ITokenUsageStreamParser");class z3 extends DV{parse(e,t){return t.firstTokenUsageReported||(t.firstTokenUsageReported=!0,this._chatStreamFirstToke
+  uJ at 7523746 : 0),z3=z4([uJ({identifier:z5})],z3);let z6=Symbol.for("IContextTokenUsageStreamParser");class z8 extends DV{parse(e){return e}handleSteamingResult(e,t){t.agentMessageId&&this.storeService.updateMessage
+  uJ at 7524380 : ,i,a),a}([uJ({identifier:z6})],z8);let z9=Symbol.for("ISessionTitleMessageStreamParser");class z7 extends DV{parse(e){return e}handleSteamingResult(e,t){if(t.sessionId){let i=e?.session_title;i||(i=Cy
+  uJ at 7525500 : ,i,a),a}([uJ({identifier:z9})],z7);let Bi=Symbol("IEventHandlerFactory");class Br{constructor(){this.container=uj.getInstance()}static register(e,t){zs().register(e,t)}resolveHandler(e){let t=zs().get
+  uJ at 7526158 : ),(Br=Be([uJ({identifier:Bi}),Bt("design:type",Function),Bt("design:paramtypes",[])],Br)).register(Ot.FeeUsage,zl),Br.register(Ot.Metadata,zv),Br.register(Ot.TextMessage,zE),Br.register(Ot.PlanItem,zP
+  uJ at 7539940 : 0),B_=Bp([uJ({identifier:Bf})],B_);let Bb=Symbol.for("ISideChatStreamService");class Bw extends Bs{initialize(){this.iCubeAuthService.onDidOSStatusChange(e=>{this._logService.info(`OS Status Change, s
+  uJ at 7546828 : 0),Bw=By([uJ({identifier:Bb})],Bw);let BA=Symbol.for("IInlineChatStreamService");class BC extends Bs{initialize(){}async checkBeforeSendMessage(e){let{sessionId:t}=e;return!!t||(this._logService.error
+  uJ at 7549644 : 0),BC=BS([uJ({identifier:BA})],BC);let Bk=Symbol.for("IChatStreamContributionReporter");class BI extends bV.Disposable{constructor(){super(),this.onStreamingStop=e=>{let{diffFiles:t}=this._fileDiffSta
+  uJ at 7551872 : 0),BI=Bx([uJ({identifier:Bk}),BM("design:type",Function),BM("design:paramtypes",[])],BI);var BL=((tf={}).SideChat="sideChat",tf.Resume="resume",tf.InlineChat="inlineChat",tf);let BR=Symbol("ISessionSe
+  uJ at 7558276 : 0),BP=BD([uJ({identifier:BR}),BO("design:type",Function),BO("design:paramtypes",[])],BP);var Bj=s(72103),Bz=s.n(Bj);function BB(e,t,i,r){var n,o=arguments.length,a=o<3?t:null===r?r=Object.getOwnProper
+  uJ at 7560170 : 0),BW=BB([uJ({identifier:BU})],BW);let BG="workbench.panel.icube.aiChatSidebar";var BH=((tm={}).ListProjects="icube.extended.integrations.supabase.listProjects",tm.GetProject="icube.extended.integrati

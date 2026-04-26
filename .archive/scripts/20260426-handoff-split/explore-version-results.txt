@@ -1,0 +1,432 @@
+﻿============================================================
+  Trae IDE Version Diff Explorer - 2026-04-25 21:01:35
+  Target: D:\apps\Trae CN\resources\app\node_modules\@byted-icube\ai-modules-chat\dist\index.js
+============================================================
+
+[1] Reading target file...
+  File size: 10486910 chars
+
+============================================================
+[2] Known Symbol.for Token Migration Check
+============================================================
+  IPlanItemStreamParser:
+    Symbol.for offset: NOT FOUND
+    Symbol    offset: 7508068
+    Status: CHANGED to Symbol (expected change)
+
+  ISessionStore:
+    Symbol.for offset: NOT FOUND
+    Symbol    offset: 7092843
+    Status: CHANGED to Symbol (expected change)
+
+  IErrorStreamParser:
+    Symbol.for offset: 7513027
+    Symbol    offset: NOT FOUND
+    Status: STILL Symbol.for (expected same)
+
+  ITeaFacade:
+    Symbol.for offset: 7140149
+    Symbol    offset: NOT FOUND
+    Status: STILL Symbol.for (expected same)
+
+============================================================
+[3] Complete DI Token Scan: Symbol.for / Symbol with I-prefix
+============================================================
+
+--- Symbol.for("I...") patterns ---
+  Offset 7061974: Symbol.for("IUtilFacade")
+  Offset 7102931: Symbol.for("IWorkspaceFacade")
+  Offset 7131550: Symbol.for("IEditorFacade")
+  Offset 7138045: Symbol.for("IViewsFacade")
+  Offset 7140149: Symbol.for("ITeaFacade")
+  Offset 7146769: Symbol.for("ITelemetryFacade")
+  Offset 7182322: Symbol.for("IModelService")
+  Offset 7182353: Symbol.for("IModelStorageService")
+  Offset 7194537: Symbol.for("IModeStorageService")
+  Offset 7263623: Symbol.for("ISkillStore")
+  Offset 7268582: Symbol.for("IModelTipConfigService")
+  Offset 7296236: Symbol.for("IChatAgentGuideStorageService")
+  Offset 7297005: Symbol.for("ISimpleBoolCacheService")
+  Offset 7298383: Symbol.for("IModelReportService")
+  Offset 7318186: Symbol.for("IInlineSessionStoreService")
+  Offset 7322624: Symbol.for("IUserMessageParser")
+  Offset 7323532: Symbol.for("IGeneralMessageParser")
+  Offset 7328310: Symbol.for("INotificationStreamParser")
+  Offset 7456691: Symbol.for("IPlanService")
+  Offset 7475764: Symbol.for("IChatStreamRequestFactory")
+  Offset 7485920: Symbol.for("IChatStreamEmitter")
+  Offset 7485956: Symbol.for("IInlineChatStreamEmitter")
+  Offset 7502237: Symbol.for("ITextMessageChatStreamParser")
+  Offset 7503092: Symbol.for("IChatStreamWaitingMessageReporter")
+  Offset 7505414: Symbol.for("IChatStreamBizReporter")
+  Offset 7513027: Symbol.for("IErrorStreamParser")
+  Offset 7519043: Symbol.for("IUserMessageStreamParser")
+  Offset 7520802: Symbol.for("ITokenUsageStreamParser")
+  Offset 7521422: Symbol.for("IContextTokenUsageStreamParser")
+  Offset 7522056: Symbol.for("ISessionTitleMessageStreamParser")
+  Offset 7533516: Symbol.for("IStuckDetectionService")
+  Offset 7537616: Symbol.for("ISideChatStreamService")
+  Offset 7544504: Symbol.for("IInlineChatStreamService")
+  Offset 7547320: Symbol.for("IChatStreamContributionReporter")
+  Offset 7556470: Symbol.for("ICommercialApiService")
+  Offset 7559037: Symbol.for("IFileDiffTruncationService")
+  Offset 7561964: Symbol.for("IFileDiffService")
+  Offset 7570270: Symbol.for("IFileDiffProvider")
+  Offset 7586065: Symbol.for("IKnowledgesTaskService")
+  Offset 7762817: Symbol.for("ITaskListApiService")
+  Offset 7889137: Symbol.for("IASRService")
+  Offset 7899718: Symbol.for("IHuoshanAsrClientService")
+  Offset 8023847: Symbol.for("IAWSASRClientService")
+  Offset 8032732: Symbol.for("IPrivacyModeService")
+  Offset 8036129: Symbol.for("IAutoAcceptService")
+  Offset 8059805: Symbol.for("IRunCommandFeatureService")
+  Offset 8082397: Symbol.for("IFileOpFeatureService")
+  Offset 8091873: Symbol.for("IContributionService")
+  Offset 8109867: Symbol.for("IKnowledgesPersistenceService")
+  Offset 8118631: Symbol.for("IKnowledgesStagingService")
+  Offset 8126268: Symbol.for("IKnowledgesFeatureService")
+  Offset 8128914: Symbol.for("IKnowledgesSourceMaterialService")
+  Offset 8136165: Symbol.for("IKnowledgesNotificationService")
+  Offset 8182872: Symbol.for("IKnowledgesStatusBarService")
+  Total Symbol.for(I*): 54
+
+--- Symbol("I...") patterns ---
+  Offset 7092843: Symbol("ISessionStore")
+  Offset 7154464: Symbol("ICredentialStore")
+  Offset 7160565: Symbol("ICommercialActivityService")
+  Offset 7182506: Symbol("IDynamicConfigStore")
+  Offset 7191686: Symbol("IModelStore")
+  Offset 7195055: Symbol("ISoloModeManagerStore")
+  Offset 7198625: Symbol("ISessionRelationStorageService")
+  Offset 7209315: Symbol("ISessionRelationStoreInternal")
+  Offset 7224995: Symbol("IConfigurationStore")
+  Offset 7225752: Symbol("IInlineChatPaneStore")
+  Offset 7227306: Symbol("IInlineSessionStore")
+  Offset 7228494: Symbol("IMarkdownContextMenuStore")
+  Offset 7229347: Symbol("IProjectStore")
+  Offset 7230256: Symbol("IChatTurnImageMenuStore")
+  Offset 7231686: Symbol("IChatStore")
+  Offset 7253634: Symbol("IAgentExtensionStore")
+  Offset 7255384: Symbol("ITasksHubStore")
+  Offset 7256829: Symbol("ITeamAgentSyncService")
+  Offset 7256864: Symbol("ITeamAgentSubmittedService")
+  Offset 7256904: Symbol("ITeamAgentFirstSubmittedService")
+  Offset 7257650: Symbol("IAgentStore")
+  Offset 7261489: Symbol("ILintErrorAutoFixStore")
+  Offset 7264735: Symbol("IEntitlementStore")
+  Offset 7310448: Symbol("IFastApplyStore")
+  Offset 7313578: Symbol("ISessionStoreService")
+  Offset 7320304: Symbol("IUserMessageContextParser")
+  Offset 7320629: Symbol("IMetadataParser")
+  Offset 7324116: Symbol("IPlanItemParser")
+  Offset 7327208: Symbol("IAgentService")
+  Offset 7327235: Symbol("IFeeUsageParser")
+  Offset 7487191: Symbol("IFeeUsageStreamParser")
+  Offset 7490333: Symbol("IChatStreamFirstTokenReporter")
+  Offset 7495681: Symbol("IChatStreamBizReporter")
+  Offset 7499993: Symbol("IMetadataStreamHandler")
+  Offset 7508068: Symbol("IPlanItemStreamParser")
+  Offset 7515104: Symbol("IDoneStreamParser")
+  Offset 7516764: Symbol("IQueueingStreamParser")
+  Offset 7517996: Symbol("ITimingEventStreamHandler")
+  Offset 7523176: Symbol("IEventHandlerFactory")
+  Offset 7549688: Symbol("ISessionServiceV2")
+  Offset 7614855: Symbol("IAgentMessageParser")
+  Offset 7618176: Symbol("IHistoryMessagesParser")
+  Offset 7765659: Symbol("ITasksHubService")
+  Offset 7845807: Symbol("IChatListService")
+  Offset 8037201: Symbol("ILintErrorService")
+  Offset 8045415: Symbol("ICommercialActivityStore")
+  Offset 8062810: Symbol("ISandboxAPIService")
+  Offset 8065665: Symbol("IButtonConfigFactory")
+  Offset 8066333: Symbol("IWarningTipsConfigFactory")
+  Offset 8069516: Symbol("IPopoverConfigFactory")
+  Offset 8070538: Symbol("IAutoRunFeatureConfigService")
+  Offset 8624148: Symbol("ITaskSectionStore")
+  Total Symbol(I*): 52
+
+--- ALL Symbol.for patterns (non-I prefix too) ---
+  Symbol.for("@reflect-metadata:registry") @ 3552466
+  Symbol.for("@smithy/nor") @ 7994100
+  Symbol.for("ai.IDocsetCkgLocalApiService") @ 7711303
+  Symbol.for("ai.IDocsetOnlineApiService") @ 7716459
+  Symbol.for("ai.IDocsetService") @ 3546309
+  Symbol.for("ai.IDocsetStore") @ 7244780
+  Symbol.for("ai.IWebCrawlerFacade") @ 7721396
+  Symbol.for("aiAgent.IAgentSessionService") @ 7155776
+  Symbol.for("aiAgent.IAiAgentClientManagerService") @ 7159470
+  Symbol.for("aiAgent.IAiAgentIDEChatImageService") @ 7574897
+  Symbol.for("aiAgent.IAiAgentNativeChatService") @ 7302298
+  Symbol.for("aiAgent.IAiAgentNativeDSLAgentService") @ 7647616
+  Symbol.for("aiAgent.IAiClientManagerService") @ 7157351
+  Symbol.for("aiAgent.IAiCompletionService") @ 10467521
+  Symbol.for("aiAgent.IAiModuleManagerService") @ 7633566
+  Symbol.for("aiAgent.IAiNativeFastApplyBaseService") @ 7674506
+  Symbol.for("aiAgent.IAiNativeFastApplyPoolService") @ 7677301
+  Symbol.for("aiAgent.IAiNativeFastApplyTodoListService") @ 7677532
+  Symbol.for("aiAgent.IAiNativeIDEApiService") @ 7672609
+  Symbol.for("aiAgent.IAiNativeIDEChatImageService") @ 7574843
+  Symbol.for("aiAgent.IAiNativeModelService") @ 7159423
+  Symbol.for("aiAgent.IAskQuestionFeatureService") @ 7475271
+  Symbol.for("aiAgent.IAskUserQuestionDraftCacheService") @ 8090864
+  Symbol.for("aiAgent.IChatService") @ 7308214
+  Symbol.for("aiAgent.IChatSnapshotService") @ 7302349
+  Symbol.for("aiAgent.IChatSuperCompletionService") @ 8056092
+  Symbol.for("aiAgent.ICKGService") @ 7473638
+  Symbol.for("aiAgent.ICodeActionFacade") @ 7122809
+  Symbol.for("aiAgent.ICodeActionService") @ 7765401
+  Symbol.for("aiAgent.ICommercialPermissionService") @ 7197015
+  Symbol.for("aiAgent.IConfigurationConnectorService") @ 7338648
+  Symbol.for("aiAgent.IConfigurationFacade") @ 7151643
+  Symbol.for("aiAgent.IContextKeyFacade") @ 7150757
+  Symbol.for("aiAgent.ICredentialFacade") @ 7020993
+  Symbol.for("aiAgent.IEnvironmentFacade") @ 7032794
+  Symbol.for("aiAgent.IFastApplyFacade") @ 7036480
+  Symbol.for("aiAgent.IFileFacade") @ 7047446
+  Symbol.for("aiAgent.IFileIconFacade") @ 7136335
+  Symbol.for("aiAgent.IForkChatService") @ 8096646
+  Symbol.for("aiAgent.IFpsRecordFacade") @ 7141039
+  Symbol.for("aiAgent.IHistoryService") @ 7877205
+  Symbol.for("aiAgent.II18nService") @ 7080976
+  Symbol.for("aiAgent.ILogService") @ 6478694
+  Symbol.for("aiAgent.INativeUIService") @ 7826179
+  Symbol.for("aiAgent.INetworkService") @ 8031802
+  Symbol.for("aiAgent.IOpenerFacade") @ 7126937
+  Symbol.for("aiAgent.IOpenerService") @ 7829307
+  Symbol.for("aiAgent.IPastChatExporter") @ 7571458
+  Symbol.for("aiAgent.IProductFacade") @ 7148804
+  Symbol.for("aiAgent.IProductService") @ 7183071
+  Symbol.for("aiAgent.IProjectApiService") @ 7635948
+  Symbol.for("aiAgent.ISessionHistoryInfra") @ 7142781
+  Symbol.for("aiAgent.ISessionService") @ 7155301
+  Symbol.for("aiAgent.ISlardarFacade") @ 7139425
+  Symbol.for("aiAgent.ISnapshotApiService") @ 7638065
+  Symbol.for("aiAgent.IStorageFacade") @ 7023459
+  Symbol.for("aiAgent.ITaskService") @ 7507589
+  Symbol.for("aiAgent.IThemeFacade") @ 7147744
+  Symbol.for("aiAgent.IThemeService") @ 7834929
+  Symbol.for("aiAgent.IToolCallService") @ 7634594
+  Symbol.for("aiAgent.IUtilService") @ 7853132
+  Symbol.for("aiAgent.IViewsService") @ 7765508
+  Symbol.for("aiChat.IAIChatRequestErrorService") @ 7160514
+  Symbol.for("aiChat.ICustomRulesService") @ 7250128
+  Symbol.for("aiChat.IDSLAgentService") @ 8097495
+  Symbol.for("aiChat.IInlineChatSessionService") @ 7821214
+  Symbol.for("aiChat.IMemoryPaneService") @ 7745762
+  Symbol.for("aiChat.IMemoryStore") @ 7751550
+  Symbol.for("aiNg.IAgentProjectService") @ 7765465
+  Symbol.for("aiNg.IWorkspaceService") @ 7770791
+  Symbol.for("debug.description") @ 2514093
+  Symbol.for("IASRService") @ 7889137
+  Symbol.for("IAutoAcceptService") @ 8036129
+  Symbol.for("IAWSASRClientService") @ 8023847
+  Symbol.for("IChatAgentGuideStorageService") @ 7296236
+  Symbol.for("IChatStreamBizReporter") @ 7505414
+  Symbol.for("IChatStreamContributionReporter") @ 7547320
+  Symbol.for("IChatStreamEmitter") @ 7485920
+  Symbol.for("IChatStreamRequestFactory") @ 7475764
+  Symbol.for("IChatStreamWaitingMessageReporter") @ 7503092
+  Symbol.for("ICommercialApiService") @ 7556470
+  Symbol.for("IContextTokenUsageStreamParser") @ 7521422
+  Symbol.for("IContributionService") @ 8091873
+  Symbol.for("IEditorFacade") @ 7131550
+  Symbol.for("IErrorStreamParser") @ 7513027
+  Symbol.for("IFileDiffProvider") @ 7570270
+  Symbol.for("IFileDiffService") @ 7561964
+  Symbol.for("IFileDiffTruncationService") @ 7559037
+  Symbol.for("IFileOpFeatureService") @ 8082397
+  Symbol.for("IGeneralMessageParser") @ 7323532
+  Symbol.for("IHuoshanAsrClientService") @ 7899718
+  Symbol.for("IInlineChatStreamEmitter") @ 7485956
+  Symbol.for("IInlineChatStreamService") @ 7544504
+  Symbol.for("IInlineSessionStoreService") @ 7318186
+  Symbol.for("IKnowledgesFeatureService") @ 8126268
+  Symbol.for("IKnowledgesNotificationService") @ 8136165
+  Symbol.for("IKnowledgesPersistenceService") @ 8109867
+  Symbol.for("IKnowledgesSourceMaterialService") @ 8128914
+  Symbol.for("IKnowledgesStagingService") @ 8118631
+  Symbol.for("IKnowledgesStatusBarService") @ 8182872
+  Symbol.for("IKnowledgesTaskService") @ 7586065
+  Symbol.for("IModelReportService") @ 7298383
+  Symbol.for("IModelService") @ 7182322
+  Symbol.for("IModelStorageService") @ 7182353
+  Symbol.for("IModelTipConfigService") @ 7268582
+  Symbol.for("IModeStorageService") @ 7194537
+  Symbol.for("INotificationStreamParser") @ 7328310
+  Symbol.for("IPlanService") @ 7456691
+  Symbol.for("IPrivacyModeService") @ 8032732
+  Symbol.for("IRunCommandFeatureService") @ 8059805
+  Symbol.for("ISessionTitleMessageStreamParser") @ 7522056
+  Symbol.for("ISideChatStreamService") @ 7537616
+  Symbol.for("ISimpleBoolCacheService") @ 7297005
+  Symbol.for("ISkillStore") @ 7263623
+  Symbol.for("IStuckDetectionService") @ 7533516
+  Symbol.for("ITaskListApiService") @ 7762817
+  Symbol.for("ITeaFacade") @ 7140149
+  Symbol.for("ITelemetryFacade") @ 7146769
+  Symbol.for("ITextMessageChatStreamParser") @ 7502237
+  Symbol.for("ITokenUsageStreamParser") @ 7520802
+  Symbol.for("IUserMessageParser") @ 7322624
+  Symbol.for("IUserMessageStreamParser") @ 7519043
+  Symbol.for("IUtilFacade") @ 7061974
+  Symbol.for("IViewsFacade") @ 7138045
+  Symbol.for("IWorkspaceFacade") @ 7102931
+  Symbol.for("nodejs.util.inspect.custom") @ 1275920, 1664396
+  Symbol.for("NotificationService") @ 8038959
+  Symbol.for("radix-ui") @ 3276368, 3715520, 6283875, 6333136, 6381716, 7384550, 9744016
+  Symbol.for("react.client.reference") @ 9160807
+  Symbol.for("react.context") @ 1693338, 9160569
+  Symbol.for("react.element") @ 176352, 750338, 1616597, 1693152, 1698233, 3227817, 9160395, 9974313
+  Symbol.for("react.forward_ref") @ 176425, 1693405, 1792347, 6308207, 9160632, 9974386
+  Symbol.for("react.fragment") @ 750411, 1693211, 1698263, 3227890, 9160450
+  Symbol.for("react.lazy") @ 1693533, 9160752
+  Symbol.for("react.memo") @ 1693506, 1792312, 6308170, 9160727
+  Symbol.for("react.module.reference") @ 1693853
+  Symbol.for("react.offscreen") @ 1693560, 9160777
+  Symbol.for("react.portal") @ 1693182, 9160423
+  Symbol.for("react.profiler") @ 1693276, 9160511
+  Symbol.for("react.provider") @ 1693307, 9160540
+  Symbol.for("react.server_context") @ 1693368, 9160597
+  Symbol.for("react.strict_mode") @ 1693242, 9160479
+  Symbol.for("react.suspense") @ 1693439, 9160664
+  Symbol.for("react.suspense_list") @ 1693470, 9160693
+  Symbol.for("react.transitional.element") @ 176382, 750368, 3227847, 9974343
+  Symbol.for("react-redux-context") @ 9159543
+  Total unique Symbol.for names: 146
+
+--- ALL Symbol("I...") patterns (complete list) ---
+  Symbol("IAgentExtensionStore") @ 7253634
+  Symbol("IAgentMessageParser") @ 7614855
+  Symbol("IAgentService") @ 7327208
+  Symbol("IAgentStore") @ 7257650
+  Symbol("IAutoRunFeatureConfigService") @ 8070538
+  Symbol("IButtonConfigFactory") @ 8065665
+  Symbol("IChatListService") @ 7845807
+  Symbol("IChatStore") @ 7231686
+  Symbol("IChatStreamBizReporter") @ 7495681
+  Symbol("IChatStreamFirstTokenReporter") @ 7490333
+  Symbol("IChatTurnImageMenuStore") @ 7230256
+  Symbol("ICommercialActivityService") @ 7160565
+  Symbol("ICommercialActivityStore") @ 8045415
+  Symbol("IConfigurationStore") @ 7224995
+  Symbol("ICredentialStore") @ 7154464
+  Symbol("IDoneStreamParser") @ 7515104
+  Symbol("IDynamicConfigStore") @ 7182506
+  Symbol("IEntitlementStore") @ 7264735
+  Symbol("IEventHandlerFactory") @ 7523176
+  Symbol("IFastApplyStore") @ 7310448
+  Symbol("IFeeUsageParser") @ 7327235
+  Symbol("IFeeUsageStreamParser") @ 7487191
+  Symbol("IHistoryMessagesParser") @ 7618176
+  Symbol("IInlineChatPaneStore") @ 7225752
+  Symbol("IInlineSessionStore") @ 7227306
+  Symbol("ILintErrorAutoFixStore") @ 7261489
+  Symbol("ILintErrorService") @ 8037201
+  Symbol("IMarkdownContextMenuStore") @ 7228494
+  Symbol("IMetadataParser") @ 7320629
+  Symbol("IMetadataStreamHandler") @ 7499993
+  Symbol("IModelStore") @ 7191686
+  Symbol("IPlanItemParser") @ 7324116
+  Symbol("IPlanItemStreamParser") @ 7508068
+  Symbol("IPopoverConfigFactory") @ 8069516
+  Symbol("IProjectStore") @ 7229347
+  Symbol("IQueueingStreamParser") @ 7516764
+  Symbol("ISandboxAPIService") @ 8062810
+  Symbol("ISessionRelationStorageService") @ 7198625
+  Symbol("ISessionRelationStoreInternal") @ 7209315
+  Symbol("ISessionServiceV2") @ 7549688
+  Symbol("ISessionStore") @ 7092843
+  Symbol("ISessionStoreService") @ 7313578
+  Symbol("ISoloModeManagerStore") @ 7195055
+  Symbol("ITaskSectionStore") @ 8624148
+  Symbol("ITasksHubService") @ 7765659
+  Symbol("ITasksHubStore") @ 7255384
+  Symbol("ITeamAgentFirstSubmittedService") @ 7256904
+  Symbol("ITeamAgentSubmittedService") @ 7256864
+  Symbol("ITeamAgentSyncService") @ 7256829
+  Symbol("ITimingEventStreamHandler") @ 7517996
+  Symbol("IUserMessageContextParser") @ 7320304
+  Symbol("IWarningTipsConfigFactory") @ 8066333
+  Total unique Symbol(I*) names: 52
+
+============================================================
+[4] Context Around Migrated Tokens (Symbol.for -> Symbol)
+============================================================
+
+--- IPlanItemStreamParser @ offset 7508068 (500-char context) ---
+r);else for(var s=e.length-1;s>=0;s--)(n=e[s])&&(a=(o<3?n(a):o>3?n(t,i,a):n(t,i))||a);return o>3&&a&&Object.defineProperty(t,i,a),a}function zR(e,t){if("object"==typeof Reflect&&"function"==typeof Reflect.metadata)return Reflect.metadata(e,t)}let zP=Symbol("IPlanItemStreamParser");class zj extends DV{parse(e,t){return{...this.planItemParser.parse(e,t),task_id:e.task_id}}handleSteamingResult(e,t){let{task_id:i,...r}=e;if(!i&&!r.id&&!r.thought&&!r.toolCallId&&!r.reasoningContent&&!r.toolName||!t.a
+
+--- ISessionStore @ offset 7092843 (500-char context) ---
+nLoading:!1,todoListBarExpanded:!1,worktreeAvailable:void 0,worktreeInvalidAlertVisible:!1,isSoloMode:!1,sessionsTotalCount:void 0,sessionsHasMore:!0,isLoadingMoreSessions:!1,sessionsLoadedOffset:0,stuckDiagnosisMap:{},stuckDiagnosisMutedUntil:0},xC=Symbol("ISessionStore"),xx="icube_session_agent_map",xM="currentAgentData",xk="icube_stuck_diagnosis_muted_until";class xI extends Aq{constructor(){super(xA,{name:"SessionStore"}),this._initFromCachePromise=null}async initFromCache(e){return this._in
+
+============================================================
+[5] ConfirmMode / confirmMode / confirm_mode Search
+============================================================
+
+--- Searching: "ConfirmMode" ---
+  NOT FOUND
+
+--- Searching: "confirmMode" ---
+  Offset 7445121:
+  esystem:{readWrite:[],readOnly:[]}},jw={network:{default:"allow",allow:[],deny:[]}},jS="AI.toolcall.confirmMode",jE="AI.toolcall.v2.ide.mcp.autoRun",jA="AI.toolcall.v2.solo.mcp.autoRun",jC="AI.toolcall.v2.ide.command.mode",jx="AI.toolcall.v2.solo.com
+
+  Total matches: 1
+
+--- Searching: "confirm_mode" ---
+  NOT FOUND
+
+--- Reference: AutoRunMode search ---
+  Offset 3304551: .b,AnimatedAgentAvatar:()=>s.j,AppProvider:()=>l.w,AppProviderCompany:()=>es.bt,AutoRunMode:()=>v.Nr,Avatar:()=>n.q,Badge:()=>eu.Ct,BadgeContainer:()=>eu.l,BetaBadge:()=>eu.vw,BlockLevel:()=>v.fm,Butt
+  Offset 8077889: ed_list:r}=e??{},n=!!r?.length,{run_mode_version:o}=this;if("v1"===o){if(t===Cr.AutoRunMode.WHITELIST&&!i)return P7.V1_Not_Whitelist;switch(i){case Cr.BlockLevel.RedList:return P7.V1_RedList;case Cr.B
+  Offset 8078104: list:return P7.V1_BlackList;default:return P7.V1_Manual}}else switch(t){case Cr.AutoRunMode.WHITELIST:return P7.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P7.Default;default:return P7.Default}}getR
+  Offset 8078152: _Manual}}else switch(t){case Cr.AutoRunMode.WHITELIST:return P7.Default;case Cr.AutoRunMode.ALWAYS_RUN:return P7.Default;default:return P7.Default}}getRunCommandCardConfig({confirmInfo:e}){let t=this.
+  Offset 8078908: tSwitchModeConfigKey(e){if(e){if("v1"===this.run_mode_version)switch(e){case Cr.AutoRunMode.WHITELIST:return ji.V1_Mode_whitelist;case Cr.AutoRunMode.BLACKLIST:return ji.V1_Mode_blacklist;case Cr.Auto
+
+--- Reference: BlockLevel search ---
+  Offset 3304647: v.Nr,Avatar:()=>n.q,Badge:()=>eu.Ct,BadgeContainer:()=>eu.l,BetaBadge:()=>eu.vw,BlockLevel:()=>v.fm,Button:()=>u.z,ButtonV2:()=>d.x,CLEAR_EDITOR:()=>et.CLEAR_EDITOR,CardContainer:()=>ey._,CardStatus:(
+  Offset 8077960: f(t===Cr.AutoRunMode.WHITELIST&&!i)return P7.V1_Not_Whitelist;switch(i){case Cr.BlockLevel.RedList:return P7.V1_RedList;case Cr.BlockLevel.Blacklist:return P7.V1_BlackList;default:return P7.V1_Manual}
+  Offset 8078008: Not_Whitelist;switch(i){case Cr.BlockLevel.RedList:return P7.V1_RedList;case Cr.BlockLevel.Blacklist:return P7.V1_BlackList;default:return P7.V1_Manual}}else switch(t){case Cr.AutoRunMode.WHITELIST:re
+
+============================================================
+[6] kg Error Enum (TASK_TURN_EXCEEDED_ERROR context)
+============================================================
+  Found TASK_TURN_EXCEEDED_ERROR at offset 54415
+  3000-char context (1000 before, 2000 after):
+ERPRISE_NOT_ALLOWED_ADD_CUSTOM_MODEL",o[o.ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST=4214]="ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST",o[o.ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED=4215]="ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED",o[o.ENTERPRISE_TOKEN_EXPIRATION=4216]="ENTERPRISE_TOKEN_EXPIRATION",o[o.TURN_EXCEEDED=5001]="TURN_EXCEEDED",o[o.TIMEOUT=5002]="TIMEOUT",o[o.OUT_OF_QUOTA=5003]="OUT_OF_QUOTA",o[o.AGENT_BUSY=5004]="AGENT_BUSY",o[o.INTERACTION_ABNORMAL=9999]="INTERACTION_ABNORMAL",o[o.INTENT_ERROR=6004]="INTENT_ERROR",o[o.NOT_SUPPORT_MULTI_MEDIA=7e3]="NOT_SUPPORT_MULTI_MEDIA",o[o.CURRENT_SYSTEM_NOT_SUPPORT_AI=7001]="CURRENT_SYSTEM_NOT_SUPPORT_AI",o[o.GET_MANAGER_CLIENT_ERROR=7002]="GET_MANAGER_CLIENT_ERROR",o[o.LLM_INVALID_JSON=4000003]="LLM_INVALID_JSON",o[o.LLM_INVALID_JSON_START=4000004]="LLM_INVALID_JSON_START",o[o.LLM_QUEUING=4000005]="LLM_QUEUING",o[o.LLM_STOP_DUP_TOOL_CALL=4000009]="LLM_STOP_DUP_TOOL_CALL",o[o.LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT=4000010]="LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT",o[o.TASK_TURN_EXCEEDED_ERROR=4000002]="TASK_TURN_EXCEEDED_ERROR",o[o.PROJECT_NOT_FOUND_ERROR=5000001]="PROJECT_NOT_FOUND_ERROR",o[o.CLIENT_UNAUTHORIZED_ERROR=1010002]="CLIENT_UNAUTHORIZED_ERROR",o[o.FAST_APPLY_FILE_TOO_LARGE=0xa7d8c1]="FAST_APPLY_FILE_TOO_LARGE",o[o.FAST_APPLY_FIX_INVALID_FORMAT=0xa7d8c2]="FAST_APPLY_FIX_INVALID_FORMAT",o[o.CLAUDE_MODEL_FORBIDDEN=4113]="CLAUDE_MODEL_FORBIDDEN",o[o.CAN_NOT_USE_SOLO_MODE=4120]="CAN_NOT_USE_SOLO_MODE",(a=r||(t.ERROR_LEVEL=r={})).WARN="warn",a.ERROR="error",a.INFO="info",(s=n||(t.ChatErrorLevel=n={})).ERROR="error",s.WARN="warn";class l extends Error{constructor(e,t,i=n.ERROR,r){super(t),this.level=i,this.code=e,this.extra=r}static create(e,t,i,r){return new l(e,t,i,r)}static createWithError(e,t,i,r){return new l(e,t.message,i,r)}}t.ChatError=l,t.NetworkErrorCodes=[i.CONNECTION_ERROR,i.NETWORK_ERROR,i.NETWORK_ERROR_INTERNAL,i.CLIENT_NETWORK_ERROR,i.CLIENT_NETWORK_ERROR_INTERNAL,i.REQUEST_TIMEOUT_ERROR,i.REQUEST_TIMEOUT_ERROR_INTERNAL,i.MODEL_RESPONSE_TIMEOUT_ERROR,i.MODEL_RESPONSE_FAILED_ERROR]},65544:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.ContactType=void 0,(r=i||(t.ContactType=i={}))[r.FreeNewSubscriptionUserCompletionRemaining=1]="FreeNewSubscriptionUserCompletionRemaining",r[r.FreeNewSubscriptionUserCompletionExhausted=2]="FreeNewSubscriptionUserCompletionExhausted",r[r.FreeNewSubscriptionUserAdvancedModelRemaining=3]="FreeNewSubscriptionUserAdvancedModelRemaining",r[r.FreeNewSubscriptionUserAdvancedModelExhaustedPremiumModelRemaining=4]="FreeNewSubscriptionUserAdvancedModelExhaustedPremiumModelRemaining",r[r.FreeNewSubscriptionUserAdvancedModelExhausted=5]="FreeNewSubscriptionUserAdvancedModelExhausted",r[r.FreeNewSubscriptionUserPremiumModelFlashRemaining=6]="FreeNewSubscriptionUserPremiumModelFlashRemaining",r[r.FreeNewSubscriptionUserPremiumModelFlashExhaustedNormalRemaining=7]="FreeNewSubscriptionUserPremiumModelFlashExhaustedNormalRemaining",r[r.FreeNewSubscriptionUse
+
+============================================================
+[7] efh (recoverable errors) and J = (continuation flag) Search
+============================================================
+
+--- Searching: efh ---
+  Offset 8702482 (standalone):
+  nfig?.iCubeApp?.freeCommercialActivity),{isFreeUser:t}=efi(),{hub:i,errorInfo:r,chatConfirmPopUp:n}=e??{};return{hub:t?i?.free:i?.pro,errorInfo:r,chatConfirmPopUp:n}};var efu=s(9412),efd=s.n(efu);let efh=e=>{if(!e)return"";let t=e.split(".");return t.length>2?`*.${t.slice(-2).join(".")}`:e};ein().extend(efd());let efp={},efg=[kg.SERVER_CRASH,kg.CONNECTION_ERROR,kg.NETWORK_ERROR,kg.NETWORK_ERROR_INTERNAL,kg.CLIENT_NETWORK_ERROR,kg.NETWORK_CHANGED,kg.NETWORK_DISCONNECTED,kg.CLIENT_NETWORK_ERROR_IN
+
+  Offset 8714663 (standalone):
+   available for the current repository level (${t}). Please switch to another model.`);return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:"warning",message:i})}if(_===kg.FIREWALL_BLOCKED){let e=efh(T?.bootConfig?.agent?.domain||""),t=M.localize("icube.error.firewallBlocked",{domain:e},`Request blocked by current network. Please check your network proxy or contact your network administrator to whitelist the following domain: ${e}`);return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:"
+
+
+--- Searching: ",J =" pattern ---
+
+--- Searching: ";J =" pattern ---
+
+============================================================
+[8] Additional Version-Change Observations
+============================================================
+
+--- Symbol.for count vs Symbol count ---
+  Total Symbol.for(...): 185
+  Total Symbol("..."): 77
+
+--- Version strings ---
+  Found ""version"" at offset 290945: f("storeName"===t&&(e[t]=e[t].replace(/\W/g,"_")),"version"===t&&"number"!=typeof e[t])return Error("Database version must be a number.");this._config[t]=e[t]}return!("driver"in e)||!e.driver||this.se
+  Found "version:" at offset 1066: s.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extension_version:i?.extensionVersion,session_id:i?.sessionID,region:i?.region,version_code:i?.versionCode,de
+  Found "VERSION" at offset 6483537: ROR:{ERROR_CODE:112,ERROR_MESSAGE:"Cache error!"},VERSION_NOT_FOUND:{ERROR_CODE:120,ERROR_MESSAGE:"Version is not found, please check your param [version]!"}},wr={zone:"CN",locale:"zh",timeout:15e3,te
+
+--- Package identity ---
+  "@byted-icube/ai-modules-chat" NOT FOUND in source
+  "ai-modules-chat" NOT FOUND in source
+
+============================================================
+  Exploration Complete - 2026-04-25 21:01:44
+============================================================

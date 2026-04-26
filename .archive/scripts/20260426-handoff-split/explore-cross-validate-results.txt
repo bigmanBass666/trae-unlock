@@ -1,0 +1,64 @@
+=== Cross-Validation: IPlanItemStreamParser location ===
+Path 1 (Symbol anchor): Symbol('IPlanItemStreamParser')
+  Result: 7511512
+  Context: Symbol("IPlanItemStreamParser");class zj extends DV{parse(e,t){return{...this.planItemParser.parse(e
+Path 2 (API method): 'provideUserResponse'
+  Result: 7513112
+  Context: &&e?.toolName!=="ExitPlanMode"){this._taskService.provideUserResponse({task_id:i||"",type:"tool_confirm",toolcall_id:r,tool_name:e.toolName||"",decisi
+Path 3 (business string): 'confirm_status'
+  First occurrence: 42127
+  Context: {return x(e)&&e.confirm_info?.confirm_status===l.Confirmed},(g=i||(t.AgentMessageContentType=i={})).
+  Near 7500000: 7512420
+  Context: ,confirmStatus:e.confirm_info.confirm_status,autoConfirm:e.confirm_info.auto_confirm,isKnowledgesBg:
+
+=== Cross-Validation: ISessionStore location ===
+Path 1 (Symbol anchor): Symbol('ISessionStore')
+  Result: 7092843
+Path 2 (API method): 'setCurrentSession'
+  First occurrence: 7096899
+Path 3 (business string): 'icube_session_agent_map'
+  Result: 7092871
+  Context: nosisMutedUntil:0},xC=Symbol("ISessionStore"),xx="icube_session_agent_map",xM="currentAgentData",xk="icube_stuck_diagnosis_muted_until";class xI exten
+
+=== Cross-Validation: 4000002 error code ===
+Path 1 (numeric code): '4000002'
+  Result: 54440
+Path 2 (enum name): 'TASK_TURN_EXCEEDED_ERROR'
+  Result: 54415
+Path 3 (business string): 'exceeded maximum'
+  Result: -1
+
+=== Cross-Validation: IEntitlementStore ===
+Path 1 (Symbol anchor): Symbol('IEntitlementStore')
+  Result: 7264735
+Path 2 (class field): 'entitlementInfo'
+  First occurrence: 7264804
+Path 3 (business string): 'saasEntitlement'
+  First occurrence: 7264825
+
+=== Cross-Validation: ICommercialPermissionService ===
+Path 1 (Symbol.for anchor): Symbol.for('aiAgent.ICommercialPermissionService')
+  Result: 7197015
+Path 2 (method): 'isFreeUser'
+  First occurrence: 8688095
+Path 3 (method): 'canUsePremiumMode'
+  First occurrence: -1
+
+=== Cross-Validation: Variable renaming J→K ===
+Path 1: 'efg.includes' (recoverable error check)
+  Result: 8707613
+  Context: s.length-1]?.agentMessageId===o,[Z,Q]=(0,sK.useState)(!!V&&O),q=[bQ.Warning,bQ.Error].includes(n),K=efg.includes(_),$=!![kg.INTERNAL_PPE_ENV_NOT_EXIST].includes(_),X=!![kg.MODEL_NOT_EXISTED].includes(_),J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_C
+
+Path 2: 'MODEL_OUTPUT_TOO_LONG' (thinking limit error)
+  Result: 50757
+  Context: D_ERROR",o[o.RETURN_EMPTY=991]="RETURN_EMPTY",o[o.MODEL_OUTPUT_TOO_LONG=987]="MODEL_OUTPUT_TOO_LONG",o[o.INLINE_CHAT_EMPTY_RESULT=986]="INLINE_CHAT_EMPTY_RESULT",o[o.EXTERNAL_LLM_REQUEST_FAILED=985]="
+
+Path 3: 'PREMIUM_MODE_USAGE_LIMIT' (quota error)
+  Result: 51947
+  Context: USER_REQUEST_LIMIT=4007]="USER_REQUEST_LIMIT",o[o.PREMIUM_MODE_USAGE_LIMIT=4008]="PREMIUM_MODE_USAGE_LIMIT",o[o.STANDARD_MODE_USAGE_LIMIT=4009]="STANDARD_MODE_USAGE_LIMIT",o[o.ABNORMAL_ACCOUNT_LOGOUT=
+
+=== Negative results (searched but not found) ===
+NOT FOUND: Symbol.for("IPlanItemStreamParser") (confirmed absent)
+NOT FOUND: Symbol.for("ISessionStore") (confirmed absent)
+NOT FOUND: ConfirmMode (confirmed absent)
+NOT FOUND: confirm_mode (confirmed absent)
