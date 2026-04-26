@@ -1,3 +1,11 @@
+---
+module: dynamic-rules
+description: Anchor 规则子系统使用指南 — 动态规则引擎说明
+read_priority: P2
+format: reference
+last_reviewed: 2026-04-26
+---
+
 # Anchor 规则子系统使用指南
 
 > ⚠️ **架构升级通知 (2026-04-20)**：本规则系统已升级为**Anchor**的子模块。规则只是通信内容的一种——AI 还可以通过 `shared/` 目录持久化发现、决策、状态等信息。详见 `shared/` 目录和 `AGENTS.md` 中的Anchor 声明。
@@ -555,4 +563,4 @@ powershell scripts/rules-engine.ps1 --list | Select-String "总计:"
 > **文档版本**: v1.0
 > **最后更新**: 2026-04-19
 > **适用范围**: Trae Mod Anchor 规则子系统 Phase 1-4
-> **相关文件**: [rules-engine.ps1](../scripts/rules-engine.ps1) | [AGENTS.md](../AGENTS.md) | [rules/](../rules/)
+> **相关文件**: ~~rules-engine.ps1~~ (已废弃) | [AGENTS.md](../AGENTS.md) | [rules/](../rules/)

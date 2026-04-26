@@ -1,3 +1,20 @@
+---
+module: registry
+description: 资产注册表 + 模块索引 + 写入规范 + 脚本生命周期
+read_priority: P1
+read_when: 了解文件用途和写入格式时
+write_when: 新增/删除模块或变更写入规范时
+format: registry
+single_source_of_truth_for:
+  - 模块列表及优先级
+  - 写入格式约定
+  - 时间戳规范
+  - 脚本生命周期管理
+sync_with:
+  - AGENTS.md (导航入口)
+last_reviewed: 2026-04-26
+---
+
 # 共享知识库 — 模块索引
 
 ## 模块列表

@@ -17,10 +17,11 @@ format: reference
 
 ## §1 概述
 
-> 本文档记录了 Trae AI 聊天模块中所有 Zustand Store 的架构映射。包括 8 个核心 Store 的 DI Token、混淆名、偏移量，以及 SessionStore 和 InlineSessionStore 两种不同的 currentSession 管理模式。
+> **定位**: Zustand Store 状态管理系统——8 个核心 Store 实例的 DI Token 映射和两种 currentSession 管理模式
 >
 > **为什么重要**: Store 是前端状态的唯一数据源（SSOT），理解 Store 架构是定位任何状态相关 bug 或开发新功能的基础。
-> **在整体中的位置**: Store 位于 SSE 解析层（PlanItemStreamParser）和 React UI 层之间，通过 DI 容器注入到各服务中。
+>
+> **在整体中的位置**: 位于 SSE 解析层（sse-stream-parser）和 React UI 层之间，通过 DI 容器注入到各服务中。被 Model 域、商业权限域等多个子系统依赖。
 
 ## 1. Store 实例
 

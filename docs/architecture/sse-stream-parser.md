@@ -15,17 +15,13 @@ format: reference
 
 > last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
-## 1. 概述
+## §1 概述
 
-PlanItemStreamParser 是 Trae AI 聊天模块的服务层核心组件，负责解析服务端推送的 SSE（Server-Sent Events）流数据，并将其分发到对应的处理逻辑。**它不属于 React 组件，不依赖 React 渲染周期**，因此是补丁最可靠的注入点。
-
-### 在整体架构中的位置
-
-```
-服务端 SSE 流 → DG.parse → PlanItemStreamParser → Zustand Store → React 组件
-                  (解析)       (分发+处理)          (状态管理)      (UI渲染)
-               ~7318521       ~7502500            ~3211326       ~8635000+
-```
+> **定位**: PlanItemStreamParser 完整实现——SSE 流解析器的生命周期、事件分发和服务层注入点
+>
+> **为什么重要**: 它不属于 React 组件，不依赖 React 渲染周期，因此是补丁最可靠的注入点（auto-confirm、bg-auto-continue 等核心补丁的目标）。
+>
+> **在整体中的位置**: 位于 DG.parse 下游和 Zustand Store 上游。依赖 SSE 管道拓扑（sse-pipeline-topology）的事件枚举，为命令确认系统（command-confirm-system）提供 confirm_info 数据。
 
 ## 2. 核心类/方法
 

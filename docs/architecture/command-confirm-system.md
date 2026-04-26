@@ -15,9 +15,13 @@ format: reference
 
 > 从用户点击到命令执行的完整链路
 
-## 1. 概述
+## §1 概述
 
-Trae 的命令确认系统是一个**双层架构**：服务层（PlanItemStreamParser）处理 SSE 流中的确认逻辑，React UI 层（RunCommandCard）处理用户交互。两层独立工作，必须都绕过才能实现零弹窗自动确认。
+> **定位**: 命令确认双层架构——服务层 PlanItemStreamParser 与 React 层 RunCommandCard 的完整链路
+>
+> **为什么重要**: 两层独立工作，必须都绕过才能实现零弹窗自动确认。是 auto-confirm 系列补丁的核心目标域。
+>
+> **在整体中的位置**: 依赖 SSE 流解析（sse-stream-parser）获取 confirm_info，依赖限制地图（limitation-map）理解 BlockLevel 判定，依赖 Store 架构读取状态。
 
 ### 双层架构对比
 

@@ -1,3 +1,11 @@
+---
+module: scripts-readme
+description: 脚本目录说明 — 核心工具清单和使用指南
+read_priority: P2
+format: reference
+last_reviewed: 2026-04-26
+---
+
 # scripts/ — 脚本目录
 
 > **清理后保留 12 个核心文件**（2026-04-25 更新）

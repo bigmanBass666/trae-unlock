@@ -13,7 +13,13 @@ function Write-ColorOutput {
     Write-Host $Message -ForegroundColor $Color
 }
 
-$excludeDirs = @('.archive', 'node_modules', 'unpacked', '.trae', '.git', '.templates')
+$excludeDirs = @('.archive', 'node_modules', 'unpacked', '.trae', '.git', '.templates', 'backups', 'tools')
+$excludePathPatterns = @(
+    'docs\plans\*',
+    'docs\achievements\*',
+    'docs\reports\*',
+    'tests\*'
+)
 $requiredFields = @('module', 'description', 'read_priority', 'format')
 
 Write-ColorOutput "=========================================="
@@ -23,7 +29,9 @@ Write-ColorOutput "==========================================
 
 $mdFiles = Get-ChildItem -Path $Path -Filter "*.md" -Recurse | Where-Object {
     $relativePath = $_.FullName.Substring($Path.Length + 1)
-    -not ($excludeDirs | Where-Object { $relativePath -like "$_*\*" -or $relativePath -like "$_*" })
+    $dirExcluded = $excludeDirs | Where-Object { $relativePath -like "$_*\*" -or $relativePath -like "$_*" }
+    $pathExcluded = $excludePathPatterns | Where-Object { $relativePath -like $_ }
+    (-not $dirExcluded) -and (-not $pathExcluded)
 }
 
 $totalFiles = $mdFiles.Count

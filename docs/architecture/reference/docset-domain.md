@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: docset
+module: architecture-reference
+description: Docset 域架构文档 — 文档集与知识库系统完整逆向工程
+read_priority: P2
+format: reference
+focus: DI Token、DocsetServiceImpl、CKG API、Knowledges 子系统
+last_verified: 2026-04-26
+---
+
 # Docset 域架构文档
 
 > Trae AI 聊天模块中文档集（Docset）与知识库（Knowledges）系统的完整逆向工程

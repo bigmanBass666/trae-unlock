@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: module-boundaries
+module: architecture-reference
+description: Trae AI 聊天模块的整体架构地图 — 模块边界与依赖关系
+read_priority: P2
+format: reference
+focus: 模块定义、DI注入、事件系统、状态管理
+last_verified: 2026-04-26
+---
+
 # 模块边界与依赖关系
 
 > Trae AI 聊天模块的整体架构地图

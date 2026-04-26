@@ -17,6 +17,14 @@ format: reference
 >
 > 本文档是 trae-unlock 项目探索工具链的完整使用手册。所有参与源码探索的 Agent 应在开始深度探索前阅读本文档。
 
+## §1 概述
+
+> **定位**: L0-L3 四层级探索工具金字塔的完整使用手册
+>
+> **为什么重要**: trae-unlock 的目标文件是 ~10MB 单行压缩 JS，传统搜索工具完全失效。本文档定义了从 IndexOf 原始搜索到 AST 语义分析再到模块级索引的全套方法论。
+>
+> **在整体中的位置**: 被 Explorer Protocol 引用为标准操作流程的工具决策树输入。是所有源码探索活动的技术基础。
+
 ## 1. 工具链概览
 
 ### 1.1 问题背景
@@ -788,7 +796,7 @@ Phase 3: 验证与回归 (10min)
 
 **任务**: 找到 Trae 的 SSE 流解析器 PlanItemStreamParser 的精确位置。
 
-**背景**: PlanItemStreamParser 是 trae-unlock 最关键的代码位置之一——它是服务层 SSE 流解析器，不受 React 冻结影响（参见 [L1 冻结原则](../shared/discoveries.md)），所有实时响应型补丁都围绕它展开。
+**背景**: PlanItemStreamParser 是 trae-unlock 最关键的代码位置之一——它是服务层 SSE 流解析器，不受 React 冻结影响（参见 [L1 冻结原则](../../shared/discoveries.md)），所有实时响应型补丁都围绕它展开。
 
 #### 方法对比: 原始 IndexOf vs 工具链
 

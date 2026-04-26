@@ -15,9 +15,13 @@ format: reference
 
 > last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
-## 1. 概述
+## §1 概述
 
-商业权限域是 Trae 控制用户功能访问的核心子系统，负责判断用户身份（免费/付费/内部）、配额状态、模式限制和模型访问权限。该域由三个核心服务组成，通过 DI 容器注入，形成从数据源到判断逻辑的完整链路。
+> **定位**: 商业权限域——用户身份判断、配额控制和功能访问限制的完整逆向工程
+>
+> **为什么重要**: ICommercialPermissionService 的 6 个方法控制免费/付费/内部用户的权限边界，是 bypass-usage-limit 和 bypass-premium-model-notice 补丁的目标域。
+>
+> **在整体中的位置**: 被 Model 域（model-domain）调用以判断模式限制，被 Limitation Map（limitation-map）引用以解释 4008/4009 错误码，依赖 Store 架构（store-architecture）的数据源。
 
 ### 核心架构特征
 

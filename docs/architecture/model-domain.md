@@ -15,9 +15,13 @@ format: reference
 
 > last_verified: 2026-04-26 | 兼容版本: Trae v3.3.x (10490721 chars)
 
-## 1. 概述
+## §1 概述
 
-Model 域是 Trae 控制 AI 模型选择、模式切换和付费限制的核心子系统。它决定了用户在聊天时使用哪个模型（GPT-5、Claude、Doubao 等）以及以什么模式运行（Manual/Auto/Max）。该域通过 DI 容器注入，形成从用户选择到模型路由到 API 调用的完整链路。
+> **定位**: 模型选择与模式路由系统——从用户选择到模型路由到 API 调用的完整链路
+>
+> **为什么重要**: 控制 AI 模型选择（GPT-5/Claude/Doubao 等）和运行模式（Manual/Auto/Max），含 force-max-mode 等 5 个高可行性补丁候选。
+>
+> **在整体中的位置**: 依赖商业权限域（commercial-permission-domain）判断用户身份，依赖 Store 架构（store-architecture）读写模型/会话状态。
 
 ### 核心架构特征
 

@@ -19,6 +19,14 @@ format: reference
 >
 > **目标读者**: 未来负责继续探索 Trae `@byted-icube/ai-modules-chat/dist/index.js`（~10MB 单行压缩 JS）的 AI 编码 Agent。
 
+## §1 概述
+
+> **定位**: Explorer Agent 标准操作程序（SOP）——工具决策树、交叉验证流程、发现记录规范和盲区风险评估协议
+>
+> **为什么重要**: 所有参与 Trae IDE 源码探索的 AI Agent 必须遵循的规范。确保探索结果可重复、可验证、可交接。
+>
+> **在整体中的位置**: 依赖 exploration-toolkit 定义的工具链，依赖 source-architecture 提供的关键位置索引。产出写入 discoveries.md。
+
 ---
 
 ## 第1章: 探险家身份与使命
@@ -179,13 +187,13 @@ powershell scripts/auto-heal.ps1 -DiagnoseOnly
 **当前已知文档列表**:
 | 文件 | 内容概要 |
 |------|---------|
-| [source-architecture.md](../source-architecture.md) | 源码整体架构解读 |
-| [sse-stream-parser.md](../sse-stream-parser.md) | SSE 流解析系统详解 |
-| [command-confirm-system.md](../command-confirm-system.md) | 命令确认系统详解 |
-| [limitation-map.md](../limitation-map.md) | 限制点地图 |
-| [module-boundaries.md](../module-boundaries.md) | 模块边界与依赖关系 |
-| [di-service-registry.md](../di-service-registry.md) | DI 服务注册表 |
-| [command-confirm-system.md](../command-confirm-system.md) | Trae 确认系统综合 |
+| [source-architecture.md](./source-architecture.md) | 源码整体架构解读 |
+| [sse-stream-parser.md](./sse-stream-parser.md) | SSE 流解析系统详解 |
+| [command-confirm-system.md](./command-confirm-system.md) | 命令确认系统详解 |
+| [limitation-map.md](./limitation-map.md) | 限制点地图 |
+| [module-boundaries.md](./reference/module-boundaries.md) | 模块边界与依赖关系 |
+| [di-service-registry.md](./reference/di-service-registry.md) | DI 服务注册表 |
+| [command-confirm-system.md](./command-confirm-system.md) | Trae 确认系统综合 |
 
 **看什么**:
 - 各文档中的偏移量引用（可能与 discoveries.md 一致或有更新）

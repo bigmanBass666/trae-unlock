@@ -1,3 +1,11 @@
+---
+module: test
+description: 测试辅助文件
+read_priority: P3
+format: log
+last_reviewed: 2026-04-26
+---
+
 # sleep
 
 > **Workspace:** d:\Test\trae-unlock

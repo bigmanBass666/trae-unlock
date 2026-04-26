@@ -1,3 +1,14 @@
+---
+domain: architecture
+sub_domain: di-registry
+module: architecture-reference
+description: DI 服务注册表文档 — 依赖注入系统完整逆向工程（186 服务 / 817 注入点）
+read_priority: P2
+format: reference
+focus: DI 容器、装饰器模式、服务注册表、Symbol 迁移状态
+last_verified: 2026-04-26
+---
+
 # DI 服务注册表文档
 
 > Trae AI 聊天模块的依赖注入系统完整逆向工程

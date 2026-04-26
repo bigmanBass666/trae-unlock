@@ -1,3 +1,11 @@
+---
+module: achievements
+description: 命令自动确认功能成果记录
+read_priority: P2
+format: log
+last_reviewed: 2026-04-26
+---
+
 # 成果 1: 命令自动确认
 
 > 让 AI 执行危险命令时无需手动确认

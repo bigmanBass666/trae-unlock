@@ -1,3 +1,11 @@
+---
+module: achievements
+description: 突破思考上限功能成果记录
+read_priority: P2
+format: log
+last_reviewed: 2026-04-26
+---
+
 # 成果 2: 突破思考上限
 
 > 模型思考超限时自动续接，用户无感知

@@ -1,3 +1,13 @@
+---
+module: rules
+description: 协作规则和行为约束
+read_priority: P1
+read_when: 需要了解写入规范和行为准则时
+write_when: 规则变更时
+format: registry
+last_reviewed: 2026-04-26
+---
+
 # 📋 Trae Mod 动态规则清单
 
 > 由 rules-engine.ps1 自动生成 | 2026-04-22 18:56:37

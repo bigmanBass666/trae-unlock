@@ -1,3 +1,11 @@
+---
+module: plans
+description: Auto-Cleanup Lifecycle System 设计方案 — 项目自我净化机制
+read_priority: P2
+format: reference
+last_reviewed: 2026-04-26
+---
+
 # Auto-Cleanup Lifecycle System — 设计方案
 
 > **目标**: 让项目自我净化，永远不需要手动大扫除

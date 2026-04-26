@@ -1,3 +1,15 @@
+---
+module: diagnosis-playbook
+description: 故障排查手册和场景化操作流程
+read_priority: P2
+read_when: 出现问题时需要诊断
+write_when: 发现新的故障模式时
+format: reference
+sync_with:
+  - shared/discoveries.md (数据来源)
+last_reviewed: 2026-04-26
+---
+
 # 🏥 Trae Unlock 诊断操作手册
 
 > 使用场景：遇到补丁失效、界面异常、功能不工作时打开此文件。

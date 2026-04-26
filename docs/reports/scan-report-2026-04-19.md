@@ -1,3 +1,11 @@
+---
+module: reports
+description: 主动性全面扫描报告 — Alert弹窗/错误码/枚举发现
+read_priority: P2
+format: reference
+last_reviewed: 2026-04-26
+---
+
 # 主动性全面扫描报告 (2026-04-19)
 
 > 完整扫描报告。progress.txt 只保留摘要。

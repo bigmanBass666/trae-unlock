@@ -1,3 +1,13 @@
+---
+module: readme
+description: 项目入口和快速开始指南
+read_priority: P0
+read_when: 首次接触项目时
+write_when: 项目重大变更时
+format: reference
+last_reviewed: 2026-04-26
+---
+
 # Trae Unlock — Trae IDE 源码定制框架
 
 > 通过修改 Trae IDE 源码，解锁 AI Agent 能力：命令自动确认、思考上限续接、循环检测绕过等。
