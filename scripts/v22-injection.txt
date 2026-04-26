@@ -1,0 +1,33 @@
+# V22 Background Auto-Continue Injection Code
+# Generated: 2026-04-26
+# Log marker: [v22-bg]
+
+## Patch 1: L1 Layer - auto-continue-thinking (~8706660)
+# Location: if(V&&J){...} in React component
+# Features: 5s cooldown + resumeChat + 2s monitor + sendChatMessage fallback
+
+FIND_1=if(V&&J){let e=M.localize("continue",{},"Continue");console.log("[v7-auto] if(V&&J) ENTERED, o="+o+" h="+h);queueMicrotask(()=>{console.log("[v7-auto] queueMicrotask FIRED, o="+o+" h="+h);try{if(o&&h){console.log("[v7-auto] o&&h=true, calling resumeChat...");try{D.resumeChat({messageId:o,sessionId:h});console.log("[v7-auto] resumeChat RETURNED (may be async)")}catch(err){console.log("[v7-auto] resumeChat THREW:",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}else{console.log("[v7-auto] o||h=empty, fallback sendChatMessage");D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}catch(err){console.log("[v7-auto] OUTER catch:",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}});return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:"warning",message:ef,actionText:e,onActionClick:ec})
+
+REPLACE_1=if(V&&J){let e=M.localize("continue",{},"Continue");var _acT=Date.now();if(!window.__traeAC||_acT-window.__traeAC>5000){window.__traeAC=_acT;console.log("[v7] triggering auto-continue, o="+o+" h="+h);queueMicrotask(()=>{console.log("[v7] microtask fired");try{var _s=b.getCurrentSession(),_ml=_s?.messages?.length||0;if(o&&h){try{D.resumeChat({messageId:o,sessionId:h});console.log("[v7] resumeChat called, monitoring...");setTimeout(()=>{var _s2=b.getCurrentSession(),_ml2=_s2?.messages?.length||0;if(_ml2<=_ml){console.log("[v7] resumeChat no effect after 2s, fallback sendChatMessage");try{D.sendChatMessage({message:e,sessionId:_s2?.sessionId})}catch(_e){console.log("[v7] fallback failed:",_e)}}else{console.log("[v7] resumeChat worked! messages:"+_ml2)}},2000)}catch(err){console.log("[v7] resumeChat error:",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}else{console.log("[v7] o||h empty, direct sendChatMessage");D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}}catch(err){console.log("[v7] outer catch:",err);D.sendChatMessage({message:e,sessionId:b.getCurrentSession()?.sessionId})}})}return sX().createElement(Cr.Alert,{onDoubleClick:e_,type:"warning",message:ef,actionText:e,onActionClick:ec})
+
+## Patch 2: L2 Layer - ErrorStreamParser.parse() (~7513080)
+# Location: parse(e,t){...} method in zU class
+# Features: DI resolve(BR) + resumeChat + sendChatMessage fallback + error code whitelist
+
+FIND_2=parse(e,t){e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR&&t.osStatus&&t.osStatus.get(b3.Suspend)&&(e.code=kg.OS_SUSPEND_TIMEOUT);let i=this._aiChatRequestErrorService.getErrorInfoWithError(e),r={status:"warn"===i.level?bQ.Warning:bQ.Error,exception:{code:e.code,message:i.message,data:e.data,model_call_chain:e.data?.model_call_chain}};return this.chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenError(e,r,t),r}
+
+REPLACE_2=parse(e,t){var _acT=Date.now();if(!window.__traeAC||_acT-window.__traeAC>5000){var _rc=e&&e.code;if(_rc&&[4000002,4000009,4000012,2000000,987,4008,977].indexOf(_rc)>=0){window.__traeAC=_acT;try{var _svc=uj.getInstance().resolve(BR);_svc&&setTimeout(()=>{try{_svc.resumeChat({sessionId:t.sessionId,messageId:t.agentMessageId});console.log("[v22-bg] L2-resume OK")}catch(_re){console.log("[v22-bg] L2-resume err, fallback SCM");try{_svc.sendChatMessage({message:"Continue",sessionId:t.sessionId});console.log("[v22-bg] L2-SCM OK")}catch(_se){console.log("[v22-bg] L2-SCM err:",_se.message)}},0)}catch(_e){console.warn("[v22-bg] DI resolve failed:",_e)}}}e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR&&t.osStatus&&t.osStatus.get(b3.Suspend)&&(e.code=kg.OS_SUSPEND_TIMEOUT);let i=this._aiChatRequestErrorService.getErrorInfoWithError(e),r={status:"warn"===i.level?bQ.Warning:bQ.Error,exception:{code:e.code,message:i.message,data:e.data,model_call_chain:e.data?.model_call_chain}};return this.chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenError(e,r,t),r}
+
+## Patch 3: Store Subscribe - Module-level listener (~7588590)
+# Location: After existing subscribe #8 in async function FR()
+# Features: store.subscribe monitoring + DI resolve(BR) + resumeChat + SCM fallback
+
+FIND_3=d!==t.currentSessionId)&&a()})}async function FP(e){let t=uj.getInstance(),i=t.resolve(k1),{currentAgent:r}=t.resolve(xC).getState()
+
+REPLACE_3=d!==t.currentSessionId)&&a()});try{var _v11s=n;_v11s.subscribe(function(_p,_c){var _m=_p?.currentSession?.messages||[],_o=_c?.currentSession?.messages||[];if(_m.length<=_o.length)return;var _x=_m[_m.length-1],_cd=_x?.exception?.code;if(!_cd||[4000002,4000009,4000012,987].indexOf(_cd)<0)return;var _tn=Date.now();if(window.__traeAC11&&_tn-window.__traeAC11<5000)return;window.__traeAC11=_tn;console.log("[v22-bg] v11-sub detected error",_cd,"calling resumeChat");try{var _svc=uj.getInstance().resolve(BR);try{_svc.resumeChat({messageId:_x.agentMessageId,sessionId:_p.currentSession.sessionId});console.log("[v22-bg] v11-sub resumeChat OK")}catch(_re){console.log("[v22-bg] v11-sub resumeChat err, fallback SCM");try{_svc.sendChatMessage({message:"Continue",sessionId:_p.currentSession.sessionId});console.log("[v22-bg] v11-sub SCM OK")}catch(_se){console.log("[v22-bg] v11-sub SCM err:",_se.message)}}}catch(_err){console.log("[v22-bg] v11-sub error:",_err)}});console.log("[v22-bg] v11-sub store.subscribe installed")}catch(_e2){console.log("[v22-bg] v11-sub setup error:",_e2)}}async function FP(e){let t=uj.getInstance(),i=t.resolve(k1),{currentAgent:r}=t.resolve(xC).getState()
+
+## Fingerprints to verify after injection:
+# 1. [v22-bg] - Main log marker (appears in all 3 patches)
+# 2. SCM-fallback - sendChatMessage fallback pattern
+# 3. message_id / messageId - Resume parameter
+# 4. session_id / sessionId - Session parameter
