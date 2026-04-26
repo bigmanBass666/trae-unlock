@@ -1,6 +1,0 @@
-- [x] 确认暂停按钮在"手动发送等待响应"和"auto-continue 续接后"两种场景的状态变量是否一致 → **一致：sendingState=true**
-- [x] v6 补丁中已添加完整的 console.log 调试链路（callback→resumeChat→fallback→catch）✅
-- [x] 8/8 补丁指纹通过（含调试日志版本）✅
-- [ ] 用户实测并提供控制台日志 (**待用户操作**)
-- [ ] 根据日志确定真实根因（callback 未执行 / 执行了但 API 失败 / API 成功但响应异常）
-- [ ] discoveries.md 和 decisions.md 已更新

@@ -7,80 +7,15 @@
 
 ## 当前补丁状态
 
-### 活跃补丁列表（9 个）
+> 📌 **活跃补丁列表（9 个）** → [status.md](./status.md) §已应用补丁列表
+>
+> 📌 **已完成功能总览** → [status.md](./status.md) §已完成功能
 
-| ID | 版本 | 层级 | 说明 | 状态 | 最后验证 |
-|----|------|------|------|------|---------|
-| auto-confirm-commands | v4 | L2 | knowledge 命令自动确认 | ✅ 活跃 | v4 |
-| service-layer-runcommand-confirm | v8 | L2 | else 分支确认 | ✅ 活跃 | v8 |
-| data-source-auto-confirm | v3 | L3 | 数据源层 auto_confirm=true | ✅ 活跃 | v3 |
-| guard-clause-bypass | v1 | L1 | Guard Clause 放行 | ✅ 活跃 | v1 |
-| efh-resume-list | v3 | L1 | 可恢复错误列表扩展 | ✅ 活跃 | v3 |
-| bypass-loop-detection | v4 | L1 | 循环检测绕过 | ✅ 活跃 | v4 |
-| bypass-runcommandcard-redlist | v2 | L1 | 全模式弹窗消除（仅改样式） | ✅ 活跃 | v2 |
-| **bg-auto-continue-v22** | **v22** | **L2** | **teaEventChatFail 后台续接** | **✅🎉 新增** | **2026-04-26** |
+### 🎉 v22 后台自动续接 — 历史性突破
 
-**共 9 个活跃补丁**
+> 📌 **完整测试日志、性能指标、技术架构** → [status.md](./status.md) §v22 后台自动续接
 
-### 已完成功能总览
-
-| 功能 | 补丁 | 状态 |
-|------|------|------|
-| 命令自动确认 | auto-confirm-commands v4 | ✅ 已验证 |
-| 服务层 RunCommand 确认 | service-layer-runcommand-confirm v8 | ✅ 已验证 |
-| **后台自动续接** | **v22 (teaEventChatFail)** | **✅🎉 成功** |
-| 可恢复错误列表扩展 | efh-resume-list v3 | ✅ 已应用 |
-| 循环检测自动绕过 | bypass-loop-detection v4 | ✅ 已应用 |
-| Guard Clause 放行 | guard-clause-bypass v1 | ✅ 已应用 |
-| 全模式弹窗消除 | bypass-runcommandcard-redlist v2 | ✅ 仅改样式 |
-| 数据源 auto_confirm | data-source-auto-confirm v3 | ✅ 最可靠方案 |
-
----
-
-## 🎉 v22 后台自动续接 — 历史性突破
-
-**测试时间**: 2026-04-26 08:23 - 09:53 (90+ 分钟)
-**测试日志**: `tests/vscode-app-1777198584544.log`
-
-### 核心成果
-
-```
-✅ 5 次完整的后台自动续接循环
-✅ 每次 SCM-fallback (sendChatMessage) 都成功
-✅ 任务在后台持续运行 90+ 分钟无人值守
-✅ 消息数量持续增长：2→4→6→8→10
-✅ 每次续接耗时仅 4 秒
-✅ 完全自动化，无需用户干预
-```
-
-### 技术架构
-
-```javascript
-// 注入点: teaEventChatFail() @7458679 (服务层，不受 React 冻结影响)
-// 检测错误码: 4000002/4000009/4000012/987
-// 三级降级链路:
-//   Level 1: resumeChat({message_id, session_id}) — 尝试原生续接
-//   Level 2: DOM 点击"继续"按钮 — 前台保底
-//   Level 3: sendChatMessage({message:"继续", session_id}) — 后台保底（关键！）
-//   Level 4: focus 事件触发 — 最终安全网
-```
-
-### 性能指标
-
-| 指标 | 值 |
-|------|-----|
-| 总续接次数 | 5 次 |
-| 总运行时间 | 90+ 分钟 |
-| 平均续接间隔 | ~22 分钟 |
-| 平均续接耗时 | **4 秒** |
-| 成功率 | **100%** (5/5) |
-| 用户干预 | **0 次** |
-
-### 关键技术突破
-
-- **sendChatMessage 降级完美工作** — 绕过 React 冻结，实现真正的后台续接
-- **三级降级链路验证成功** — resumeChat → DOM → sendChatMessage → focus
-- **长期稳定性验证** — 90+ 分钟持续运行，5 次续接全部成功
+**核心成果**: 5 次完整后台续接循环，90+ 分钟无人值守运行，sendChatMessage 降级链路验证成功，完全绕过 React 冻结限制。
 
 ---
 
@@ -192,12 +127,7 @@
 
 ## 安全状态
 
-| 指标 | 值 |
-|------|-----|
-| 最后备份 | 2026-04-25 18:48 (clean backup) |
-| 最后提交 | 2026-04-26 20:30 (handoff #33) |
-| 自动化策略 | apply-patches/auto-heal 成功后自动 backup + commit + syntax verify |
-| 目标文件 | `@byted-icube/ai-modules-chat/dist/index.js` (~10.49MB) |
+> 最后备份: 2026-04-25 18:48 | 最后提交: 2026-04-26 20:30 | 目标文件: `@byted-icube/ai-modules-chat/dist/index.js` (~10.49MB)
 
 ---
 
@@ -212,34 +142,18 @@
 4. 阅读并整合 Grand Exploration 成果（10 大 Major 发现）
 5. 更新 handoff.md, status.md, discoveries.md
 
-**关键突破**:
-- sendChatMessage 降级完美工作 — 绕过 React 冻结
-- 三级降级链路验证成功 — resumeChat → DOM → sendChatMessage → focus
-- 长期稳定性验证 — 90+ 分钟持续运行
+**关键突破**: sendChatMessage 降级完美工作 → 绕过 React 冻结；三级降级链路验证成功；长期稳定性验证通过。
 
 **产出**: v22 补丁 + 10 个架构文档 + discoveries 四维索引 + 6 个探索脚本
 
 ### [2026-04-25 21:30] 会话 #32 — Grand Exploration & Documentation Overhaul
 
-执行 Grand Exploration spec，8 Phase 全部完成：
-- Phase 1-2: 基线重测与偏移量重测量
-- Phase 3: DI 注册表完整提取（51→186）
-- Phase 4: 新域文档创建（Model/Docset）
-- Phase 5: 搜索模板修复（9 个）
-- Phase 6: 全量验证（78 个模板）
-- Phase 7: 一致性审计（13 文档）
-- Phase 8: P0 深化与知识交接
+执行 Grand Exploration spec，8 Phase 全部完成：基线重测、DI 注册表提取（51→186）、新域文档创建、搜索模板修复、全量验证、一致性审计。
 
 ### [2026-04-25 18:00] 会话 #31 — 版本差异探索
 
-探索 Trae 更新后的源码变化：
-- DI Token 迁移（Symbol.for → Symbol）
-- ConfirmMode 枚举消失
-- 续接标志变量 J 重命名（*后续纠正：未发生*）
-- kg 错误码完整枚举
+探索 Trae 更新后的源码变化：DI Token 迁移、ConfirmMode 枚举消失、kg 错误码枚举。
 
 ### [2026-04-25 14:00] 会话 #30 — v20 测试 + v21 设计
 
-1. 应用 v20 补丁（括号修复）
-2. 分析 v20 日志 → 发现两个致命问题
-3. 设计 v21 方案（参数修正 + sendChatMessage 降级）
+应用 v20 补丁 → 分析日志发现致命问题 → 设计 v21 方案（参数修正 + sendChatMessage 降级）。

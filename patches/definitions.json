@@ -172,6 +172,17 @@
       "check_fingerprint": "console.log(\"[v7-manual] ec() CALLED\"",
       "enabled": true,
       "added_at": "2026-04-22"
+    },
+    {
+      "id": "force-max-mode",
+      "name": "强制 Max 模式 (v1 - 权限绕过)",
+      "description": "绕过 isOlderCommercialUser 和 isSaas 权限检查，强制 computeSelectedModelAndMode 使用 Max 模式。注入点 @7213267 (SessionRelationStore.refreshSessionAgent)，在调用 computeSelectedModelAndMode 前将 p=isOlderCommercialUser()||true, g=isSaas()||true，使免费用户也能使用 Max 模式（更长上下文、更多思考轮次、更高质量输出）。效果：模型选择器中 Max 模式始终可选，AI 自动使用 Max 配置。",
+      "find_original": "p=this._commercialPermissionService.isOlderCommercialUser(),g=this._commercialPermissionService.isSaas()",
+      "replace_with": "p=this._commercialPermissionService.isOlderCommercialUser()||true,g=this._commercialPermissionService.isSaas()||true",
+      "offset_hint": "~7213267",
+      "check_fingerprint": "isOlderCommercialUser()||true,g=this._commercialPermissionService.isSaas()||true",
+      "enabled": true,
+      "added_at": "2026-04-26"
     }
   ]
 }

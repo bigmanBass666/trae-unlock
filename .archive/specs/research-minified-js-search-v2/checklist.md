@@ -1,5 +1,0 @@
-- [x] 调研完成：搜索了 minified JS 工具、source map、代码索引、VS Code 扩展、Node.js 生态、ripgrep 长行处理
-- [x] 调研结果已汇总，每个方案的适用性已评估
-- [x] ast-grep 已安装并验证可用于目标文件搜索（v0.42.1，byteOffset 输出正常）
-- [x] 统一搜索脚本已创建（scripts/tools/search-target.ps1，支持 -Pattern 和 -AstPattern）
-- [x] 搜索效果验证通过（文本搜索和 AST 搜索均正常）

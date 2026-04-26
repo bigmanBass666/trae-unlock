@@ -11,8 +11,6 @@ format: registry
 
 > 每个新会话 AI 必读的项目核心信息
 
-> 📝 写入格式遵循 `shared/_registry.md` 中的约定
-
 ## 项目基本信息
 
 **项目名称**: Trae Mod — Trae IDE 定制框架
@@ -33,119 +31,49 @@ D:\apps\Trae CN\resources\app\node_modules\@byted-icube\ai-modules-chat\dist\ind
 
 这是 AI 聊天系统的核心前端组件，包含对话渲染、Tool Call 管理、命令确认流程、PlanItem 解析流。
 
-## 目录结构概览
-
-```
-trae-unlock/
-├── docs/                          # 文档
-│   ├── achievements/              # 定制成果详情
-│   ├── architecture/              # 架构文档（source-architecture.md 等）
-│   ├── guides/                    # 使用指南
-│   └── reports/                   # 扫描报告
-├── patches/
-│   └── definitions.json           # 补丁定义（结构化数据）
-├── scripts/
-│   ├── apply-patches.ps1          # 应用补丁
-│   ├── rollback.ps1               # 回滚补丁
-│   ├── verify.ps1                 # 验证状态
-│   └── rules-engine.ps1           # 动态规则引擎
-├── rules/                         # 规则仓库（YAML）
-├── shared/                        # 跨会话共享模块
-├── AGENTS.md                      # AI 协作规则路由器
-└── progress.txt                   # 项目进度
-```
-
 ## 补丁系统简介
 
 每个补丁包含：`find_original`（原始代码定位）、`replace_with`（替换代码）、`check_fingerprint`（短字符串验证）、`enabled`（是否启用）。
 
 操作流程：`verify.ps1` 检测状态 → `apply-patches.ps1` 应用补丁（自动备份） → `rollback.ps1` 回滚。
 
-## 关键架构洞察
+> 📌 补丁详情与状态 → [status.md](./status.md) §已应用补丁列表
+> 📌 关键位置速查 → [discoveries.md](./discoveries.md)
+> 📌 目录结构 → AGENTS.md §关键文件速查
+
+## 核心架构洞察
 
 1. **服务层补丁才有效** — PlanItemStreamParser 是 SSE 流解析器，不依赖 React 渲染，切窗口不冻住
-2. **React 组件会冻结** ⚠️ **已验证 (会话#24)**: 切换 AI 会话窗口后，后台组件的 hooks 全部暂停（useEffect/useMemo/useCallback）。**L1 层补丁在后台不执行。详见 discoveries.md [2026-04-22 16:00] L1 冻结原则。**
+2. **L1 冻结原则** ⚠️ — 切换 AI 会话窗口后，后台组件的 hooks 全部暂停。需要实时响应的补丁必须放在 L2/L3。详见 discoveries.md [2026-04-22 16:00]
 3. **双层确认系统** — 服务层(PlanItemStreamParser) + UI层(RunCommandCard) 完全独立，两层都需补丁
 4. **ew.confirm() 不是执行** — 它是 telemetry/日志，真正执行函数是 eE(Confirmed)
 5. **补丁安全** — 箭头函数防 this 丢失、不改变控制流、fingerprint 精确匹配
-6. **🔑 L1 冻结原则 (2026-04-22 验证)** — 需要实时响应的补丁必须放在 L2/L3。auto-continue-thinking 因住在 L1 导致 6 次迭代（v3→v7）。设计新补丁时首先选择层级。
-7. **Symbol.for→Symbol 迁移** — IPlanItemStreamParser、ISessionStore、IEntitlementStore 等已从 Symbol.for 迁移到 Symbol，搜索时必须用正确类型
-8. **J→K 重命名未发生** — v2 探索纠正：handoff 中声称的 J→K 重命名在当前版本中未发生，J 仍是"显示继续按钮"变量。此纠正已写入 explorer-protocol.md §1.6 关键纠正事实库
-9. **商业权限域** — ICommercialPermissionService(NS)/IEntitlementStore(Nu)/ICredentialStore(MX) 是付费限制判断的核心服务链，bJ 枚举定义用户身份类型（Free=0,Pro=1,ProPlus=2,Ultra=3,Trial=4,Lite=5,Express=100）。详见 commercial-permission-domain.md
-10. **ICommercialPermissionService 不使用 Symbol** — 通过 `aiAgent.ICommercialPermissionService` 命名空间前缀注册(@7197027)，不是 Symbol 或 Symbol.for
-11. **DI 系统规模远超文档记录** — 实际 186 个注册（文档记录 51 个）、817 个注入（文档记录 101 个），di-service-registry.md 需大幅更新
-12. **kg 错误码扩展到 56 个** — 含新增 MODEL_OUTPUT_TOO_LONG/MODEL_NOT_EXISTED
-13. **Model 域补丁潜力 5/5** — computeSelectedModelAndMode @7215828，可开发 force-max-mode 补丁
+6. **Symbol.for→Symbol 迁移** — IPlanItemStreamParser、ISessionStore、IEntitlementStore 等已迁移到 Symbol，搜索时必须用正确类型
+7. **商业权限域** — ICommercialPermissionService(NS)/IEntitlementStore(Nu)/ICredentialStore(MX) 是付费限制判断的核心服务链，bJ 枚举定义用户身份类型（Free=0,Pro=1,ProPlus=2,Ultra=3,Trial=4,Lite=5,Express=100）
+8. **DI 系统规模** — 实际 186 个注册、817 个注入，远超文档记录
+9. **Model 域补丁潜力 5/5** — computeSelectedModelAndMode @7215828，可开发 force-max-mode 补丁
 
 ## 架构文档索引
 
-| 文档 | 内容 | 关键发现 |
-|------|------|---------|
-| docs/architecture/sse-stream-parser.md | SSE 流解析系统 | PlanItemStreamParser 完整生命周期、事件分发、状态管理 |
-| docs/architecture/command-confirm-system.md | 命令确认系统 | 双层确认架构、BlockLevel 完整逻辑、本地状态同步 |
-| docs/architecture/limitation-map.md | 限制点地图 | 错误码枚举(56个)、Alert 渲染点、BlockLevel、ToolCallName(38个) |
-| docs/architecture/module-boundaries.md | 模块边界与依赖 | DI 容器、服务注入、事件系统、模块依赖关系图 |
-| docs/architecture/di-service-registry.md | DI 服务注册表 | 186 个注册服务、817 个注入点、Symbol 迁移状态、aiAgent.命名空间注册 |
-| docs/architecture/sse-pipeline-topology.md | SSE 管道拓扑 | 13 事件类型、15 Parser、EventHandlerFactory 分发逻辑 |
-| docs/architecture/store-architecture.md | Store 架构 | 8 个 Zustand Store、两种 currentSession 模式、无 Immer |
-| docs/architecture/source-architecture.md | 源码架构导航 | 关键位置索引表、搜索技巧、架构文档索引 |
-| docs/architecture/commercial-permission-domain.md | 商业权限域 | ICommercialPermissionService 服务链、用户身份枚举、配额限制机制、补丁候选 |
-| docs/architecture/explorer-protocol.md | 探险家协议 | 工具决策树、交叉验证流程、发现记录规范 |
-| docs/architecture/exploration-toolkit.md | 工具箱使用指南 | js-beautify、AST 搜索、模块级搜索的使用方法 |
-| docs/architecture/model-domain.md | Model 域架构 | computeSelectedModelAndMode 6步决策链、kG/kH/kY/kZ 枚举、force-max-mode 补丁 |
-| docs/architecture/docset-domain.md | Docset 域架构 | 5个ai.* DI Token、三层服务架构、CKG API 11方法、Knowledges 子系统 |
+| 文档 | 内容 |
+|------|------|
+| docs/architecture/source-architecture.md | 源码架构导航索引+关键位置速查 |
+| docs/architecture/di-service-registry.md | DI 服务注册表（186 注册+817 注入） |
+| docs/architecture/sse-pipeline-topology.md | SSE 管道拓扑（13 事件+15 Parser） |
+| docs/architecture/store-architecture.md | Store 架构（8 个 Zustand Store） |
+| docs/architecture/command-confirm-system.md | 命令确认系统（双层架构+BlockLevel） |
+| docs/architecture/limitation-map.md | 限制点地图（错误码+Alert 渲染点） |
+| docs/architecture/module-boundaries.md | 模块边界与依赖关系 |
+| docs/architecture/sse-stream-parser.md | SSE 流解析系统 |
+| docs/architecture/commercial-permission-domain.md | 商业权限域（服务链+用户身份枚举） |
+| docs/architecture/model-domain.md | Model 域（computeSelectedModelAndMode + force-max-mode） |
+| docs/architecture/docset-domain.md | Docset 域（5 ai.* Token + CKG API + Knowledges） |
+| docs/architecture/explorer-protocol.md | 探险家协议（含工具决策树） |
+| docs/architecture/exploration-toolkit.md | 工具箱使用指南 |
 
-### 新域文档（已创建）
+### 新域文档
 
 | 域 | 核心位置 | 补丁潜力 | 说明 |
 |----|---------|---------|------|
 | Model 域 | @7215828 | 5/5 | computeSelectedModelAndMode，6步决策链，force-max-mode 补丁 |
 | Docset 域 | @7749472 | 4/5 | 5个ai.* DI Token，三层服务架构，ent_knowledge_base 门控 |
-
-## 关键位置速查
-
-> ⚠️ **最后更新**: 2026-04-26 (文档整理后)
-
-| 位置 | 内容 | 版本 | 重要性 |
-|------|------|------|---------|
-| ~7323241 | data-source-auto-confirm (auto_confirm=true) | v3 | ⭐⭐⭐⭐⭐ |
-| ~7507671 | auto-confirm-commands (knowledge分支) | v4 | ⭐⭐⭐⭐⭐ |
-| ~7508254 | service-layer-runcommand-confirm (else分支) | v8 | ⭐⭐⭐⭐⭐ |
-| ~8075009 | bypass-runcommandcard-redlist | v2 | ⭐⭐⭐⭐ |
-| ~8699513 | efh 可恢复错误列表 (含循环检测+DEFAULT) | **v3** | ⭐⭐⭐⭐⭐ |
-| ~8701180 | J 变量（含循环检测+DEFAULT） | **v4** | ⭐⭐⭐⭐⭐ |
-| ~8706067 | guard-clause-bypass (!q&&!J 放行) | **v1** | ⭐⭐⭐⭐⭐ |
-| ~8706660 | auto-continue-thinking (500ms+嵌套retry) | **v5** | ⭐⭐⭐⭐⭐ |
-| ~8702006 | ec() 回调定义 (resumeChat) | — | ⭐⭐⭐⭐ |
-| ~8702572 | ed() 回调定义 (sendChatMessage) | — | ⭐⭐⭐ |
-| ~7538139 | onStreamingStop / stopStreaming (覆盖status为Canceled) | — | ⭐⭐⭐⭐⭐ |
-| ~7511389 | D7.Error 处理器 / handleSideChat | — | ⭐⭐⭐⭐ |
-| ~8038360 | JV() 函数 (guard clause et条件) | — | ⭐⭐⭐⭐ |
-| ~9910446 | DEFAULT 错误组件 (t===kg.DEFAULT) | — | ⭐⭐⭐⭐ |
-| ~41400 | ToolCallName 枚举 | — | ⭐⭐⭐ |
-| ~8069382 | BlockLevel/AutoRunMode/ConfirmMode 枚举 | — | ⭐⭐⭐⭐ |
-| ~8635000 | egR (RunCommandCard) React 组件 | — | ⭐⭐⭐⭐ |
-| ~7267682 | ICommercialPermissionService (NS 类) | — | ⭐⭐⭐⭐⭐ |
-| ~7259427 | IEntitlementStore (Nu 类) | — | ⭐⭐⭐⭐ |
-| ~7154491 | ICredentialStore (MX 类) | — | ⭐⭐⭐⭐ |
-| ~6479431 | bJ 枚举 (用户身份类型) | — | ⭐⭐⭐ |
-| ~8707858 | ee 变量 (配额限制标志) | — | ⭐⭐⭐⭐ |
-| @55561 | ContactType 枚举 (30+ 配额状态) | — | ⭐⭐⭐⭐⭐ |
-| @54993 | ChatError 错误码枚举 | — | ⭐⭐⭐⭐ |
-| @5870417 | API endpoints 配置 | — | ⭐⭐⭐⭐ |
-| @8081545 | getRunCommandCardBranch 核心判定 | — | ⭐⭐⭐⭐⭐ |
-
-## 补丁版本总览 (9/9, 2026-04-26)
-
-| # | 补丁 ID | 版本 | 偏移 | 核心作用 |
-|---|---------|------|------|---------|
-| 1 | auto-confirm-commands | v4 | ~7507671 | L2知识分支: 黑名单自动确认 |
-| 2 | service-layer-runcommand-confirm | v8 | ~7508254 | L2 else分支: 黑名单+守卫 |
-| 3 | data-source-auto-confirm | v3 | ~7323241 | L3数据层: auto_confirm=true |
-| 4 | guard-clause-bypass | v1 | ~8706067 | Guard Clause: !q&&!J 放行 |
-| 5 | auto-continue-thinking | v7 | ~8706660 | L1展示+服务捕获+resumeChat |
-| 6 | efh-resume-list | v3 | ~8699513 | 可恢复列表: +循环检测+DEFAULT |
-| 7 | bypass-loop-detection | v4 | ~8701180 | J数组: +循环检测+DEFAULT |
-| 8 | bypass-runcommandcard-redlist | v2 | ~8075009 | L1 UI: 全模式弹窗消除 |
-
-**已禁用**: force-auto-confirm, sync-force-confirm, service-layer-confirm-status-update, bypass-whitelist-sandbox-blocks, auto-continue-l2-event

@@ -60,3 +60,22 @@ $ts = (Get-Date -Format "yyyy-MM-dd HH:mm")
 | **T2: 可复用工具** (2个) | 保留到下个版本更新 | 版本更新时重新评估 |
 | **T3: 一次性产出** | 归档到 `.archive/scripts/YYYYMMDD-/` | 会话结束时归档 |
 | **T4: 临时垃圾** | 直接删除 | 立即删除 |
+
+## 📊 项目健康度（2026-04-26 清理后）
+
+| 指标 | 清理前 | 清理后 | 目标 |
+|------|--------|--------|------|
+| `.archive/` 文件数 | 200+ | < 20 | ✅ 达成 |
+| `backups/` 文件数 | 95 | 14 | ✅ 达成 |
+| `docs/architecture/` 主目录 | 13 | 10 | ✅ 达成 |
+| `docs/architecture/reference/` | 0 | 3 | 新增 |
+| `AGENTS.md` 行数 | 151 | 80 | ✅ 达成 |
+| **估计总文件数** | **300+** | **~120** | **✅ 改善** |
+
+### 清理记录
+
+- [2026-04-26] Phase 1: 删除 .archive/scripts/ (178 文件) + .archive/specs/ (47 spec) + .archive/archive/ (8 文件) = 233 文件
+- [2026-04-26] Phase 2: backups/ 从 95 精简到 14 (删除 81 文件, 释放 ~700MB)
+- [2026-04-26] Phase 3: 共享文件瘦身 (context.md -90行, handoff-developer.md -120行)
+- [2026-04-26] Phase 4: 架构文档分级 (主目录 10个, reference/ 子目录 3个)
+- [2026-04-26] Phase 5: AGENTS.md 重写 (151行 → 80行, ↓47%)
