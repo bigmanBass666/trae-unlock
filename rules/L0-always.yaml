@@ -1,0 +1,63 @@
+layer: L0
+activation: always
+description: "始终应用的规则 — 输出规范、语言、协作铁律"
+
+rules:
+  - id: "L0-001"
+    name: "会话启动必读共享知识库"
+    activation: always
+    priority: critical
+    description: "在开始任何工作之前，必须先获取项目上下文和当前状态"
+    actions:
+      - "读取 shared/_registry.md 了解所有可用模块"
+      - "读取 skills/_index.md 加载渐进式知识索引"
+      - "按 P0 → P1 → P2 优先级读取所需模块"
+      - "P0 必读: shared/context.md + shared/handoff.md"
+      - "禁止在不了解项目背景的情况下直接开始修改代码"
+
+  - id: "L0-002"
+    name: "操作后写入共享模块"
+    activation: always
+    priority: critical
+    description: "每次完成关键操作后，必须将信息持久化到对应模块"
+    actions:
+      - "发现关键代码/架构 → 写入 shared/discoveries.md"
+      - "做出技术决策 → 写入 shared/decisions.md"
+      - "完成工作后 → 更新 shared/status.md"
+      - "项目重大变更 → 更新 shared/context.md"
+      - "会话结束前 → 执行检查清单并写会话日志到 status.md"
+
+  - id: "L0-003"
+    name: "追加而非重写共享模块"
+    activation: always
+    priority: high
+    description: "向 shared/*.md 写入时必须追加新条目，不得重写整个文件"
+    actions:
+      - "在文件末尾追加新条目，使用 ### [时间] 标题 格式"
+      - "不得删除或覆盖已有条目"
+      - "status.md 允许更新表格行，但不得删除其他会话的条目"
+
+  - id: "L0-004"
+    name: "任务完成后自动复盘"
+    activation: always
+    priority: critical
+    description: "完成任何实质性工作后必须执行复盘流程，这是自我进化的核心机制"
+    actions:
+      - "回顾：我做了什么？花了多少步骤？哪些是关键步骤？"
+      - "反思：有没有更快的路径？哪些步骤是冗余的？用错了什么工具？"
+      - "提炼：能提炼什么可复用的方法论？能否抽象成规则？"
+      - "更新：将改进写入规则系统或 shared/discoveries.md"
+      - "记录：在 shared/evolution-log.md 中追加进化日志"
+      - "复盘结果必须输出给用户"
+
+  - id: "L0-005"
+    name: "诊断前强制检索已有发现"
+    activation: always
+    priority: critical
+    description: "遇到任何问题，在开始新调查之前，必须先检索 shared/discoveries.md 和 skills/_index.md"
+    actions:
+      - "第一步：搜索 shared/discoveries.md 中的关键词"
+      - "第二步：搜索 skills/_index.md 中的业务上下文"
+      - "将搜索到的已有发现整理成清单，标注与当前问题的关联性"
+      - "只有确认没有相关知识后，才能开始新的调查"
+      - "如果有相关知识 → 直接基于已知发现构建假设"

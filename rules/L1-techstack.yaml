@@ -1,0 +1,68 @@
+layer: L1
+activation: file-specific
+description: "技术栈规范 — 当操作对应文件类型时遵守"
+
+rules:
+  - id: "L1-001"
+    name: "JS 代码使用箭头函数"
+    file_patterns: ["*.js", "*.jsx", "*.ts", "*.tsx"]
+    priority: critical
+    description: "补丁注入代码必须使用箭头函数，防止 this 丢失"
+    actions:
+      - "使用 .catch(e=>{...}) 而非 .catch(function(e){...})"
+      - "使用 .then(r=>{...}) 而非 .then(function(r){...})"
+      - "回调函数一律用箭头函数"
+
+  - id: "L1-002"
+    name: "补丁定义格式规范"
+    file_patterns: ["definitions.json"]
+    priority: high
+    description: "补丁定义必须包含 anchor + anchor_type + replace_with + check_fingerprint"
+    actions:
+      - "anchor: 20-50 字符的唯一字符串片段"
+      - "anchor_type: exact|fuzzy|regex"
+      - "replace_with: 替换代码（使用箭头函数）"
+      - "check_fingerprint: 短字符串验证"
+      - "offset_hint: 偏移量提示（~前缀）"
+
+  - id: "L1-003"
+    name: "服务层优先于 UI 层"
+    file_patterns: ["*.js"]
+    priority: critical
+    description: "需要实时响应的补丁必须放在 L2/L3 服务层，L1 React 层后台冻结"
+    actions:
+      - "PlanItemStreamParser (L2) 不受 React 冻结影响"
+      - "ErrorStreamParser.parse() (L2) 是最佳拦截点"
+      - "L1 React 组件切窗口后 hooks 全部暂停"
+      - "store.subscribe (L2) 绕过 React 渲染周期"
+
+  - id: "L1-004"
+    name: "搜索优先三原则"
+    file_patterns: ["*.js", "*.ps1"]
+    priority: high
+    description: "写代码之前，必须先搜索现有方案"
+    actions:
+      - "第 1 轮：搜工具 — 有没有现成工具能做这件事？"
+      - "第 2 轮：搜方案 — 别人遇到类似问题怎么解决的？"
+      - "第 3 轮：搜生态 — 这个领域的标准做法是什么？"
+      - "只有 3 轮搜索都没有找到合适方案时，才自己写代码"
+
+  - id: "L1-005"
+    name: "理解代码之前先用工具映射"
+    file_patterns: ["*.js"]
+    priority: high
+    description: "不要靠猜来理解压缩代码，先用搜索工具映射架构"
+    actions:
+      - "用 PowerShell 子串搜索关键函数"
+      - "用 ast-search.ps1 搜索 AST 模式"
+      - "修改前先追踪影响链：搜索所有引用 → 理解完整依赖 → 一次改对"
+
+  - id: "L1-006"
+    name: "PowerShell 脚本规范"
+    file_patterns: ["*.ps1"]
+    priority: medium
+    description: "PowerShell 工具脚本遵循项目约定"
+    actions:
+      - "时间戳用 Get-Date 获取，禁止硬编码"
+      - "脚本放在 scripts/ 对应子目录（core/explore/cdp）"
+      - "遵循 T1-T4 生命周期管理"

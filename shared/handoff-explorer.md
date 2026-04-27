@@ -10,13 +10,132 @@ sync_with:
   - shared/discoveries.md (唯一权威数据源)
   - docs/architecture/explorer-protocol.md (SOP 协议)
   - docs/architecture/exploration-toolkit.md (工具链指南)
-last_reviewed: 2026-04-26
+last_reviewed: 2026-04-27
 ---
 
 # 探索家交接单 (Explorer Handoff)
 
 > 本文件由 Explorer Agent 写入，Developer Agent 按需参考
 > 路由入口：[handoff.md](./handoff.md) → 本文件
+
+---
+
+## [2026-04-27 16:45] 偏移量重校准 + force-max-mode 验证 + v22 验证 + P2 盲区扫描
+
+### 核心结论（1 句话）
+
+**源文件已变更（-3,427 字符），16 个关键锚点重校准完成，force-max-mode `||true` 确认存在（补丁优先级降至 2/5），v22 注入点验证完整，P2a 保持 P2 / P2b 建议升级 P1。**
+
+### 关键发现
+
+1. **偏移量重校准完成** ⭐⭐⭐⭐⭐ — 16 个锚点独立重新定位，ISessionStore 漂移 +5353 需关注
+2. **force-max-mode `||true` 确认存在** ⭐⭐⭐⭐⭐ — isOlderCommercialUser()||true + isSaas()||true @7213326/@7213377，Solo Agent 已强制 Max，补丁优先级 5→2
+3. **teaEventChatFail 纯遥测函数** ⭐⭐⭐⭐ — v22 补丁在此注入续接逻辑合理，错误码分布确认完整
+4. **IEntitlementStore 已迁移** ⭐⭐⭐⭐ — Symbol.for → Symbol("IEntitlementStore") @7264747
+5. **P2a 保持 P2** — 仅协议定义，无业务逻辑
+6. **P2b 建议升级 P1** — 含命令注册入口 + DI token + 组件导出
+
+### 关键代码位置（更新后偏移量）
+
+| 发现 | 新偏移量 | 旧偏移量 | 变化 |
+|------|---------|---------|------|
+| IPlanItemStreamParser 锚点 | **@7508080** | @7510931 | -2851 |
+| ISessionStore 锚点 | **@7092843** | @7087490 | **+5353** ⚠️ |
+| IModelService 锚点 | **@7182322** | @7182322 | 0 |
+| computeSelectedModelAndMode | **@7213504** | @7215828 | -2324 |
+| teaEventChatFail | **@7458691** | @7458679 | +12 |
+| IEntitlementStore 锚点 | **@7264747** | — | NEW (已迁移) |
+| \|\|true (isOlderCommercialUser) | **@7213326** | — | NEW |
+| \|\|true (isSaas) | **@7213377** | — | NEW |
+| force_close_auto | **@7282952** | @7282940 | +12 |
+| kg.TASK_TURN_EXCEEDED_ERROR | **@8704686** | — | NEW |
+| efi() Hook | **@8684462** | @8687513 | -3051 |
+
+### 对开发者的建议
+
+1. **🔴 紧急**: ISessionStore 偏移量漂移 +5353，所有依赖该偏移量的补丁 fingerprint 需重新验证
+2. **高优**: force-max-mode 补丁优先级降至 2/5 — `||true` 已硬编码，Solo Agent 已强制 Max
+3. **高优**: v22 后台续接补丁的 teaEventChatFail 注入点 @7458691 验证通过，可安全固化到 definitions.json
+4. **中优**: IEntitlementStore 已迁移到 Symbol() 形式，搜索模板需更新
+5. **低优**: P2b (文件末尾) 含命令注册入口，建议升级为 P1 并深入探索
+
+### 盟区变化
+
+| 盟区 | 之前状态 | 之后状态 | 变化 |
+|------|---------|---------|------|
+| P0 (54415-6268469) | ✅ 已关闭 | ✅ 已关闭 | 无变化 |
+| P1 UI (8930000-9910446) | ✅ 权限密集区已测绘 | ✅ 已测绘 | 无变化 |
+| P1 命令层 (9910446-EOF) | ✅ 26 命令映射 | ✅ 已测绘 | 无变化 |
+| P2a (0-41400) | 未扫描 | ✅ 确认为协议定义 | **保持 P2** |
+| P2b (10490354-EOF) | 未扫描 | ⚠️ 含命令注册+DI token | **建议升级 P1** |
+
+---
+
+## [2026-04-27 01:15] desktop-modules 盲区扫描完成 — 第二个 10MB 文件确认无需补丁 ⭐⭐⭐⭐⭐
+
+### 核心结论（1 句话）
+
+**desktop-modules 是纯 UI Shell 模块，所有 AI 权限/限制逻辑仅在 ai-modules-chat 中，当前 9 个补丁全部完整，不需要修改。**
+
+### 关键发现
+
+1. **efi() 命名碰撞!!** — chat 的 efi() = React 权限 Hook (isFreeUser/isSaas/...); desk 的 efi() = **Zod schema builder** (ecM 类，与权限无关)
+2. **17 个权限字段全部 CHAT ONLY** — isFreeUser/isOlderCommercialUser/isSaas/FIREWALL_BLOCKED/4008/4009/bJ 枚举 在 desktop 中 **0 处**
+3. **DI 服务全部在 chat** — IStuckDetectionService/IAutoAcceptService/IModelService/IPlanItemStreamParser 全部不在 desktop
+4. **命令完全不同** — chat: 26 个 AI 命令; desktop: 60 个编辑器 UI 命令（mention/clipboard/ghost text）
+5. **无交叉依赖** — 两模块是平级兄弟，互相不 import
+6. **canEnterSoloMode 唯一重叠** — 但 desktop 只是作为 React Context prop 传递（UI 显示用）
+
+### 对 Developer 的建议
+
+- ✅ **不需要**对 desktop-modules 打任何补丁
+- ✅ 当前 9 个补丁目标文件正确
+- ⚠️ 但 ai-modules-chat 文件确实有变化 (-2787 字符)，仍需验证 fingerprint
+- 📝 desktop-modules 可标记为"已确认安全，无需探索"
+
+---
+
+## [2026-04-27 00:50] Deep Dive Blindspots 完成 — P0确认第三方库/P1权限密集区/26命令映射/3补丁蓝图/版本变更检测
+
+### 核心发现（6 个 Major）
+
+1. **P0 盟区确认以第三方库为主** ⭐⭐⭐ — 31 点采样: 75% 第三方库, 22% 基础工具函数, 3% i18n。无 DI Token/API endpoint。**结论: P0 无需进一步探索**
+2. **P1 UI 下半部权限/付费密集区** ⭐⭐⭐⭐ — efi() Hook 完整实现提取(@8685035), bJ 枚举 50+ 使用点, AgentSelect/Subscription/Permission 组件定位
+3. **命令注册层完整映射** ⭐⭐⭐⭐⭐ — 26 个 registerCommand + 1 个 registerAdapter, bootstrapApplicationContainer 定位, sendToAgentNonBlocking/openUsageLimitModal 高价值标注
+4. **computeSelectedModelAndMode 决策链完整源码** ⭐⭐⭐⭐⭐ — 6 步决策链逐行分析, 发现 `||true` 已硬编码(force-max-mode 可能已内置), Step 3 精确偏移量 @7216430
+5. **ContactType/bJ/错误码三组独立定义完整映射** ⭐⭐⭐⭐ — ContactType 非 用户身份枚举(是 FreeNewSubscriptionUser*), bypass 三方案评估
+6. **IStuckDetectionService + IAutoAcceptService 服务层分析** ⭐⭐⭐⭐ — autoConfirm ≠ autoAccept(功能不同!), IStuckDetection 仅 1 调用点, 服务层替代方案不推荐
+
+### 关键代码位置（更新后偏移量）
+
+| 发现 | 新偏移量 | 旧偏移量 | 变化 |
+|------|---------|---------|------|
+| computeSelectedModelAndMode | **@7213504** | @7215828 | -2324 |
+| force_close_auto | **@7282952** | @7282940 | +12 |
+| IPlanItemStreamParser 锚点 | **@7509092** | ~7510931 | -1839 |
+| IModelService 锚点 | **@7182322** | 首次测量 | - |
+| IStuckDetectionService DI | **@7533900** | ~7533900 | ≈0 |
+| IAutoAcceptService DI | **@8036513** | ~8036513 | ≈0 |
+| efi() Hook (L1) | **@8685035** | 未记录 | 新发现 |
+| openUsageLimitModal 命令 | **@10476298** | 未记录 | 新发现 |
+| bootstrapApplicationContainer | **@~104778xx** | 未记录 | 新发现 |
+
+### 对开发者的建议
+
+1. **🔴 紧急**: 文件已更新（-2787 字符），所有补丁 fingerprint 需要重新验证！建议运行 `auto-heal.ps1 -DiagnoseOnly`
+2. **高优**: force-max-mode 补丁 — 当前代码已有 `||true`，可能 Trae 内部已测试全量 Max。建议先验证当前行为再决定是否需要额外补丁
+3. **高优**: bypass-usage-limit 推荐方案 C — 在 @8715023 过滤 FIREWALL_BLOCKED UI 显示（最精准）
+4. **中优**: `sendToAgentNonBlocking` 命令 (@10480564) 可作为 v22 后台续接的替代/补充路径
+5. **中优**: `icube.knowledges.*` (8 个命令) 提供知识库完整生命周期控制，可开发 Docset 管理
+6. **结论**: IAutoAcceptService ≠ autoConfirm，不要混淆。服务层替代 L1 补丁方案不推荐
+
+### 盟区变化
+
+| 盟区 | 之前状态 | 之后状态 | 变化 |
+|------|---------|---------|------|
+| P0 (54415-6268469) | "未知, 可能含业务逻辑" | ✅ **确认为第三方库+基础工具** | **关闭** |
+| P1 UI (8930000-9910446) | "React 下半部分未探索" | ✅ **权限/付费密集区已测绘** | **大幅缩小** |
+| P1 命令层 (9910446-EOF) | "registerCommand 集中区" | ✅ **26 命令完整映射** | **完成** |
 
 ---
 

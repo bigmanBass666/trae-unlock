@@ -1,0 +1,51 @@
+layer: L3
+activation: manual-smart
+description: "工作流/SOP — 仅在用户明确要求或高风险操作时遵守"
+
+rules:
+  - id: "L3-001"
+    name: "补丁应用流程"
+    triggers: ["apply-patches", "补丁应用", "patch apply"]
+    priority: high
+    description: "修改 definitions.json 后必须 apply + verify"
+    actions:
+      - "Step 1: 修改 patches/definitions.json"
+      - "Step 2: 运行 scripts/core/apply-patches.ps1"
+      - "Step 3: 运行 scripts/core/verify.ps1 验证"
+      - "Step 4: 运行 scripts/core/auto-heal.ps1 -DiagnoseOnly 检查健康度"
+      - "Step 5: 更新 shared/status.md 补丁状态"
+
+  - id: "L3-002"
+    name: "版本适配流程"
+    triggers: ["版本更新", "version update", "偏移量漂移"]
+    priority: high
+    description: "Trae 更新后偏移量可能漂移，需要重新校准"
+    actions:
+      - "Step 1: 运行 scripts/core/unpack.ps1 重新解包"
+      - "Step 2: 运行 scripts/explore/remeasure-anchors.ps1 重测锚点"
+      - "Step 3: 检查 discoveries.md 中的偏移量是否漂移"
+      - "Step 4: 更新 definitions.json 中的 offset_hint"
+      - "Step 5: 运行 apply + verify 验证所有补丁"
+
+  - id: "L3-003"
+    name: "Git 提交流程"
+    triggers: ["git commit", "提交", "commit"]
+    priority: high
+    description: "标准化 Git 提交流程，防止历史丢失"
+    actions:
+      - "git add . 暂存所有更改"
+      - "git commit -m \"[类型] 简要说明\" 格式提交"
+      - "提交类型：[发现]/[功能]/[修复]/[文档]/[测试]"
+      - "每次 commit 后立即 git push"
+      - "禁止 git merge（可能损坏 .git 目录）"
+
+  - id: "L3-004"
+    name: "代码修改安全原则"
+    triggers: ["代码修改", "修改源码", "patch develop"]
+    priority: high
+    description: "修改代码前必须理解上下文，遵循安全最佳实践"
+    actions:
+      - "修改前先理解文件的上下文和现有模式"
+      - "绝不引入会泄露密钥或密钥的代码"
+      - "绝不将 secrets 或 keys 提交到仓库中"
+      - "修改后立即备份并记录修改内容、位置和原因"

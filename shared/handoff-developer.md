@@ -34,6 +34,64 @@ last_reviewed: 2026-04-26
 
 ---
 
+## 🆕 [2026-04-27] Auto-Continue 架构深度探索 — 最终建议
+
+> 来源: `docs/architecture/auto-continue-deep-exploration-task.md` Phase 1-4 完成
+> Explorer Agent 已完成全部探索，产出已写入 discoveries.md
+
+### 核心结论
+
+**最佳拦截点: ErrorStreamParser.parse() @7513080** (加权评分 8.65/10)
+
+### 立即可执行的优化 (Phase 1, ~10 分钟, 零风险)
+
+1. **L2 补丁 setTimeout→queueMicrotask**
+   - 文件: definitions.json → `auto-continue-l2-parse` 补丁
+   - 将 `setTimeout(()=>{...},0)` 改为 `queueMicrotask(()=>{...})`
+   - 效果: 消除后台节流风险, 续接从"平均4秒"变为"<100ms"
+
+2. **添加统计计数器**
+   - 在 L2 补丁中增加 `window.__traeAC_stats = (window.__traeAC_stats||{total:0,byCode:{}}); __traeAC_stats.total++; __traeAC_stats.byCode[_rc]=(__traeAC_stats.byCode[_rc]||0)+1`
+   - 效果: 可在控制台查看 `__traeAC_stats` 了解续接统计
+
+3. **统一日志前缀**
+   - `[v22-bg]` → `[AC]` (Auto-Continue 缩写)
+   - 涉及: auto-continue-l2-parse, auto-continue-v11-store-subscribe, auto-continue-thinking
+
+### 中期重构计划 (Phase 2, 2-3 小时, 需回归测试)
+
+| 步骤 | 操作 | 涉及补丁 |
+|------|------|---------|
+| 2.1 | 新建 `unified-auto-continue` 补丁 (替代 l2-parse+v11) | 新建 |
+| 2.2 | L1 补丁纯 UI 化 (移除 queueMicrotask/resumeChat 代码) | auto-continue-thinking |
+| 2.3 | 禁用 guard-clause-bypass (不再需要) | guard-clause-bypass |
+| 2.4 | 回归测试: 前台 10 分钟 + 后台 30 分钟 | 全部 |
+
+### 长期清理 (Phase 3, 稳定 1 周后)
+
+| 补丁 | 建议 | 原因 |
+|------|------|------|
+| bypass-loop-detect | 禁用 | J 数组管理纳入统一补丁 |
+| efh-resume-list | 禁用 | efg 列表管理纳入统一补丁 |
+| auto-continue-v11-store-subscribe | 降级/禁用 | 被 unified 取代 |
+| auto-continue-thinking | 重写为纯 UI | 仅保留 Alert 渲染, 移除自动触发 |
+
+### 关键技术数据 (供开发参考)
+
+| 数据项 | 值 |
+|--------|-----|
+| DI Token | `BO = Symbol("ISessionServiceV2")` @7545196 |
+| BR 身份 | BR === BO (@249643 确认) |
+| resumeChat 签名 | `resumeChat({sessionId, messageId})` @249656 |
+| 最佳注入点 | ErrorStreamParser.parse() @7513080 |
+| 推荐调度 API | queueMicrotask (不节流) ✅ |
+| 冷却机制 | `window.__traeAC` (5 秒) |
+| 错误码白名单 | [4000002, 4000009, 4000012, 987, 4008, 977] |
+| 降级方案 | `sendChatMessage({message:"Continue", sessionId})` |
+| 目标补丁数 | 2 个 (主 + 可选防御) |
+
+---
+
 ## 版本适配状态
 
 ### 偏移量漂移概况

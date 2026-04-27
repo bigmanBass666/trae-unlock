@@ -1,397 +1,80 @@
 ---
 module: rules
-description: 协作规则和行为约束
+description: 协作规则和行为约束（L0-L3 四层体系）
 read_priority: P1
 read_when: 需要了解写入规范和行为准则时
 write_when: 规则变更时
 format: registry
-last_reviewed: 2026-04-26
+last_reviewed: 2026-04-28
 ---
 
-# 📋 Trae Mod 动态规则清单
+# 协作规则清单（L0-L3 四层体系）
 
-> 由 rules-engine.ps1 自动生成 | 2026-04-22 18:56:37
-
----
-
-## 🎯 核心规范 (Core)
-
-### [🔴] rule-001: 新会话开始前必读 Anchor 共享知识库
-
-**强制级别**: ⚠️ mandatory
-
-在开始任何工作之前，必须先通过 Anchor 系统获取项目上下文和当前状态
-
-**操作步骤**:
-1. 读取 shared/_registry.md 了解所有可用模块
-2. 按 P0 → P1 → P2 优先级读取所需模块
-3. P0 必读: shared/context.md（项目核心上下文）
-4. P1 推荐: shared/status.md（当前状态和待办）
-5. 禁止在不了解项目背景的情况下直接开始修改代码
-
-### [🔴] rule-002: 操作后写入 Anchor 共享模块
-
-**强制级别**: ⚠️ mandatory
-
-每次完成关键操作后，必须将信息持久化到 Anchor shared/ 对应模块
-
-**操作步骤**:
-1. 发现关键代码/架构 → 写入 shared/discoveries.md
-2. 做出技术决策 → 写入 shared/decisions.md
-3. 完成工作后 → 更新 shared/status.md
-4. 项目重大变更 → 更新 shared/context.md
-5. 会话结束前 → 执行检查清单：①有发现？→ discoveries.md ②有决策？→ decisions.md ③安全检查：备份是否新鲜？是否需要 git commit？④写会话日志（含 P2 写入字段）→ status.md
-
-### [🔴] rule-003: 新发现必须写入 discoveries 模块
-
-**强制级别**: ⚠️ mandatory
-
-发现新东西时第一时间写入 shared/discoveries.md，避免后续 AI 重复探索
-
-**操作步骤**:
-1. 记录关键位置（文件名 + 偏移量 + 作用）
-2. 记录模块之间的关系和调用链
-3. 记录枚举值、设置 ID 等元数据
-4. 记录排除的错误方向（哪些路走不通）
-
-### [🔴] rule-004: 写入格式遵循注册表约定
-
-**强制级别**: ⚠️ mandatory
-
-向 shared/ 模块追加条目时，使用 shared/_registry.md 中定义的统一格式
-
-**操作步骤**:
-1. 格式: ### [YYYY-MM-DD HH:mm] 简短标题
-2. 使用 **关键字**: 值 的结构化内容
-3. 条目之间用 --- 分隔
-4. 详见 shared/_registry.md 的'写入格式约定'章节
+> 基于 AI Agent 自我进化系统指令.md §5 Rules 执行协议
+> 规则源文件：rules/L0-always.yaml, rules/L1-techstack.yaml, rules/L2-domain.yaml, rules/L3-sop.yaml
 
 ---
 
-## ⚓ Anchor 系统维护 (Anchor)
+## 规则层级说明
 
-### [🔴] rule-016: 不要在 shared/*.md 中硬编码系统品牌名
-
-**强制级别**: ⚠️ mandatory
-
-shared/*.md 只描述功能，不含系统品牌名。品牌名只在 AGENTS.md 和 _registry.md 中定义
-
-**操作步骤**:
-1. shared/*.md 的描述行只写功能，不写品牌名前缀
-2. 例如写'每个新会话 AI 必读的项目核心信息'而非'Anchor 共享知识库 — 每个新会话 AI 必读的项目核心信息'
-3. 如果需要引用系统名，使用'本系统'或指向 _registry.md
-
-### [🔴] rule-017: 不要在 AGENTS.md 中硬编码文件列表
-
-**强制级别**: ⚠️ mandatory
-
-AGENTS.md 只做路由，指向 _registry.md。不硬编码 shared/ 文件列表
-
-**操作步骤**:
-1. AGENTS.md 中不列出具体的 shared/*.md 文件名（除 _registry.md 外）
-2. 新增模块时只改 _registry.md + 创建文件，不改 AGENTS.md
-3. 删除模块时只改 _registry.md + 删除文件，不改 AGENTS.md
-
-### [🔴] rule-020: 追加而非重写 shared/ 模块
-
-**强制级别**: ⚠️ mandatory
-
-向 shared/*.md 写入时必须追加新条目，不得重写整个文件。重写会导致其他会话写入的条目丢失
-
-**操作步骤**:
-1. 在文件末尾追加新条目，使用 ### [时间] 标题 格式
-2. 不得删除或覆盖已有条目
-3. status.md 允许更新表格行，但不得删除其他会话的条目
-4. 如果条目已过时，在原条目后追加更新注释，而非删除
-
-### [🟡] rule-018: 不要修改历史文件中的系统名
-
-**强制级别**: ⚠️ mandatory
-
-历史文件（progress.txt, .trae/specs/）保持创建时的原始名称，改名等于篡改历史
-
-**操作步骤**:
-1. progress.txt 中的历史条目保持原名不改
-2. .trae/specs/ 下的文件保持原名不改
-3. 如需标注当前名称，可在条目末尾追加注释（现称 XXX）
-
-### [🟡] rule-019: 系统改名只改 AGENTS.md 和 _registry.md
-
-**强制级别**: ⚠️ mandatory
-
-系统名集中定义在 AGENTS.md 和 _registry.md，改名只需修改这 2 个文件
-
-**操作步骤**:
-1. AGENTS.md: 修改'Anchor 声明'和'Anchor 共享知识库'（2 处）
-2. _registry.md: 修改标题行和'系统名称:'行（2 处）
-3. 不要修改 shared/*.md（已去品牌化）
-4. 不要修改历史文件（保持原名）
+| 层级 | 激活方式 | 说明 | 文件 |
+|------|----------|------|------|
+| **L0** | Always Apply | 始终应用，每次对话都遵守 | rules/L0-always.yaml |
+| **L1** | File-Specific | 操作对应文件类型时遵守 | rules/L1-techstack.yaml |
+| **L2** | Intelligent | 识别到相关业务场景时遵守 | rules/L2-domain.yaml |
+| **L3** | Manual/Smart | 用户明确要求或高风险操作时遵守 | rules/L3-sop.yaml |
 
 ---
 
-## 🔄 工作流程 (Workflow)
+## L0 — 始终应用（5 条）
 
-### [🔴] rule-005b: 理解代码之前先用工具映射
-
-**强制级别**: ⚠️ mandatory
-
-不要靠猜来理解压缩代码。先用 PowerShell 子串搜索映射架构，再精确修改。
-
-**操作步骤**:
-1. 用 PowerShell 子串搜索关键函数：`$c=[IO.File]::ReadAllText($path); $c.IndexOf("resumeChat")`
-2. 用 search-target.ps1 搜索中文文本：powershell scripts/tools/search-target.ps1 -Pattern '关键词'
-3. 用 PowerShell 追踪变量依赖：`$c.IndexOf("J =")` 查找变量赋值
-4. 修改前先追踪影响链：搜索所有引用 → 理解完整依赖 → 一次改对
-
-### [🔴] rule-006: 
-
-**强制级别**: ⚠️ mandatory
-
-遵循标准化的 8 步工作循环，确保每次会话都基于最新状态且知识持续积累
-
-**操作步骤**:
-1. 步骤1：读 README.md 了解项目整体情况
-2. 步骤2：读 docs/architecture/source-architecture.md 了解已有知识
-3. 步骤3：读 progress.txt 了解当前进度
-4. 步骤4：开始探索/修改
-5. 步骤5：有新发现 → 立即写进对应文档
-6. 步骤6：有代码修改 → 备份 + 记录到对应文档
-7. 步骤7：git add . && git commit && git push
-8. 步骤8：继续下一步（回到步骤4形成循环）
-
-### [🔴] rule-010: 推理→搜索→验证三步法
-
-**强制级别**: ⚠️ mandatory
-
-搜索之前先推理，避免盲目搜索浪费大量时间。从循环检测任务中提炼的方法论。
-
-**操作步骤**:
-1. Step 1 推理：从已知架构/文档推断可能的答案，列出关键假设
-2. Step 2 搜索：先搜行业参考（WebSearch），再用 PowerShell 子串搜索精确搜索代码
-3. Step 3 验证：只验证推理中的关键假设，不穷举所有可能
-4. 示例：循环检测在客户端还是服务端？→ 从 SSE 推送错误码推断是服务端 → PowerShell 搜不到生成逻辑 → 确认
-
-### [🔴] rule-012: 中间层陷阱警告
-
-**强制级别**: ⚠️ mandatory
-
-调用回调/封装函数时，不要假设它会做你认为它该做的事。必须查看内部实现。
-
-**操作步骤**:
-1. 当调用一个回调函数（如 ec/ed/onActionClick）效果不符合预期时，第一步应该是查看函数内部实现
-2. 特别注意函数内部的 if 条件判断——这些条件可能因为外部环境变化而不满足
-3. 如果中间层的条件判断阻碍了你的目标，考虑绕过它直接调用底层 API
-4. 绕过时必须有 fallback 机制——不能假设底层 API 的前置条件一定满足
-5. 示例：ec()内部有'v3'===p条件，p来自服务端返回值，不可控 → v4绕过ec()直接调D.resumeChat()
-
-### [🟡] rule-006: 文档更新时机控制
-
-**强制级别**: 💡 recommended
-
-在工作流程中识别关键节点，确保在正确的时机进行文档更新和版本控制
-
-**操作步骤**:
-1. 探索阶段：每有新发现立即记录到 source-architecture.md 或 bypass-security.md
-2. 修改阶段：代码修改后立即备份并记录修改内容、位置和原因
-3. 测试阶段：记录测试结果（成功/失败）、测试方法和结论
-4. 提交阶段：确保所有相关文档已更新后再执行 git commit
-
-### [🟡] rule-007: 循环迭代原则
-
-**强制级别**: 💡 recommended
-
-工作流程是迭代循环的，每个周期都要基于上一周期的成果继续推进
-
-**操作步骤**:
-1. 每个工作周期完成后返回步骤4继续下一轮工作
-2. 新周期开始前重新读取 progress.txt 确认当前状态
-3. 利用 source-architecture.md 中已有的知识避免重复探索
-4. 将本轮未完成的工作记录到 progress.txt 方便下个会话接续
-
-### [⚪] rule-005: 搜索优先三原则
-
-**强制级别**: ⚠️ mandatory
-
-写代码之前，必须先搜索现有方案。避免重复造轮子。这是用血泪换来的教训。
-
-**操作步骤**:
-1. 第 1 轮：搜工具 — '有没有现成工具能做这件事？'（WebSearch + npm/scoop 搜索）
-2. 第 2 轮：搜方案 — '别人遇到类似问题怎么解决的？'（WebSearch + GitHub Issues）
-3. 第 3 轮：搜生态 — '这个领域的标准做法是什么？'（WebSearch + 技术博客）
-4. 只有 3 轮搜索都没有找到合适方案时，才自己写代码
-5. 搜索结果必须记录到 shared/discoveries.md，避免未来 AI 重复搜索
-6. 可用工具：PowerShell 子串搜索（`$c.IndexOf("keyword")`）、search-target.ps1（文本搜索）、WebSearch（互联网搜索）
-
-### [⚪] rule-009: 任务完成后自动复盘
-
-**强制级别**: ⚠️ mandatory
-
-AI 每完成一个任务后，必须自动执行复盘流程。这是自我进化的核心机制，不是可选的。
-
-**操作步骤**:
-1. 回顾：我做了什么？花了多少步骤？哪些是关键步骤？
-2. 反思：有没有更快的路径？哪些步骤是冗余的？用错了什么工具？
-3. 提炼：能提炼什么可复用的方法论？能否抽象成规则？
-4. 更新：将改进写入规则系统（rules/*.yaml）或 shared/discoveries.md
-5. 复盘结果必须输出给用户，让用户也能看到 AI 的自我进化过程
-
-### [⚪] rule-011: 假设优先搜索法
-
-**强制级别**: ⚠️ mandatory
-
-搜索代码前必须先列假设。从本次任务中提炼——17步广撒网搜索可压缩到3步假设驱动验证。
-
-**操作步骤**:
-1. 遇到问题时，先花 2 分钟列出 2-4 个可能的根因假设
-2. 每个假设对应一个关键验证点（1个搜索命令就能确认/排除）
-3. 按'排除成本从低到高'的顺序验证假设
-4. 一旦某个假设被验证为真，立即停止搜索其他假设，进入修复阶段
-5. 禁止'广撒网式搜索'——没有明确目标的搜索是时间黑洞
-6. 示例：ec()不工作？假设A(条件不满足)→搜ec定义看条件；假设B(resumeChat失败)→搜resumeChat实现；假设C(参数缺失)→搜o/h变量来源
-7. 目标：将搜索次数从 O(n²) 降低到 O(n)，n=假设数
-
-### [⚪] rule-013: 复盘是 Return 的前置条件
-
-**强制级别**: ⚠️ mandatory
-
-完成任何实质性工作后（代码修改、补丁实施、问题修复），必须先执行完整复盘流程才能返回最终响应。这是不可跳过的硬性关卡。
-
-**操作步骤**:
-1. **触发条件**: 以下任一事件发生时必须触发复盘 — (1) 补丁已实施并验证通过 (2) 问题已修复 (3) 新功能已完成 (4) 用户反馈已处理 (5) 任何 TodoWrite 标记 completed 时
-2. **禁止跳过**: 即使在 Spec Mode 中 tasks.md 全勾 + checklist.md 全过，也不能直接 Return Final Response。必须先复盘
-3. **四步强制流程**: 回顾(做了什么/几步) → 反思(有没有更快路径/哪些冗余) → 提炼(可复用方法论) → 更新(规则/discoveries)
-4. **违规成本**: 不复盘 = 违反 critical 级规则 = 视同任务未完成
-5. **自检清单**: 在返回最终响应前，必须确认以下全部完成:
-6.    □ 复盘四步是否全部执行？
-7.    □ 是否产出了至少一条可复用的方法论或规则更新？
-8.    □ discoveries.md 是否已更新？
-9.    □ 如果发现了效率问题，rules/workflow.yaml 是否已更新？
-10.    □ status.md 会话日志是否已追加？
-11. **历史教训**: 会话 #14/#15 未复盘、会话 #16 用户要求才复盘、会话 #17 又未复盘——三次违规证明需要更强制的机制
-
-### [⚪] rule-014: 诊断前强制检索已有发现（弯路预防）
-
-**强制级别**: ⚠️ mandatory
-
-遇到任何补丁/崩溃/异常问题时，在开始新调查之前，必须先检索 shared/discoveries.md 中是否已有相关知识。这是从会话 #23 的教训中提炼的硬性规则——AI 重复了前序会话已完成的 ec() 分析、暂停按钮追踪、错误码分类等调查。
-
-**操作步骤**:
-1. 收到问题/日志/错误报告时，第一步不是创建 spec 或派子代理调查
-2. 第一步：用 Grep/SearchCodebase 搜索 shared/discoveries.md 中的关键词
-3. 关键词包括但不限于：错误信息中的关键字、涉及的函数名(如 resumeChat/ec/D.resumeChat)、组件名(如 Alert/if(V&&J))、现象描述词(如 崩溃/消失/暂停/重复)
-4. 将搜索到的已有发现整理成清单，逐条标注与当前问题的关联性
-5. 只有确认 shared/discoveries.md 中没有相关知识后，才能开始新的调查
-6. 如果发现有相关知识但仍然需要深入 → 直接基于已知发现构建假设（遵循 rule-011），而不是从零开始
-7. 违规示例（会话 #23）: 日志显示 'repeated tool call RunCommand 5 times' → 这是 LLM_STOP_DUP_TOOL_CALL → 已在 J 数组和 efg 列表中 → 但 AI 重新分析了 ec() 条件链和按钮状态机，浪费 ~25 分钟
+| ID | 名称 | 优先级 | 说明 |
+|----|------|--------|------|
+| L0-001 | 会话启动必读共享知识库 | 🔴 critical | 先读 _registry.md + skills/_index.md，禁止无背景修改代码 |
+| L0-002 | 操作后写入共享模块 | 🔴 critical | 发现→discoveries.md，决策→decisions.md，完成→status.md |
+| L0-003 | 追加而非重写共享模块 | 🟡 high | 追加新条目，不得删除或覆盖已有条目 |
+| L0-004 | 任务完成后自动复盘 | 🔴 critical | 回顾→反思→提炼→更新→记录 evolution-log.md |
+| L0-005 | 诊断前强制检索已有发现 | 🔴 critical | 先搜 discoveries.md + skills/_index.md，再开始调查 |
 
 ---
 
-## 📦 Git 规范 (Git)
+## L1 — 文件类型触发（6 条）
 
-### [🔴] rule-008: Git 提交信息格式规范
-
-**强制级别**: ⚠️ mandatory
-
-使用标准化的提交信息格式，确保提交历史清晰可追溯
-
-**操作步骤**:
-1. 使用 git add . 暂存所有更改
-2. 使用 git commit -m "[类型] 简要说明" 格式提交
-3. 提交类型包括：[发现] 找到 xxx 在 yyy:zzzz
-4. [功能] 实现了 xxx
-5. [修复] 解决了 xxx 问题
-6. [文档] 更新了 xxx
-7. [测试] 验证了 xxx
-
-### [🔴] rule-009: 强制 Push 规则
-
-**强制级别**: ⚠️ mandatory
-
-每次 commit 后必须立即 push 到 GitHub，防止本地 .git 目录损坏导致历史丢失
-
-**操作步骤**:
-1. 每次执行 git commit 后立即执行 git push
-2. 不要等到最后一起 push，必须逐次推送
-3. 禁止在没有 push 的情况下继续其他操作（如 git merge）
-4. 禁止使用 git add . && git commit 的链式操作而不包含 git push
-
-### [🟡] rule-010: Git 操作风险控制
-
-**强制级别**: 💡 recommended
-
-避免可能导致本地 Git 仓库损坏的危险操作，保护版本历史完整性
-
-**操作步骤**:
-1. 避免使用 git merge 操作（可能损坏本地 .git 目录）
-2. 如果必须合并，先确保已 push 所有本地提交到远程
-3. 定期检查 .git 目录完整性
-4. 重要修改完成后立即备份到远程仓库
-
-### [🟡] rule-011: 正确 Git 操作流程示例
-
-**强制级别**: 💡 recommended
-
-展示正确的 Git 操作顺序和常见错误模式
-
-**操作步骤**:
-1. 正确流程：git add . → git commit -m "..." → git push（立即执行）
-2. 错误流程1：git add . && git commit -m "..."（缺少 push）
-3. 错误流程2：在未 push 的情况下执行 git merge ...（风险高）
-4. 每次 commit-push 完成后再开始下一项工作
+| ID | 名称 | 文件类型 | 优先级 | 说明 |
+|----|------|----------|--------|------|
+| L1-001 | JS 代码使用箭头函数 | *.js, *.jsx, *.ts, *.tsx | 🔴 critical | .catch(e=>{}) 非 .catch(function(e){}) |
+| L1-002 | 补丁定义格式规范 | definitions.json | 🟡 high | anchor + anchor_type + replace_with + fingerprint |
+| L1-003 | 服务层优先于 UI 层 | *.js | 🔴 critical | L2 服务层不受 React 冻结影响 |
+| L1-004 | 搜索优先三原则 | *.js, *.ps1 | 🟡 high | 搜工具→搜方案→搜生态，最后才自己写 |
+| L1-005 | 理解代码之前先用工具映射 | *.js | 🟡 high | 不靠猜，先用搜索工具映射架构 |
+| L1-006 | PowerShell 脚本规范 | *.ps1 | ⚪ medium | 时间戳用 Get-Date，遵循 T1-T4 生命周期 |
 
 ---
 
-## 🛡️ 安全原则 (Safety)
+## L2 — 业务场景智能应用（8 条）
 
-### [🔴] rule-012: 代码修改安全原则
-
-**强制级别**: ⚠️ mandatory
-
-遵循安全最佳实践，确保代码修改不会引入安全风险或泄露敏感信息
-
-**操作步骤**:
-1. 始终遵循安全最佳实践进行代码开发
-2. 绝不引入会泄露密钥或密钥的代码
-3. 绝不将 secrets 或 keys 提交到仓库中
-4. 在修改任何文件前先理解其上下文和现有模式
-
-### [🔴] rule-013: Git 仓库完整性保护
-
-**强制级别**: ⚠️ mandatory
-
-保护本地 Git 仓库免受损坏，防止版本历史丢失
-
-**操作步骤**:
-1. 认识到本地 Git 仓库可能在 merge/rebase 操作中损坏（.git 目录消失）
-2. 理解已有教训：merge 失败导致 .git 损坏 → 所有 commit 历史丢失
-3. 通过强制 push 规则确保每次提交都立即备份到远程
-4. 避免执行可能导致 .git 损坏的高风险操作（如 git merge）
-
-### [🟡] rule-014: 知识共享与防重复工作
-
-**强制级别**: 💡 recommended
-
-通过及时文档更新避免团队重复探索，保护项目知识资产不丢失
-
-**操作步骤**:
-1. 遵循'不要让后面的 AI 重复你已经做过的探索工作'原则
-2. 新发现第一时间写入共享文档，不要延迟或遗漏
-3. 记录排除的错误方向，帮助后续 AI 避免走弯路
-4. 保持 progress.txt 实时更新，方便快速了解项目状态
-
-### [🟡] rule-015: 项目背景认知要求
-
-**强制级别**: ⚠️ mandatory
-
-在缺乏项目背景的情况下直接修改代码可能引入错误和风险
-
-**操作步骤**:
-1. 禁止在不了解项目背景的情况下直接开始修改代码
-2. 修改前必须通过 Anchor 系统获取项目上下文（shared/_registry.md → P0/P1 模块）
-3. 理解现有架构和代码约定后再进行修改
-4. 遵循项目的框架选择、命名规范和编码风格
+| ID | 名称 | 域 | 优先级 | 说明 |
+|----|------|-----|--------|------|
+| L2-001 | DI Token 迁移模式 | DI, Store, SSE | 🟡 high | Store/Parser 用 Symbol()，Facade/Service 用 Symbol.for() |
+| L2-002 | SSE 错误传播链路 | SSE, Error | 🟡 high | 最佳拦截点 ErrorStreamParser.parse()，错误码白名单 |
+| L2-003 | 商业权限判断链 | Commercial, Model | 🟡 high | NS→Nu→MX 链，isFreeUser 在 efi() Hook |
+| L2-004 | 错误码体系 | Error | 🟡 high | kg(56)+efg(14)+J(5)+ee(2)，付费码 4008/4009/700 |
+| L2-005 | Zustand Store 架构 | Store | ⚪ medium | 8 Store + uB Hook + 3 个关键 subscribe |
+| L2-006 | 命令确认双层系统 | SSE, Sandbox, MCP | 🟡 high | 服务层+UI层独立，两层都需补丁 |
+| L2-007 | 假设优先搜索法 | DI, SSE, Error, Commercial | 🟡 high | 先列假设再搜索，禁止广撒网 |
+| L2-008 | 中间层陷阱警告 | SSE, React, Sandbox | 🟡 high | 不假设回调行为，先看内部实现 |
 
 ---
 
-📊 **规则统计**: 共 **28** 条 | ✅ **28** 条启用 | ❌ **0** 条禁用 | 📂 **5** 个类别
+## L3 — 手动/高风险触发（4 条）
 
+| ID | 名称 | 触发条件 | 优先级 | 说明 |
+|----|------|----------|--------|------|
+| L3-001 | 补丁应用流程 | apply-patches, 补丁应用 | 🟡 high | 修改→apply→verify→auto-heal→更新 status |
+| L3-002 | 版本适配流程 | 版本更新, 偏移量漂移 | 🟡 high | unpack→remeasure→检查漂移→更新→apply+verify |
+| L3-003 | Git 提交流程 | git commit | 🟡 high | add→commit→push 立即执行，禁止 merge |
+| L3-004 | 代码修改安全原则 | 代码修改 | 🟡 high | 先理解上下文，不泄露密钥，修改后备份 |
+
+---
+
+📊 **规则统计**: 共 **23** 条 | L0: **5** 条 | L1: **6** 条 | L2: **8** 条 | L3: **4** 条

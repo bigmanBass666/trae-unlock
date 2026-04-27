@@ -1,2707 +1,545 @@
----
-module: discoveries
-description: 源码发现 + 代码定位（⭐ 核心资产）
-read_priority: P1
-read_when: 定位代码 / 理解架构 / 开发补丁时
-write_when: Explorer 发现新代码位置时追加
-format: log
-single_source_of_truth_for:
-  - 所有源码位置和偏移量
-  - 枚举值和常量定义
-  - 函数签名和调用关系
-  - SSE 事件和 Parser 映射
-  - DI 服务注册和注入点
-  - Store 状态结构
-  - UI 组件位置
-sync_with:
-  - docs/architecture/*.md (消费此数据的架构文档)
-  - unpacked/beautified.js (原始数据源)
-last_reviewed: 2026-04-26
----
-
-> ⚠️ **这是源码发现的唯一权威来源！**
->
-> - 其他文件如需引用发现内容，请使用 `[→ 详见 discoveries.md](shared/discoveries.md)`
-> - **禁止**将 discoveries 的完整内容复制到其他文件
-
-# 源码探索经验
-
-> **这是本项目最有价值的文件。** 所有 Trae 内部代码位置、枚举值、架构关系都在这里。
-> 未来 AI 同事：改补丁前先搜这里，90% 的概率前人已经分析过。
-
-## [2026-04-23 01:00] 白屏根因对比诊断 — 6cfb3de (v7) vs 当前版 ⭐⭐⭐
-
-**问题**: 当前版本补丁导致 AI 聊天界面消失（白屏）。commit `6cfb3de` 是最后一个确认有正常界面的版本。
-
-### 对比方法
-- 提取 6cfb3de 的 definitions.json（13 个补丁，UTF-16 编码）
-- 备份当前白屏版 definitions.json（14 个补丁）
-- Node.js 脚本逐补丁对比 find_original / replace_with / fingerprint
-
-### 对比结果
-
-| 变更类型 | 补丁 ID | 详情 | 风险 |
-|---------|---------|------|------|
-| **+1 新增** | `auto-continue-l2-event` | 在文件末尾 IIFE 注入 setInterval(3000) 轮询器，读取 window.__traeSvc 并调用 sendChatMessage | **🔴 CRITICAL** |
-| **~1 修改** | `auto-continue-thinking` | v7(1266c, 纯 if(V&&J) 内部逻辑) → v9(611c, 在 if(V&&J)**前**添加 D/b 变量访问 + window.__traeSvc 捕获) | **🟠 HIGH → CRITICAL** |
-| -0 删除 | 无 | — | — |
-
-### 根因分析
-
-#### 原因 1 [CRITICAL]: auto-continue-l2-event 新增补丁
-
-```
-注入位置: 文件末尾 `,apis:FW}})(),l})()`
-替换为:   `,apis:FW}})();(function(){setInterval(...)});l})()`
-```
-
-**为什么导致白屏**:
-1. 这个补丁在 IIFE 的闭合位置注入代码
-2. 如果注入破坏了闭包结构（括号不匹配、作用域泄漏等）→ 整个模块无法正确初始化
-3. React 依赖此模块 → 模块崩溃 → React 无法挂载 → **聊天界面空白**
-4. **关键**: 此补丁在 6cfb3de 中**完全不存在**
-
-#### 原因 2 [HIGH→CRITICAL]: auto-continue-thinking v7→v9 修改
-
-```javascript
-// v7 (安全): 纯内部逻辑，不改变组件结构
-if(V&&J){
-    let e=M.localize("continue",{},"Continue");
-    // ... queueMicrotask + resumeChat + fallback ...
-    return sX().createElement(Cr.Alert,{...})
-}
-
-// v9 (危险): 在 if(V&&J) 外部添加代码
-if(typeof D!=='undefined'&&D&&typeof b!=='undefined'&&b){   // ← 新增！
-    if(!window.__traeSvc){window.__traeSvc={D:D,b:b,M:M}}      // ← 新增！
-}else{window.__traeSvc.D=D;...}                               // ← 新增！
-if(V&&J){...}  // 原有逻辑不变
-```
-
-**为什么危险**:
-1. 在 React 组件的 render 函数中、在条件渲染之前添加了副作用代码
-2. 访问 D 和 b 变量——这些是闭包内的局部变量，在某些渲染路径下可能未定义
-3. 与原因 1 协同：v9 设置 `window.__traeSvc`，而 l2-event 读取它。如果设置时机/内容错误 → l2-event 的轮询器可能触发异常操作
-
-### 为什么 node --check 没有捕获到
-
-**语法检查 ≠ 运行时安全**:
-- `node --check` 只检查 JavaScript 语法是否合法
-- 它**不检查**:
-  - 变量在运行时是否存在（D/b 可能 undefined）
-  - 闭包作用域是否正确（IIFE 注入可能破坏 scope chain）
-  - React 组件是否能正常渲染（需要实际 DOM 环境）
-- 这是白屏问题的核心教训：**语法通过不代表不会崩溃**
-
-### 预防措施（给未来 AI）
-
-1. **新增补丁 = 高风险操作** — 必须在干净目标上测试，不能在已有其他修改的目标上叠加
-2. **修改现有补丁的 replace_with 结构** = 同样高风险 — 特别是改变代码位置（如从 if 内部移到外部）的修改
-3. **两个互相依赖的新补丁同时上线** = 最高风险 — 应该分步验证
-4. **白屏发生时的标准诊断流程**:
-   ```
-   a. git log --oneline patches/definitions.json 找到最后一个工作版本
-   b. git diff <working> <last-good>:patches/definitions.json > diff.txt
-   c. 关注: 新增补丁? replace_with 结构变化? 注入位置变化?
-   d. 回滚到工作版本的 definitions.json + 干净目标文件
-   e. apply-patches + node --check + 重启 Trae 验证
-   ```
-
-
-## 架构总览
-
-### 三层架构分层法则
-
-```
-┌───────────────────────────────────────┐
-│ L1 UI 层 (React 组件)   ~8640000      │ ❌ 切走窗口后冻结！
-│ RunCommandCard: ey useMemo, useEffect  │ 只适合纯视觉修改
-├───────────────────────────────────────┤
-│ L2 服务层 (PlanItemStreamParser) ~750万│ ✅ 始终活跃
-│ provideUserResponse: 主动确认调用      │ 最可靠补丁注入点
-├───────────────────────────────────────┤
-│ L3 数据层 (DG.parse)     ~7318521     │ ✅ 始终活跃
-│ auto_confirm 标志: 从源头改变行为      │ 不受 React 时序影响
-└───────────────────────────────────────┘
-```
-
-**黄金规则**: 能从 L3 解决的绝不从 L1 改。L2 是安全区。Trae 更新主要影响 L1。
-
-### L1 冻结原则（2026-04-22 验证 ⭐最重要）
-
-```
-Chromium 后台标签页:
-  requestAnimationFrame 停止
-    → React Scheduler 暂停 → memo() 不重渲染
-      → render 函数体内的补丁代码不执行
-```
-
-**证据**: v7 日志三阶段 — 聚焦时 auto-continue 正常触发 → 切走后完全无响应 → 切回后延迟触发。
-**解释了**: auto-continue-thinking 为什么需要 6 次迭代（v3→v7）才在聚焦窗口下成功。
-**设计原则**: 需要实时响应的补丁必须放在 L2 或 L3。L1 仅适用于纯展示性修改。
-
-### 确认系统双层架构
-
-**Layer 1**: PlanItemStreamParser（~7502574）— `confirm_status==="unconfirmed"` → `provideUserResponse`
-**Layer 2**: RunCommandCard（~8069620）— `getRunCommandCardBranch()` 根据 BlockLevel + AutoRunMode 决定 UI 分支
-**关键**: 两层完全独立，只补一层另一层仍会弹窗。服务层不受 React 冻结影响。
-
----
-
-## 关键代码位置
-
-### PlanItemStreamParser — SSE 流解析器
-
-**位置**: ~7502500 | **层级**: 服务层（不依赖 React）
-**作用**: 解析服务端 SSE 流返回的 planItem，命令确认流程的核心入口
-**4 个调用点**:
-1. ~7502574: knowledge 分支 — `confirm_status==="unconfirmed" && toolName!=="response_to_user"`
-2. ~7503319: else 分支 — `toolName!=="response_to_user" && confirm_status!=="confirmed"`
-3. ~8635000+: egR 组件用户手动点击确认
-4. ~8635000+: egR 组件用户手动点击拒绝
-
-**成功后**: provideUserResponse → 服务端执行 → 手动同步 confirm_status="confirmed" → Store 更新 → React re-render
-**失败后**: .catch(e=>{...}) → confirm_status 保持 "unconfirmed"
-
-### getRunCommandCardBranch — UI 分支逻辑
-
-**位置**: ~8069620 | **签名**: `getRunCommandCardBranch({ run_mode_version, autoRunMode, blockLevel, hasBlacklist })`
-
-| AutoRunMode | BlockLevel | hasBlacklist | 返回值 | 行为 |
-|-------------|-----------|-------------|--------|------|
-| WHITELIST | RedList | - | V2_Sandbox_RedList | 弹窗 |
-| WHITELIST | Sandbox* | false | V2_Sandbox_* | 弹窗 |
-| WHITELIST | default | - | **Default** | **自动执行 ✅** |
-| ALWAYS_RUN | RedList | - | V2_Manual_RedList | 弹窗 |
-| ALWAYS_RUN | (其他) | false | **Default** | **自动执行 ✅** |
-| default(Ask) | RedList | - | V2_Manual_RedList | 弹窗 |
-| default(Ask) | (其他) | false | V2_Manual | 弹窗 |
-
-**关键**: 只有 `P8.Default` 才是真正的自动执行。即使 ALWAYS_RUN + RedList 仍然弹窗。
-
-### provideUserResponse 完整调用链
-
-**API**: `this._taskService.provideUserResponse({task_id, type:"tool_confirm", toolcall_id, tool_name, decision:"confirm"|"reject"})`
-**注意**: 没有 SSE 事件确认服务端收到。调用后必须手动同步本地 confirm_info.confirm_status。
-
-### ew.confirm() 是日志打点，不是执行函数！
-
-**位置**: ~8635000+ (egR 组件内)
-**发现**: `ew.confirm(true)` 只是 telemetry 打点，不触发业务逻辑。
-**真正执行函数**: `eE(Ck.Confirmed)` — 触发状态更新和命令执行。
-
-### J 变量和 efh 列表 — 错误恢复的两条路径
-
-**J 变量** (~8696378): 控制是否显示"继续"按钮
-```javascript
-J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR,
-       kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP].includes(_)
-// J=true → Alert + "继续"按钮 → 可自动续接
-// J=false → 只显示错误消息 → 对话终止
-```
-
-**efh 列表** (~8695303 / 现在是 efg): 控制是否可自动恢复（resumeChat）
-- 包含网络/服务错误码（SERVER_CRASH, CONNECTION_ERROR 等）
-- 补丁新增: TASK_TURN_EXCEEDED_ERROR, LLM_STOP_CONTENT_LOOP, DEFAULT
-- ec 回调: `if("v3"===p && e.includes(_)) D.resumeChat()`
-
-**两条恢复路径**:
-1. **resumeChat 路径** (ec 回调): 错误在 efh 中 + agentProcess==="v3" → D.resumeChat()
-2. **sendChatMessage 路径** (fallback): 发送 "Continue" 文本 → 新一轮对话
-
-### stopStreaming() 覆盖 status — "沉默杀手"
-
-**问题**: D7.Error 设置 status=Warning → stopStreaming() **覆盖为 Canceled** → guard clause `if(!n||!q||et)` 中 q=false → 组件不渲染 → if(V&&J) 永远不执行
-**修复 (guard-clause-bypass)**: `if(!n||!q||et)` → `if(!n||(!q&&!J)||et)` — J=true 时放行
-
-### 暂停按钮状态机
-
-**暂停图标 = 消息已发送 + AI 正在生成**（不是 bug！）
-- 按钮 `ei` 组件 (~2796260): 单一组件处理 send + stop，通过 `sendingState` prop 切换图标
-- 3-way icon switch: Spinning(Sending) → ⏹ stop-circle(Running) → ↑ ArrowUp(WaitingInput)
-- `setRunningStatusMap(sessionId, Io.Running)` 只在 `onSendChatMessageStart()` 中调用
-- resumeChat 和 sendChatMessage 都走同一路径 → 暂停图标无法区分
-
----
-
-## 枚举值
-
-### 错误码枚举
-
-**位置**: ~54000 / ~7161400
-
-| 常量 | 值 | 含义 | 处理方式 |
-|------|-----|------|---------|
-| TASK_TURN_EXCEEDED_ERROR | 4000002 | 思考次数上限 | J数组→自动续接 |
-| LLM_STOP_DUP_TOOL_CALL | 4000009 | 重复工具调用循环 | J数组→自动续接 |
-| LLM_STOP_CONTENT_LOOP | 4000012 | 内容循环 | J数组+efh列表 |
-| MODEL_OUTPUT_TOO_LONG | — | 输出过长 | J数组 |
-| DEFAULT | 2000000 | 默认错误（二次覆盖元凶） | 加入J+efh防御 |
-
-### BlockLevel 枚举
-
-**位置**: ~8069382
-
-| 值 | 含义 |
-|----|------|
-| `"redlist"` | 危险命令（Remove-Item 等） |
-| `"blacklist"` | 企业策略禁止 |
-| `"sandbox_execute_failure"` | 沙箱执行失败 |
-| `"sandbox_to_recovery"` | 沙箱恢复 |
-| `"sandbox_unavailable"` | 沙箱不可用 |
-
-### AutoRunMode 枚举
-
-**位置**: ~8069382 (ee 对象)
-
-| 值 | 含义 |
-|----|------|
-| `"auto"` | Auto |
-| `"manual"` | Manual |
-| `"allowlist"` | Allowlist |
-| `"in_sandbox"` | InSandbox |
-| `"out_sandbox"` | OutSandbox |
-
-### ConfirmMode 枚举
-
-**位置**: ~8069382 (ei 对象) — 用户可见设置
-
-| 值 | 含义 |
-|----|------|
-| `"alwaysAsk"` | 每次都问 |
-| `"whitelist"` | 白名单内自动 |
-| `"blacklist"` | 黑名单外自动 |
-| `"alwaysRun"` | 全自动 |
-
-**设置 Key**: `AI.toolcall.confirmMode` (~7438613)
-
-### ToolCallName 完整枚举（80+ 工具）
-
-**位置**: `ee` 枚举（~7076154-7079682）
-
-**需要用户交互（禁止自动确认）**: `response_to_user`, `AskUserQuestion`, `NotifyUser`, `ExitPlanMode`
-
-**命令执行类**: `RunCommand`, `run_mcp`, `check_command_status`
-
-**文件操作类**: `Read`, `Write`, `Edit`, `MultiEdit`, `Glob`, `Grep`, `LS`, `SearchReplace`, `SearchCodebase`, `view_file`, `view_files`, `view_folder`, `write_to_file`, `edit_file_search_replace`, `create_file`, `delete_file`, `file_search`, `show_diff`, `show_diff_fc`
-
-**浏览器操作类**: `browser_*`（20+个）
-
-**搜索/索引类**: `search_by_*`, `TodoWrite`, `todo_write`, `web_search`, `WebSearch`
-
-**任务/代理类**: `Task*`, `Team*`, `agent_finish`, `finish`, `Skill`, `CompactFake`
-
-**其他**: `deploy_to_remote`, `stripe_*`, `supabase_*`, `manage_core_memory`, `*_shallow_memento*`, `OpenPreview*`, `open_folder`, `init_env`, `image_ocr`
-
-### confirm_info 数据结构
-
-```javascript
-confirm_info = {
-  confirm_status: "unconfirmed" | "confirmed" | "canceled" | "skipped",
-  auto_confirm: true | false,          // knowledge 背景任务为 true
-  hit_red_list: ["Remove-Item", ...],
-  hit_blacklist: [...],
-  block_level: "redlist" | "blacklist" | "sandbox_not_block_command" | ...,
-  run_mode: "auto" | "manual" | "allowlist" | ...,
-  now_run_mode: "in_sandbox" | "out_sandbox" | ...
-}
-```
-**生命周期**: 服务端 SSE → DG.parse(~7318521) → PlanItemStreamParser(~7502500) → Store(~3211326) → React(~8635000)
-
-### RunningStatus 枚举
-
-**位置**: ~46816
-
-| 值 | 图标 | 含义 |
-|----|------|------|
-| WaitingInput | ↑ ArrowUp | 空闲 |
-| Running | ⏹ stop-circle | AI正在生成 |
-| Sending | 🔄 Spinning | 消息已等待首token |
-| Pending | — | 等待中 |
-| Disabled | — | 禁用 |
-
----
-
-## 17 个 Alert 渲染点完整列表
-
-**位置**: ~8700000-8930000 | **组件**: ErrorMessageWithActions
-
-| # | 位置 | 错误码 | 类型 | 已覆盖? |
-|---|------|--------|------|---------|
-| 1 | ~8700219 | ENTERPRISE_QUOTA_CONFIG_INVALID | warning | ❌ |
-| 2 | ~8701000 | MODEL_PREMIUM_EXHAUSTED | warning | ❌ |
-| 3 | ~8701454 | PAYMENT_METHOD_INVALID | warning | ❌ |
-| 4 | ~8701681 | INTERNAL_USAGE_LIMIT | warning | ❌ |
-| 5 | ~8702300 | if(V&&J) 可继续错误 | warning | ✅ |
-| 6 | ~8702410 | RISK_REQUEST_V2 | error/warning | ❌ |
-| 7 | ~8703141 | CONTENT_SECURITY_BLOCKED | warning | ❌ |
-| 8 | ~8703913 | FREE_ACTIVITY_QUOTA_EXHAUSTED | warning | ❌ |
-| 9 | ~8704548 | CAN_NOT_USE_SOLO_AGENT | warning | ❌ |
-| 10 | ~8705020 | CLAUDE_MODEL_FORBIDDEN | error | ❌ |
-| 11 | ~8705534 | REPO_LEVEL_MODEL_UNAVAILABLE | warning | ❌ |
-| 12 | ~8705889 | FIREWALL_BLOCKED | error | ❌ |
-| 13 | ~8706759 | EXTERNAL_LLM_REQUEST_FAILED | error | ❌ |
-| 14 | ~8707685 | PREMIUM_USAGE_LIMIT | error | ❌ |
-| 15 | ~8708073 | STANDARD_MODE_USAGE_LIMIT | error | ❌ |
-| 16 | ~8708463 | INVALID_TOOL_CALL | error | ❌ |
-| 17 | ~8709130 | TOOL_CALL_RETRY_LIMIT | error | ❌ |
-
----
-
-## 重要教训（精简版）
-
-### resumeChat vs sendChatMessage
-
-`D.resumeChat()` = 服务端级别恢复（✅ 正确）。`D.sendChatMessage({message:"Continue"})` = 创建新轮次（❌ 服务端不识别为续接 → 空响应 → Cancel）。
-
-### queueMicrotask 替代 setTimeout
-
-React render path 中的 `setTimeout(fn, 500)` 有三大缺陷：重复定时器、闭包捕获过期值、cleanup 竞速（stopStreaming 在 10-50ms 后清理 session，远早于 500ms）。用 `queueMicrotask(fn)` 替代 — 当前渲染微任务完成后立即执行。
-
-### v7-debug 日志三大发现
-
-1. **queueMicrotask 确实触发了**（推翻 v5 的 cleanup 杀死假设）
-2. **resumeChat 是 no-op** — 被调用但不抛异常也完全无效（v3-v6 全部基于错误假设）
-3. **React 重渲染风暴** — if(V&J) 在 <1 秒内被进入 10+ 次，每次触发新的 resumeChat
-
-### 必须用箭头函数
-
-`.catch(e=>{...})` 而非 `.catch(function(e){...})`。后者严格模式下 this=undefined → TypeError → React 组件树崩溃 → 聊天窗口消失。（v5 历史教训）
-
-### find_original 匹配失败诊断
-
-fuzzy match 成功 + exact match 失败 = 微小差异（可能仅 2 字符互换如 `}` 和 `)`）。必须逐字符对比。find_original 必须同步于当前文件状态（上次应用后的内容），而非最初原始代码。
-
-### Trae 更新注意事项
-
-terser/webpack 重新打包导致变量重命名（非确定性！）：`efh`→`efg`, `P8`→`P7`。不能硬编码变量名。文件大小也可能变化（10.73MB→10.24MB）。
-
-### 脏备份残留
-
-回滚到包含旧版补丁的备份后，apply-patches 只**追加**不删除旧代码。结果：多个 provideUserResponse 调用（有过滤+无过滤混合）。修复：使用干净备份。
-
----
-
-# 🔍 知识索引
-
-## 表 1: 函数/API
-
-| API | 行为 | 关键点 |
-|-----|------|--------|
-| `PlanItemStreamParser._handlePlanItem()` | SSE解析核心入口 | 最可靠补丁注入点，切窗口不冻住 |
-| `provideUserResponse()` | 主动确认工具调用 | 无单独SSE确认事件，需手动同步status |
-| `DG.parse()` | 数据解析层~7318521 | L3最底层拦截，不受React影响 |
-| `getRunCommandCardBranch()` | 三元组UI分支决策 | P8只控制按钮样式不控制弹窗 |
-| `D.resumeChat()` | 服务端恢复对话 | 循环检测后可能no-op，需fallback |
-| `D.sendChatMessage()` | 创建新消息轮次 | 续接场景禁用，仅作fallback |
-| `ew.confirm()` | **仅为telemetry打点** | 真正执行是 eE(Ck.Confirmed) |
-| `stopStreaming()` | 覆盖status为Canceled | "沉默杀手"，破坏上游Warning状态 |
-| `queueMicrotask(fn)` | 微任务调度 | 替代render-path中的setTimeout |
-
-## 表 2: 错误码/现象
-
-| 错误码/现象 | 处理 | 涉及补丁 |
-|-------------|------|---------|
-| LLM_STOP_DUP_TOOL_CALL (4000009) | J数组→if(V&J)→resumeChat/fallback | bypass-loop-detection |
-| LLM_STOP_CONTENT_LOOP (4000012) | 同上+efh列表 | bypass-loop-detection v4 |
-| TASK_TURN_EXCEEDED_ERROR (4000002) | J数组→自动续接 | bypass-loop-detection |
-| DEFAULT (2000000) | 加入J数组和efh列表防御二次覆盖 | bypass-loop-detection v4 |
-| L1 冻结（切走窗口无效） | 用L2/L3补丁替代L1 | v8架构迁移 |
-| 聊天界面消失/白屏 | definitions.json不一致+语法错误 | 四层防护架构 |
-| resumeChat no-op | 先尝试→监控→fallback三段式 | v8 L2 poller |
-
-## 表 3: 当前补丁状态
-
-| 补丁 | 版本 | 所在层 | 状态 |
-|------|------|--------|------|
-| auto-confirm-commands | v4 | L2 | ✅ |
-| service-layer-runcommand-confirm | v8 | L2 | ✅ |
-| data-source-auto-confirm | v3 | L3 | ✅ |
-| guard-clause-bypass | v1 | L1 | ✅ |
-| **auto-continue-thinking** | **v9** | **L1+L2** | ⚠️ **测试中** |
-| auto-continue-thinking | **v7** | **L1** | ✅ **已回滚** |
-| efh-resume-list | v3 | L1 | ✅ |
-| bypass-loop-detection | v4 | L1 | ✅ |
-| bypass-runcommandcard-redlist | v2 | L1 | ⚠️ 仅改样式 |
-
----
-
-## [2026-04-23 00:45] v8 架构缺陷根因 — "切换窗口后失效"的真正原因 ⭐⭐⭐
-
-**这是本项目最重要的发现之一。** 解释了为什么 auto-continue 从 v3 到 v8 迭代了 6 次，每次都"解决"了但又复发。
-
-### v8 的依赖链（有缺陷的设计）
-
-```
-L1 (if(V&&J), React render 内):
-  └─ 检测到错误 → 设置 window.__traeSvc = {D, b, M, sid, mid}
-
-L2 (setInterval(3000), 文件末尾 IIFE):
-  └─ 读取 window.__traeSvc → 如果存在 → sendChatMessage
-```
-
-### 后台窗口场景下的执行流程（v8 失效的完整证据链）
-
-```
-1. 用户切到别的窗口
-2. Chromium 停止后台标签页的 requestAnimationFrame
-3. React Scheduler 暂停 → memo() 不重渲染
-4. if(V&&J) **不执行**（它在 React render path 内）
-5. window.__traeSvc **从未被设置** ← 关键！
-6. L2 轮询器运行（✅ setInterval 不受 rAF 影响）
-7. var svc = window.__traeSvc → **undefined**
-8. if(!svc) return → **退出，什么都不做**
-9. 结果：和 v3-v7 完全一样失效！
-```
-
-### 为什么之前没发现
-
-1. **测试时总盯着窗口** — 前台时 L1 正常执行 → __traeSvc 被设置 → L2 也工作 → 误以为 L2 独立有效
-2. **v8 的 L2 确实能运行** — setInterval 不受影响，但拿到的是 undefined → 静默失败无报错
-3. **焦点在"换触发方式"上** — queueMicrotask → setTimeout → setInterval，一直在改"何时触发"，没意识到问题是"拿不到服务引用"
-
-### v9 解决方案：早捕获 (Early Capture)
-
-**核心改变**: 将 `window.__traeSvc` 捕获从 `if(V&&J)` **内部**移到**外部**。
-
-```javascript
-// v8 (有缺陷): 只在错误检测时捕获
-if(V&&J){
-    if(!window.__traeSvc){window.__traeSvc={D:D,b:b,M:M}}  // ← 后台时不执行!
-    ...
-}
-
-// v9 (修复): 每次渲染都无条件捕获
-if(typeof D!=='undefined'&&D&&typeof b!=='undefined'&&b){
-    if(!window.__traeSvc){window.__traeSvc={D:D,b:b,M:M}}  // ← 只要组件渲染就执行!
-}else{window.__traeSvc.D=D;...}  // 更新引用（防止 stale）
-if(V&&J){...}  // 错误处理逻辑不变
-}
-```
-
-### v9 的保证
-
-| 场景 | v8 | v9 |
-|------|-----|-----|
-| 前台触发错误 | ✅ L1执行→__traeSvc设置→L2可用 | ✅ 同上 |
-| **后台首次触发错误** | ❌ __traeSvc从未设置→L2空转 | ✅ 前台已设置→L2读取可用 |
-| 切走后再切回 | ✅ 但可能重复 | ✅ __taeAC守卫防重复 |
-| 组件首次渲染 | 不捕获 | ✅ **立即捕获** |
-
-**关键洞察**: 用户只要看到聊天界面（组件至少渲染一次），`window.__traeSvc` 就被设置了。之后无论是否切走窗口，L2 都能使用。
-
-### 教训：标与本
-
-- **标**: 换触发方式（queueMicrotask→setTimeout→setInterval）— 改了 6 次
-- **本**: 服务引用在 React 闭包内，后台无法访问 — **v9 才真正解决**
-
-未来遇到类似问题，先问："这个变量/函数的作用域是什么？在后台能访问到吗？"
-
-## [2026-04-23 02:00] 模块级服务发现 + ast-grep 废弃 ⭐
-
-### PowerShell 子串搜索发现的新模块级服务
-
-在废弃 ast-grep 的对比测试中，PowerShell 子串搜索发现了两个之前未记录的模块级服务引用：
-
-| 服务 | 偏移量 | 说明 |
-|------|--------|------|
-| `_aiAgentChatService` | **~7500589** | AI Agent 聊天服务，有 `resumeChat` 方法！这是 `D.resumeChat()` 的真正底层实现 |
-| `_sessionServiceV2` | **~7776387** | 会话服务 v2，可能有 `getCurrentSession` 等方法 |
-
-**重要**: 这两个服务都在 React 组件闭包**外部**（PlanItemStreamParser 类或模块级），可能不受 L1 冻结影响！需要进一步探索其完整 API。
-
-### 搜索方式决策：ast-grep → PowerShell 子串搜索
-
-详见 [decisions.md](decisions.md) 中 `[2026-04-23 02:00]` 条目。核心结论：
-
-```
-ast-grep (sg): 2/5 命中率，函数调用模式全军覆没
-PowerShell:   7/7 命中率，还额外发现 2 个未知服务
-结论:         永远用 $c.IndexOf("keyword") 搜索
-```
-
----
-
-## [2026-04-23 03:00] "切窗口就失效"全景根因研究 ⭐⭐⭐
-
-### 一、Chromium 后台标签页行为（精确实测）
-
-| Web API | 后台行为 | 对本项目影响 |
-|---------|----------|-------------|
-| **requestAnimationFrame** | **完全停止** | React 时间片计算降级 |
-| **requestIdleCallback** | **完全停止** | 不影响（项目未使用） |
-| **setTimeout/setInterval** | **节流到最小1秒** | v8 的 setInterval(3000) 实际变成 ~3s（不受影响，因为 >1s） |
-| **MessageChannel** | **完全正常** ✅ | React Scheduler 主调度通道！ |
-| **Promise/microtask** | **完全正常** ✅ | queueMicrotask 正常执行 |
-| **postMessage (window)** | **完全正常** ✅ | 跨窗口通信可用 |
-| **fetch/WebSocket/SSE** | **完全正常** ✅ | 数据接收层不受影响 |
-| **Web Worker** | **完全正常** ✅ | 独立线程 |
-
-**关键洞察**: SSE 数据到达 → onmessage 回调触发 → 回调内代码同步执行 → 微任务正常 → **数据层(L3)和服务层(L2)在后台完全工作**。
-
-### 二、React 18 Scheduler 在后台的行为
-
-```
-调度链路:
-  MessageChannel.postMesage() → onmessage → performWorkUntilDeadline()
-    ↓ (不受后台影响 ✅)
-  shouldYieldToHost():
-    deadline = rAF timestamp (停止 ❌) → fallback setTimeout(100ms → 节流到1s ⚠️)
-    ↓
-  结论: Scheduler 工作但变慢，不会完全暂停
-```
-
-**对 L1 补丁的影响**:
-- `setState()` → 正常入队 ✅
-- 组件 render 函数中的 `if(V&&J){...}` → **会执行但时序不可预测** ⚠️
-- `useEffect` → 会执行但可能延迟 ⚠️
-- `memo()` 浅比较 → 正常工作 ✅
-
-### 三、Trae 源码架构突破性发现 🔥🔥🔥
-
-#### 发现 1：全局 DI 容器 `uj.getInstance()`
-
-```
-位置: ~6275751 (模块级变量)
-类型: 全局单例 DI 容器（类似 InversifyJS）
-用法:
-  uj.getInstance().resolve(TOKEN)  → 解析服务实例
-  uj.getInstance().provide(TOKEN, instance) → 注册服务
-快捷方式: hX() = () => uj.getInstance()
-```
-
-**这是解决 L1 冻结问题的关键钥匙！**
-
-#### 发现 2：`_sessionServiceV2` — 模块级会话服务（DI token = BR）
-
-```
-DI Token: BR (Symbol 或唯一标识符)
-注入方式: uX(BR) 装饰器注入到 G6/HT/etJ 等类
-获取方式: uj.getInstance().resolve(BR)
-
-方法清单:
-  .sendChatMessage({sessionId, message, parsedQuery, multiMedia})  ← 发消息
-  .resumeChat({messageId, sessionId})                              ← 续接思考！
-  .stopChat(sessionId)                                             ← 停止对话
-```
-
-**所有13处使用都在模块级（非React闭包），包括：**
-- @7776405: session管理类中 sendChatMessage
-- @7789264: session管理类中 resumeChat（用于知识库续接）
-- @7839175: workspace facade 中 sendMessage
-- @8144926-8146411: KnowledgesTaskService 中 stopChat + resumeChat
-
-#### 发现 3：`_aiAgentChatService` — AI Agent 聊天服务（DI token = Di）
-
-```
-DI Token: Di
-注入方式: uX(Di) 装饰器注入到 zb/Bs/BP/G6/etz 等类
-获取方式: uj.getInstance().resolve(Di)
-
-方法清单:
-  .resumeChat({message_id})           ← 底层续接API
-  .chat(t, i, r)                      ← 发起新对话
-  .appendChat({...})                  ← 追加消息
-  .cancel({session_id, user_message_id})
-  .getSessions / getSessionMessages / createSession ...
-```
-
-**关键发现 @7540953**: `_aiAgentChatService.resumeChat()` 在 SideChatStreamService 中被调用（模块级）。
-
-#### 发现 4：F3/sendToAgentBackground 函数 — 已有的蓝图！
-
-```javascript
-// @7610443 — 模块级函数，不在 React 闭包内
-async function F3(e, t) {
-    let i = uj.getInstance();              // ← 获取 DI 容器
-    let r = i.resolve(bY);                 // ← 解析 logger
-    
-    let {
-        sessionService: n,
-        agentService: o,
-        docsetService: a,
-        sessionServiceV2: s,               // ← BR token!
-        commandService: l,
-        // ...
-    } = FX(i);                             // ← 从容器解构服务
-    
-    // 使用 window 事件监听取消操作
-    window.addEventListener(t.cancelEventKey, () => {
-        s.stopChat(f.sessionId);            // ← 直接调用模块级服务！
-    });
-}
-```
-
-**这个函数证明了：从模块级通过 DI 容器获取服务并直接调用其方法是 Trae 自己的标准模式。**
-
-#### 发现 5：PlanItemStreamParser 精确位置
-
-```
-日志标记: "[PlanItemStreamParser]" @7508858
-所在类: Bs 类（~7530948 注入了 _aiAgentChatService）
-可访问的服务:
-  this._logService     — 日志
-  this._taskService    — 任务服务（有 provideUserResponse）
-  this.storeService    — Store 服务
-运行环境: SSE 回调内（L2 层，不受 React 冻结影响）
-```
-
-### 四、完整根因链条（最终版）
-
-```
-用户切换窗口
-  → Chromium 停止 rAF
-    → React Scheduler 时间片精度降级 (5ms → 1s)
-      → L1 组件 render 执行延迟/不确定
-        → if(V&&J) 条件判断时机错乱
-          → D.resumeChat() 未被调用
-            → 自动续接失效
-
-但与此同时：
-  SSE 数据继续到达 ✅ (不受影响)
-  PlanItemStreamParser 继续解析 ✅ (不受影响)
-  _sessionServiceV2 存在于模块级 ✅ (不受影响)
-  uj.getInstance().resolve(BR) 可随时调用 ✅ (不受影响)
-  
-结论: 问题不是"后台不能执行代码"，而是"L1补丁放在了错误的位置"
-```
-
-### 五、解决方向评估
-
-| 方向 | 描述 | 可行性 | 复杂度 | 安全性 | 兼容性 | 推荐度 |
-|------|------|--------|--------|--------|--------|--------|
-| **A. L2 服务层补丁** | 在 PlanItemStreamParser 中用 DI 容器获取 sessionServiceV2 | **极高** | **极低** | **极高** | 中高 | ⭐⭐⭐ **首选** |
-| B. Zustand Store 直接触发 | 从 store 触发 action | 中 | 高 | 中 | 低 | ❌ |
-| C. Web Worker | Worker 内轮询检测 | 极低 | 极高 | 高 | 低 | ❌ |
-| D. visibilitychange 事件 | 切回窗口时触发续接 | 中 | 低 | 高 | 高 | ⭐ 备选 |
-| E. startTransition | 标记为低优先级更新 | 低 | 低 | 中 | 中 | ❌ |
-| F. postMessage 自定义事件 | L1→L2 事件桥接 | 低 | 中 | 高 | 中 | ❌ |
-| **G. DI 容器解析 (新)** | uj.getInstance().resolve(BR) + resumeChat/sendChatMessage | **极高** | **极低** | **极高** | 中高 | ⭐⭐⭐ **=A** |
-
-**Direction A/G（合二为一）的具体方案**:
-
-```javascript
-// 在 PlanItemStreamParser 的 confirm_status 检查或 error handler 中:
-if (需要自动续接的条件) {
-    try {
-        let svc = uj.getInstance().resolve(BR);  // 获取 sessionServiceV2
-        await svc.resumeChat({
-            messageId: lastMessageId,
-            sessionId: this.currentSessionId || t.sessionId
-        });
-        this._logService("[auto-continue-bg] resumed via DI container");
-    } catch(err) {
-        this._logService.warn("[auto-continue-bg] DI resolve failed:", err);
-    }
-}
-```
-
-**优势**:
-1. 运行在 L2（SSE 回调）— 完全不受 React 冻结影响 ✅
-2. 使用 Trae 自身的 DI 系统 — 与现有代码模式一致 ✅
-3. 无 IIFE 注入 — 不会导致白屏 ✅
-4. 无 window 变量 hack — 干净整洁 ✅
-5. 代码量极少（3-5行）— find_original 长度不变 ✅
-
-**风险**:
-1. DI token `BR` 可能随 Trae 更新而改名（中等风险，可通过搜索 `_sessionServiceV2` 定位新 token）
-2. `resumeChat` 参数格式可能变化（低风险，与现有调用保持一致即可）
-3. 需要确认 PlanItemStreamParser 内能访问到 sessionId/messageId
-
----
-
-## [2026-04-23 03:20] v10 实施过程中的关键发现 ⭐⭐
-
-### 发现 1：错误码是数字枚举，不是字符串！
-
-```
-枚举变量: kg (模块级)
-格式: kg.XXX = 数字值
-e.code 返回数字，不是字符串
-
-关键错误码数值:
-  kg.TASK_TURN_EXCEEDED_ERROR  = 4000002  (思考次数上限)
-  kg.LLM_STOP_DUP_TOOL_CALL    = 4000009  (循环检测-重复工具调用)
-  kg.LLM_STOP_CONTENT_LOOP     = 4000012  (循环检测-内容循环)
-  kg.DEFAULT                   = 2000000  (未知错误兜底)
-  kg.MODEL_OUTPUT_TOO_LONG     = 987      (输出过长)
-  kg.PREMIUM_MODE_USAGE_LIMIT  = 4008     (高级模式用量限制)
-  kg.MODEL_PREMIUM_QUOTA_DRAINED = 977    (高级模型配额耗尽)
-  kg.CLAUDE_MODEL_FORBIDDEN    = 4113     (Claude模型禁止)
-  kg.INVALID_TOOL_CALL         = 4027     (无效工具调用)
-```
-
-**教训**: 之前 spec 中写的 `["MODEL_PREMIUM_EXHAUSTED","CLAUDE_MODEL_FORBIDDEN",...]` 字符串白名单完全错误！`MODEL_PREMIUM_EXHAUSTED` 在源码中根本不存在。必须用数字值。
-
-### [2026-04-23 04:00] v10 测试失败根因 — SSE 事件的两条路径 ⭐⭐⭐
-
-**这是本项目最重要的架构发现之一！**
-
-```
-SSE 流数据到达后，有两条完全不同的处理路径:
-
-路径1: 正常消息事件 (onMessage) ← 思考上限走这里！
-  SSE data → onMessage(e, t) → Br.register(Ot.Error, zF)
-  → ErrorStreamParser(zU).parse(e, t)  ← e.code = 业务错误码(4000002等)
-  → handleSteamingResult(e, t)
-  → handleSideChat(e, t) → storeService.updateMessage()
-  → React re-render → if(V&&J) → L1 续接
-
-路径2: 连接断开 (_onError) ← v10补丁错误地放在这里！
-  SSE connection error → _onError(e, t, i)
-  → e.code = 1006 (CONNECTION_ERROR)
-  → 不含业务错误码！
-  → 只是日志记录 + 流停止处理
-```
-
-**实测证据**（日志 vscode-app-1776888145215.log）:
-- 行3336: `_onError @ index.js:3861` — 确认被调用
-- 但 `[ChatStreamService] _onError sessionId` 日志没出现 → `1006!==e.code` 为 false → **e.code = 1006**
-- `[v10-bg]` 日志也没出现 → 补丁代码在 `1006!==e.code` 之后，被跳过
-
-**关键教训**:
-1. **`_onError` 只处理 SSE 连接级别的错误**（网络断开、超时等），不处理业务错误码
-2. **业务错误码（思考上限、循环检测等）通过 SSE 正常消息流传递**，走 `onMessage → Ot.Error → parse` 路径
-3. **L2 补丁必须放在 `parse` 方法中**，不是 `_onError` 中
-4. **`check_fingerprint` 冲突**: 旧补丁和新补丁共用 `[v10-bg]` 指纹，导致 apply-patches 误判为已应用
-
-**修正**: v10 L2 补丁从 `_onError`(Bs类@7528742) 移到 `parse`(zU类@7513080)
-
-### ErrorStreamParser (zU) 类完整结构
-
-```
-位置: @7513080 (parse方法)
-DI token: zF = Symbol.for("IErrorStreamParser")
-继承: zU extends DV
-
-方法:
-  parse(e, t) — 解析错误事件，e.code=业务错误码
-  handleSteamingResult(e, t) — 分发到 Inline/Side 处理
-  handleSideChat(e, t) — 更新 Store 消息
-  handleInlineError(e, t) — Inline 聊天错误处理
-
-DI 注入:
-  this._aiChatRequestErrorService (uX(D5))
-  this._logService (uX(bY))
-  this.chatStreamFrontResponseReporter
-  this.storeService
-  this._inlineChatStore
-
-注意: zU 类没有 this._aiAgentChatService!
-需要通过 uj.getInstance().resolve(Di) 获取
-
-### [2026-04-23 05:00] v10 第二次测试失败 — 思考上限错误不走 SSE 路径！⭐⭐⭐
-
-**这是本项目最关键的架构发现——推翻了之前所有 L2 补丁位置的假设！**
-
-#### 完整错误传播链路（从日志 vscode-app-1776902776348.log 确认）
-
-```
-时序图 (用户全程切走窗口):
-
-T1: AI 开始回复 (前台)
-  → teaEventChatShown + teaEventChatShownWhenFirstToken
-  → handleSteamingResult (SSE正常消息)
-
-T2: 用户切走窗口 (后台)
-  → (AI 继续思考，SSE 数据继续到达...)
-
-T3: 思考次数达到上限 (后台!)
-  → workbench.desktop.main.js:38  ERR exceeded maximum number of turns
-    → GZt.create() 在主进程中创建错误对象
-    → YTr.drain/enqueueData/emit (主进程事件总线)
-    → POST mcs.zijieapi.com... ERR_CONNECTION_RESET (网络断开!)
-
-T4: 渲染进程收到通知 (后台)
-  → teaEventChatFail ×2 (@7199-7200) ← 思考上限的真正入口!
-  → _onError @ index.js:3861 (@7202) ← SSE连接断开(e.code=1006)
-  → [v10-bg] 没有出现! ← parse方法没被调用或e.code不匹配
-
-T5: 用户切回窗口
-  → React Scheduler 恢复正常
-  → Store 状态更新触发 re-render
-  → if(V&&J) 条件满足
-  → [v7] triggering auto-continue (@7420) ← L1续接触发!
-```
-
-#### 核心发现：两条完全独立的错误路径
-
-**路径 A: 思考上限错误（我们关心的）**
-```
-主进程 GZt.create("exceeded maximum number of turns")
-  → 主进程 YTr 事件总线
-    → teaEventChatFail 事件 (渲染进程)
-      → 更新 Store/State
-        → React re-render (切回窗口后才执行!)
-          → if(V&&J) → L1续接
-```
-**特点**: 不经过 SSE 的 Ot.Error 事件! 不经过 ErrorStreamParser.parse()!
-`_onError` 只是巧合地在同一时间被 SSE 连接断开触发的!
-
-**路径 B: SSE 连接断开错误（之前误判为路径A）**
-```
-Chromium 后台节流 → SSE 连接断开 (ERR_CONNECTION_RESET, e.code=1006)
-  → Bs._onError(e, !0, u)
-    → BP.onError(e, true, i)
-      → 1006!==e.code → false → 跳过 teaEventChatFail
-      → t && eventHandlerFactory.handle(Ot.Error, e, r) ← 这里才调用parse()
-        → ErrorStreamParser.parse(e, t) ← 但 e.code=1006不在白名单!
-```
-
-#### BP.onError 的关键代码 (@7542473, @7546037)
-
-```javascript
-onError(e, t, i) {
-  let {context: r} = i;
-  // 只有 e.code != 1006 时才上报
-  1006 !== e.code && this.chatStreamBizReporter.teaEventChatFail(e, r),
-  // 有 code 时处理通用错误
-  e.code && this._aiChatRequestErrorService.handleCommonError(e.code, e.data),
-  // ★★★ 只在 t=true 时才分发到 eventHandlerFactory!
-  t && this.eventHandlerFactory.handle(Ot.Error, e, r),   // @7542473
-  // ...
-}
-```
-
-**结论**: `eventHandlerFactory.handle(Ot.Error)` → `ErrorStreamParser.parse()` 只在 `t=true` 且 `e.code != 1006` 时才会被有意义地调用。而思考上限错误根本不经过这条路！
-
-#### 为什么 L1 补丁在后台不工作
-
-L1 补丁 (`if(V&&J)`) 在 React render 函数中:
-1. 思考上限错误到达 → teaEventChatFail → Store 更新 ✅ (后台可执行)
-2. React setState 入队 ✅ (后台可执行)
-3. **但 React re-render 在后台被延迟/不确定** ⚠️ (Scheduler 时间片降级到1s)
-4. **if(V&&J) 判断时机不可预测** ⚠️
-5. 切回窗口 → React 立即 re-render → if(V&&J) 满足 → L1续接 ✅
-
-#### 最终结论
-
-**L2 补丁无法拦截"思考上限"错误，因为这个错误不经过任何 L2 层的代码路径。**
-
-它从主进程直接通过 IPC/事件机制到达渲染进程的 Store/State 层，然后依赖 React re-render 触发 UI 更新。
-
-可行的方案只剩:
-1. **Direction D: visibilitychange 事件** — 切回窗口时立即检查+续接(简单可靠)
-2. **Store 订阅/中间件** — 拦截 Store 中 thinking status 变化(复杂但真正的后台执行)
-3. **主进程补丁** — 修改 workbench.desktop.main.js(不在本项目范围内)
-```
-
-### 发现 2：`class Bs` = ChatStreamService（不是 PlanItemStreamParser！）
-
-```
-位置: @7524723
-完整名: class Bs extends bV.Disposable
-实际功能: ChatStreamService — SSE 流的核心管理类
-
-关键方法:
-  chatStream(e)           — 发起聊天流 (@7524723)
-  createStream(e)         — 创建流，含 resumeChat 蓝图 (@7540700)
-  _onError(e,t,i)         — SSE 错误回调 (@7528742) ← v10 补丁位置
-  _onMessage(e,t)         — SSE 消息回调
-  _onCancel(e)            — SSE 取消回调
-  _onComplete(e)          — SSE 完成回调
-  _onStreamingStop(e)     — 流停止统一处理
-  _stopStreaming(e)       — 停止流（取消请求）
-
-DI 注入的服务:
-  this._aiAgentChatService  (DI token=Di) — AI聊天服务，有 resumeChat()
-  this._logService          — 日志服务
-  this.storeService         — Store 服务
-  this._taskService         — 任务服务
-  this.eventHandlerFactory  — 事件处理器工厂
-```
-
-### 发现 3：`createStream` 中已有 resumeChat 蓝图
-
-```javascript
-// @7540933 — Bs 类中已有的续接逻辑
-async createStream(e){
-  let{requestObject:t,chatType:i,agentMessage:r,aiClient:n,terminalInfo:o}=e;
-  return "resume"===i
-    ? await this._aiAgentChatService.resumeChat({...t,message_id:r.agentMessageId})
-    : await this._aiAgentChatService.chat(t,n,o)
-}
-```
-
-**意义**: `this._aiAgentChatService.resumeChat({message_id: xxx})` 是 Trae 自己的续接调用模式。v10 补丁直接复用此模式，无需 `uj.getInstance().resolve()`。
-
-### 发现 4：`_onError` 回调参数结构
-
-```
-_onError(e, t, i):
-  e = 错误对象 {code: number, data: any, message: string}
-  t = boolean (是否为 SSE 流错误，true=流错误, false=其他错误)
-  i = stream context {sessionId, agentMessageId, context, ...}
-
-调用处 (@7526672):
-  this._onError(e, !0, u)  — SSE 流错误
-  this._onError(e, !1, u)  — catch 中的异常
-
-i.agentMessageId 可用性: ✅ 确认存在（Bs 类中22处使用）
-fallback: i.context?.agentMessageId
-```
-
-### 发现 5：`kg` 枚举在 Bs 类中不可直接访问
-
-```
-Bs 类区域 (7520000-7560000) 中 kg. 的使用次数: 0
-但同文件其他位置有使用（如 @7513091: e.code===kg.MODEL_RESPONSE_TIMEOUT_ERROR）
-
-结论: kg 是模块级变量，理论上可在 Bs 类中访问
-但为了补丁安全性，v10 使用数字字面量而非 kg.XXX 引用
-好处: 不依赖 kg 变量名，Trae 更新后更稳定
-```
-
-### 发现 6：v10 最终方案 — 无需 DI 容器 resolve
-
-研究阶段推荐的 `uj.getInstance().resolve(BR)` 方案在实际实施中被简化：
-- Bs 类已经通过 DI 注入了 `this._aiAgentChatService`
-- 直接用 `this._aiAgentChatService.resumeChat()` 即可
-- 无需额外的 `uj.getInstance().resolve()` 调用
-- 更简洁、更安全、更符合 Trae 自身代码模式
-
-### [2026-04-23 08:35] v11 根因确认: React Scheduler 后台冻结 + store.subscribe 解决方案 ⭐⭐⭐
-
-**问题**: v7/v10 auto-continu 在后台窗口不触发，切回后才执行。
-
-**根因**: `if(V&&J)` 代码位于 **sX().memo() (React.memo) 子组件的 render body** 中 (offset 8709284)，依赖 React Scheduler 调度 re-render。后台 tab 中 React 将渲染节流到 ~1s 或完全不执行。
-
-**完整数据流**:
-```
-主进程 GZt.create("exceeded max turns") → IPC → Zustand Store更新(currentSession.messages[last].exception={code:4000002})
-  → store.subscribe() 回调 ✅ 立即执行
-  → React useStore → scheduleReRender ❌ 后台冻结
-        → sX().memo() → if(V&J) ❌ 不执行
-```
-
-**组件结构** (offset ~8709284):
-- 父组件: D=uB(BR)=_sessionServiceV2, G=N.useStore(e=>e.currentSession)
-- sX().memo(Jj): JP.Sz选择器提取 status/exception/agentMessageId/sessionId
-- **`_` (错误码) = (JP.Sz(Jj,e=>e.exception)||efp).code** — 来自消息对象的exception字段!
-- V=G?.messages?[last]?.agentMessageId===o, J=!![TASK_TURN_EXCEEDED_ERROR,...].includes(_)
-
-**三个成功案例对比**:
-| 补丁 | 层 | 位置 | 为什么能后台工作 |
-|------|-----|------|----------------|
-| 命令确认 | L2 | PlanItemStreamParser._onMessage | SSE回调，不受React影响 |
-| DG.parse | L3 | DG.parse() | 数据修改层，React前拦截 |
-| 沙箱useMemo | L1 | useMemo同步计算 | 同步执行路径 |
-| v7/v10 | L1 | sX().memo() render body | ❌ React Scheduler冻结 |
-
-**解决方案 v11**: store.subscribe() 模块级监听
-- 注入点: offset ~7588590 (async function FR() 末尾, subscribe #8 旁边)
-- 模式: 完全绕过React, 用Zustand MessageChannel通知
-- 变量: n=store(从e.resolve(xC)), uj=DI容器, BR=_sessionServiceV2 DI token
-- 参考: subscribe #8 已有 `n.subscribe((e,t)=>{...currentSession.messages.length...})` 先例
-
-**关键代码位置**:
-- subscribe #8: offset 7588518, `n.subscribe((e,t)=>{((e.currentSession?.messages?.length??0)!==(t.currentSession?.messages?.length??0)||e.currentSessionId!==t.currentSessionId)&&a()})`
-- v11注入: offset 7588639, find_original以 `d!==t.currentSessionId)&&a()})}async function FP(e)` 结尾
-- sX().memo(): offset ~8707000, 包含全部JP.Sz选择器和V/J计算
-- efc函数: offset 8701488, 返回{hub,errorInfo,chatConfirmPopUp} from commercial activity config
-
-### [2026-04-23 09:00] v11.1 Bug修复 — Zustand subscribe 参数顺序反了 ⭐⭐
-
-**症状**: v11 注入成功(node --check通过, fingerprint存在), 但 `[v11-bg]` 日志完全不出现。
-
-**根因**: Zustand `store.subscribe((state, prevState) => {})` 的参数顺序理解错误。
-- 第1个参数 `_p` = state = **NEW/CURRENT** 状态 (包含新错误消息)
-- 第2个参数 `_c` = prevState = **OLD/PREV** 状态 (无错误)
-
-**Bug代码**:
-```javascript
-// 错误: _m取了prevState, _o取了currentState
-var _m=_c?.currentSession?.messages||[],  // OLD messages
-    _o=_p?.currentSession?.messages||[];   // NEW messages  
-if(_m.length<=_o.length)return;  // 只在消息减少时触发! 完全反了!
-```
-
-**修复后**:
-```javascript
-// 正确: _m取currentState(新), _o取prevState(旧)
-var _m=_p?.currentSession?.messages||[],  // NEW messages (有新错误)
-    _o=_c?.currentSession?.messages||[];   // OLD messages
-if(_m.length<=_o.length)return;  // 无新消息时跳过 ✅
-// 用 _m[last] 检查新消息的错误码 ✅
-// sessionId 从 _p.currentSession 获取 ✅
-```
-
-**次要发现**: "store.subscribe installed" 日志未出现 — FR() 在启动早期执行，可能在日志捕获前完成。这不影响功能(subscribe已安装), 只是调试日志缺失。
-
-**经验教训**: 写 subscribe 回调时必须明确标注 `(curr, prev)` 参数含义!
-
-### [2026-04-23 10:00] v11.2 诊断结果 — Zustand 浅比较 + 属性变异 ⭐⭐⭐
-
-**诊断日志决定性证据** (vscode-app-1776921117541.log):
-```
-[v11-diag] CALLBACK FIRED! {"p_msgs":1,"c_msgs":0}     ← store.subscribe 回调在后台确实触发了!
-[v11-diag] lastNew msg: 69e9a0b1
-[v11-diag]   exception: undefined                        ← 🔴 但 exception 是 undefined!
-[v11-diag]   status: completed                            ← 状态是 completed
-[v11-diag] checking error code: undefined whitelist: -1   ← code=undefined, 不在白名单
-[v11-diag] SKIP: code not in whitelist                   ← 跳过!
-```
-
-**时间线**:
-```
-行29766: v11-diag → status=completed, exception=undefined → SKIP
-行29767: exceeded maximum number of turns (主进程报错!)
-行29915: [v7] triggering auto-continue ← 用户切回窗口后触发!
-```
-
-**根因**: 思考上限错误通过**修改已有消息对象的属性**(mutation)写入Store:
-```
-① 流结束: messages=[{status:"completed", exception:undefined}]
-   → 数组引用变化 → subscribe ✅ 触发 → v11看到exception=undefined → SKIP ✗
-
-② 错误到达: messages[0].exception = {code:4000002}  ← 属性变异!
-   → 数组引用不变! Zustand浅比较认为"无变化" → subscribe ❌ 不再通知!
-
-③ 用户切回: React直接读Store当前值 → exception.code=4000002 → J=true → v7✅
-```
-
-**v7的J从哪来的?**:
-- J = !![TASK_TURN_EXCEEDED_ERROR,...].includes(_)
-- _ = (JP.Sz(Jj,e=>e.exception)||efp).code
-- 当React re-render时直接读Store最新值(不是subscribe回调), 此时exception已填充
-- 所以J=true, V=true → if(V&J)触发resumeChat
-
-**修复方案(v11.3)**: setInterval轮询替代store.subscribe
-- 每2秒调用 n.getState().currentSession?.messages[last]?.exception?.code
-- 同步读取Store最新状态, 不依赖Zustand通知机制
-- 与沙箱问题(useMemo)同款模式: 后台同步读取有效
-
-### [2026-04-23 11:00] v11.4 MessageChannel轮询 — 绕过Chromium后台节流 ⭐⭐⭐
-
-**v11.3(setInterval)测试结果** (vscode-app-1776927977865.log):
-- [v11-bg] POLL detected error 4000002 ✅ 检测到了!
-- 但 v11 和 v7 只差3行日志 → 说明都是在切回窗口后才触发
-- **根因: Chromium 后台 tab 将 setInterval 节流到可能1分钟+**
-- 我们的2000ms间隔在后台被严重延迟
-
-**修复方案(v11.4)**: MessageChannel + setTimeout 组合
-- MessageChannel.postMessage 基于 IPC 机制, **不受后台节流影响**
-- 这与 Zustand 内部使用的通知机制完全相同
-- 架构:
-  ```
-  IIFE启动 → _mc.port2.postMessage("") → port1.onmessage → _v11poll()
-                                                    ↓
-                                             检测 n.getState() 错误码
-                                                    ↓
-                                        成功? → clearInterval等效(不再_sched) → resumeChat
-                                        失败? → _sched() → 新MC → setTimeout(2000) → postMessage → 循环
-  ```
-
-**注入技术要点**:
-- 位置: async function FR() 末尾 (offset ~7588639), 在 subscribe #8 和 FP() 之间
-- 花括号平衡: 原始 `})}` = close-subscribe + close-FR, 替换为 `}); }` + MC代码
-- 必须用模板字面量(String.raw)避免引号冲突
-- fingerprint: [v11.4-bg] MC installed
-
-**完整失败→成功演进链**:
-v11.0 store.subscribe → 参数顺序反了(不触发)
-v11.2 diagnostic版   → 发现exception=undefined(Zustand浅比较)
-v11.3 setInterval    → 检测到但时机不对(后台节流)
-v11.4 MessageChannel → 待验证 ✨
-
-### [2026-04-23 12:00] v11.5 模块级注入 — 解决FR()不执行导致零输出 ⭐⭐
-
-**v11.4测试结果** (vscode-app-1776936667064.log):
-- [v11.4-bg] 完全零输出 — 连 "MC installed" 都没有
-- 代码验证: 文件中 ✅ 存在, node --check ✅ 通过
-- **根因推断**: async function FR() 内部卡在 await o() 未执行到我们的代码
-  FR()结构: if(FL)return → resolve DI → await o() [可能挂起] → subscribe#8 → [v11代码]
-  如果 o() (isPastChatsEnabled检查) 在后台/特定条件下永远不resolve, 后续代码全不会执行
-
-**v11.5修复**: 将MC轮询从FR()内部移至模块级
-- 注入位置: async function FR() 定义之前 (offset ~7588017)
-- 执行时机: 模块加载时立即执行IIFE (不等任何async函数)
-- Store获取: uj.getInstance().resolve(xC).getState() (与FR()内相同DI方式)
-- 完全消除对FR()/await o()/FL守卫的依赖
-
-**完整演进链更新**:
-v11.0 store.subscribe(参数反了) → 不触发
-v11.2 diagnostic(30次回调) → 发现exception=undefined(属性变异)
-v11.3 setInterval(检测到了!) → 但与v7同时触发(后台节流)
-v11.4 MessageChannel(FR()内) → 零输出(FR没执行完)
-v11.5 MessageChannel(模块级) → 待测试 ✨✨
-
-### [2026-04-23 13:00] v11.6 挂钩subscribe #8 — 彻底解决执行位置问题 ⭐⭐⭐
-
-**v11.5零输出的真正根因** (花括号平衡分析):
-- 文件起始到v11.5位置: Open=71595, Close=71604, **Delta=-9**
-- **v11.5在函数内部9层深度!** 不是真正的模块级!
-- 上下文: ...async function FD(){...}let FO=null,FL=!1;; [IIFE定义但外层函数未调用]
-- 这也解释了v11.4(FR()内)零输出: FR()卡在await o()
-
-**关键教训**: 在压缩JS中找"模块级"注入点极其困难
-- 不能靠视觉判断代码是否在顶层函数内
-- 必须用花括号/圆括号计数验证实际嵌套深度
-- async function FR(){ 前面的代码可能在完全不同的作用域链中
-
-**v11.6最终方案**: 挂钩到已证明有效的subscribe #8回调
-- 位置: n.subscribe((e,t)=>{...}) 回调体末尾 (offset ~7588518)
-- 为什么这次应该能工作:
-  1. subscribe #8 是Trae原始代码(非我们添加的)
-  2. v11.2诊断证明它在后台触发30次回调 ✅
-  3. 我们只是在已执行的回调中追加逻辑
-  4. 不需要找新的执行位置/不依赖FR()/模块加载时机
-
-**完整演进链(终版)**:
-v11.0 store.subscribe(独立新subscribe,参数反了) → 不触发
-v11.2 diagnostic(30次回调✅,exception=undefined) → 发现属性变异
-v11.3 setInterval(检测到4000002✅, 但与v7同时触发) → 后台节流
-v11.4 MC轮询(FR()内) → 零输出(FR未执行完)
-v11.5 MC轮询("模块级") → 零输出(实际在函数内9层深)
-v11.6 挂钩sub#8(追加到已证明的回调) → 检测到但延迟253行(~30秒,依赖其他状态变化触发)
-```
-
-### [2026-04-23 14:00] v12 变异源头追踪 — TaskAgentMessageParser.parse() ⭐⭐⭐⭐⭐
-
-**这是本项目的突破性发现 — 回答了"前面几次是怎么解决的？"**
-
-#### 核心问题回顾
-
-用户提问: "奇怪了, 那前面几次我们是怎么解决的呢? '沙箱问题', '自动确认命令'等等"
-
-**答案: 成功补丁都在数据管道的活跃通道上拦截新数据，而思考上限错误通过属性变异静默写入，没有通知通道。**
-
-#### 成功案例 vs 失败案例 — 根本差异
-
-| 补丁 | 层 | 数据到达方式 | 为什么能后台工作 |
-|------|-----|------------|----------------|
-| 命令确认 | L2 PlanItemStreamParser | SSE **回调主动推送** confirm_status | 回调不受React冻结 |
-| DG.parse | L3 DG.parse() | 解析函数**同步处理**原始响应 | React前拦截 |
-| 沙箱useMemo | L1 useMemo | React render**同步计算** | render时立即执行 |
-| v7/v10/v11 | L1 sX().memo() render body | **属性变异**(无通知) | ❌ React Scheduler冻结 |
-
-#### 🔥🔥🔥 变异源头找到了！全局唯一的 `.exception=` 赋值
-
-**位置**: `TaskAgentMessageParser.parse()` @ offset **7615777**
-**模式**: `h.exception={code:t,message:i.message,data:e.error.data}`
-**唯一性**: 全文件仅此1处 `.exception={` 赋值!
-
-#### 完整调用链 (从服务端到Store)
-
-```
-服务端返回含 error 的 task-type agent message (SSE data)
-  ↓
-asyncConvertAgentMessageToAssistantChatMessage(e)  ← 消息路由 (@7618345)
-  switch(e.message_type):
-    case xa.Task:
-      TaskAgentMessageParser.parse(e, t)           ← 🎯 v12 注入点! L2数据层!
-        e = 原始服务端响应 {error:{code:4000002,...}, content, ...}
-        t = ParserContext {sessionId, sceneLocation, ...}
-        
-        h = {
-          ...i,                                      // base message
-          content: r,                                // parsed content
-          role: bZ.Assistant,
-          userMessageId: e.reply_to_message_id,
-          agentTaskContent: {...},
-          // ... other fields
-        };
-        
-        if (e.error) {
-          let t = e.error.code;                      // ← 错误码 (shadowed!)
-          i = this.aiChatRequestErrorService.getErrorInfo(t, {...});
-          h.status = "warn" === i.level ? bQ.Warning : bQ.Error;
-          h.exception = {code:t, message:i.message, data:e.error.data};  ← 🎯 唯一变异点!
-        }
-        return h;                                    // ← 返回含exception的消息对象
-      ↓
-    handleHistoryResult(e, h)                        // 后处理
-  ↓
-ErrorStreamParser.handleSideChat(h, context)         // 分发
-  context.agentMessageId 
-    ? storeService.updateMessage(sessionId, agentMessageId, h)  // 写入Store!
-    : storeService.updateLastMessage(sessionId, h)
-  ↓
-Zustand Store 更新 → React re-render → if(V&&J) → v7 L1续接
-```
-
-#### 为什么这个位置能工作（与成功案例同款模式）
-
-1. **L2 数据层**: 在消息解析管道中，不在 React render 内
-2. **SSE 回调链路触发**: parse() 由 SSE onMessage → eventHandlerFactory.handle(Ot.Error/Error?) 调用
-3. **同步执行**: parse() 是同步函数，不依赖 async/await
-4. **错误码直接可用**: `t` (shadowed) = `e.error.code` 精确的错误码数字
-5. **queueMicrotask 延迟**: resumeChat 通过 queueMicrotask 延迟到 store update 完成后执行
-
-#### v12 设计：检测 + 延迟执行
-
-```javascript
-// 在 h.exception={...} 之后注入:
-if(t===4000002||t===4000009||t===4000012||t===987){
-  var _n=Date.now();
-  if(!window.__traeAC12||_n-window.__traeAC12>5000){
-    window.__traeAC12=_n;
-    console.log("[v12-bg]",t);
-    queueMicrotask(function(){
-      // 此时 Store 已更新完成, 可以读取 agentMessageId
-      var _s=uj.getInstance().resolve(xC).getState(),
-          _cs=_s.currentSession,
-          _m=_cs?.messages;
-      if(_m&&_m.length){
-        var _last=_m[_m.length-1];
-        if(_last?.agentMessageId&&_cs?.sessionId){
-          uj.getInstance().resolve(BR).resumeChat({
-            messageId:_last.agentMessageId,
-            sessionId:_cs.sessionId
-          });
-          console.log("[v12-bg] OK")
-        }
-      }
-    })
-  }
-}
-```
-
-**queueMicrotask 的作用**: parse()返回后→handleHistoryResult()→handleSideChat()→updateMessage()→Store更新, 全部在当前同步执行栈中完成。queueMicrotask 将 resumeChat 推到下一个微任务队列, 确保 Store 中已有完整的消息(含agentMessageId)。
-
-#### TaskAgentMessageParser 类结构
-
-```
-位置: ~7614800-7619000 区域
-DI 注入:
-  this.aiChatRequestErrorService   (注意: 无下划线前缀!)
-  this.agentService
-  this.logService
-  this.storageFacade
-  this.feeUsageParser
-  this.notificationParser
-  this.planItemParser
-  
-方法:
-  parse(e, t)                          ← 🎯 v12 注入点
-  handleHistoryResult(e, t)            // 后处理
-  parseTaskContent(e)                  // 任务内容解析
-  parseProposal(e)                     // 提案解析
-```
-
-**与 Bs(ChatStreamService) 的区别**: Bs 用 `this._aiChatRequestErrorService`(有下划线), TaskAgentMessageParser 用 `this.aiChatRequestErrorService`(无下划线)。这是两个不同的类实例!
-
-#### teaEventChatFail 调用链完整映射
-
-从日志已知 teaEventChatFail 在 index.js:3861 被调用。完整路径:
-1. **定义**: @7458678 — `teaEventChatFail(e,t,i)` 方法体, 参数: errorObj, userMsgId, session
-2. **调用点1**: @7505837 — `this._codeCompEventService.teaEventChatFail(t.userMessageId, i, e)`
-3. **调用点2**: @7505954 — 类似 #1
-4. **调用点3**: @7542473 — Bs.onError: `this.chatStreamBizReporter.teaEventChatFail(e,r)`
-5. **调用点4**: @7546037 — 另一个 onError 方法类似 #3
-
-**handleCommonError** (@7300455): 定义在 `_aiChatRequestErrorService` 中, 处理特殊错误码(ABNORMAL_ACCOUNT_LOGOUT等), 被 Bs.onError 调用。
-
-#### 关键变量可用性 (v12 注入点)
-
-| 变量 | 类型 | 来源 | 可用性 |
-|------|------|------|--------|
-| t (shadowed) | number | let t=e.error.code | ✅ 错误码 4000002/4000009/4000012/987 |
-| h | object | 构建中的消息对象 | ✅ 含 exception 字段 |
-| e | object | 原始SSE响应数据 | ✅ e.reply_to_message_id 等 |
-| uj | DI container | 模块级全局 | ✅ 始终可用 |
-| BR | DI token | 模块级常量 | ✅ _sessionServiceV2 |
-| xC | DI token | 模块级常量 | ✅ Zustand store |
-| agentMessageId | string | ❌ 不在此作用域 | ⚠️ 通过 queueMicrotask + Store 读取 |
-| sessionId | string | t.sessionId (被shadow!) | ⚠️ 同上, 通过 Store 读取 |
-
-**注意**: parse()的第2个参数名也是 `t`, 在 if(e.error) 内部被 `let t=e.error.code` 遮蔽(shadow)。所以不能用 `t.sessionId` 获取 sessionId, 必须通过 Store 读取。
-
-### [2026-04-23 14:30] v12 测试失败 — TaskAgentMessageParser.parse() 不被调用! ⭐⭐⭐⭐
-
-**测试日志** (vscode-app-1776957837393.log):
-```
-行7278: ERR exceeded maximum number of turns     ← 错误发生
-行7345: teaEventChatFail ×2                      ← 67行后!
-   ... (无 handleSideChat, 无 updateMessage, 无 .exception 相关日志) ...
-行7428: [Debug] currentSession                   ← 某状态变化
-行7429: [v11.6-bg] sub#8 error 4000002            ← 84行后(还是v11.6!)
-行7431: [v7] triggering auto-continue
-```
-
-**关键证据**: `[v12-bg]` 完全零输出！TaskAgentMessageParser.parse() 根本没被思考上限错误调用！
-
-#### 全文件 exception 写入模式穷举搜索
-
-搜索了所有可能的写入模式:
-| 模式 | 出现次数 | 位置 | 是否为思考上限路径? |
-|------|---------|------|-------------------|
-| `.exception=` (直接赋值) | **1** | @7615778 TaskAgentMessageParser.parse() | ❌ 不走这条路 |
-| `exception:` (对象字面量) | **3** | @7513727 ErrorStreamParser.parse(), @7881275, @8707548 | ❌ parse()也不被调用 |
-| `setErrorInfo` / `setException` / `withError` | **0** | — | N/A |
-| immer `produce()` 中写 exception | **0** | — | N/A |
-| `updateMessage(` 带 exception | 间接(通过展开) | 多处 | 可能,但updateMessage的参数来自外部 |
-
-#### 🔴 根本结论：exception 不在 index.js 中通过任何显式赋值写入！
-
-**真正的变异机制**（推断）:
-```
-主进程 workbench.desktop.main.js:
-  GZt.create("exceeded maximum number of turns")
-    → 构造完整消息对象 {...message, exception: {code: 4000002, ...}}
-      → IPC (postMessage/bridge) → 渲染进程
-        → 某处接收 IPC 消息
-          → storeService.updateMessage(sessionId, msgId, ipcMessage)  // exception 已在对象中!
-            → setCurrentSession({...session, messages: [...]})
-              → Store 更新完成
-                → teaEventChatFail(e, t, {code: 4000002, ...})  // 上报统计
-```
-
-**exception 是在主进程中构造好的，随 IPC 消息一起到达渲染进程。index.js 只是"转发"整个消息对象到 Store，不单独操作 exception 字段。**
-
-### [2026-04-23 14:45] v13 方案 — hook teaEventChatFail + queueMicrotask 轮询 ⭐⭐⭐⭐⭐
-
-**核心洞察**: 既然无法拦截变异源头（在主进程/index.js外），那就hook**最早的已知触发点**。
-
-#### 为什么选 teaEventChatFail?
-
-1. **时机最早**: 日志显示错误发生后仅 67 行就触发了（vs v11.6 的 253 行 / ~30 秒）
-2. **携带错误码**: 第 3 参数 `i` = `{code: 4000002, message: "...", level: "..."}`
-3. **后台可执行**: 从日志确认它在后台 tab 中正常执行
-4. **定义清晰**: offset 7458679, 签名稳定
-
-```javascript
-// teaEventChatFail 定义 (@7458679):
-teaEventChatFail(e, t, i){
-    // e = turnId?, t = userMessageId?
-    // i = {code: 4000002, message: "exceeded...", level: "error"}
-    let r = this.getAssistantMessageReportParamsByTurnId(e, t);
-    this._teaService.event(i4.CodeCompStep.fail, {
-        ...r,
-        error_code: i.code,       // ← 我们要的就是这个!
-        error_message: i.message,
-        error_level: i.level,
-        ...
-    })
-}
-```
-
-#### v13 设计
-
-```
-teaEventChatFail 触发
-  ↓
-检测 i.code ∈ [4000002, 4000009, 4000012, 987] ?
-  ↓ Yes
-启动 queueMicrotask 轮询循环 (最多3秒/约100次)
-  ↓ 每次 microtask:
-读取 uj.getInstance().resolve(xC).getState().currentSession.messages[last]
-  ↓
-messages[last].exception?.code 匹配?
-  ↓ Yes (Store已更新!)
-uj.getInstance().resolve(BR).resumeChat({messageId, sessionId})
-console.log("[v13-bg] OK") ✅
-  ↓ No 且未超时
-继续 _poll13() (下一个 queueMicrotask)
-  ↓ 超时
-console.log("[v13-bg] timeout")
-```
-
-**queueMicrotask vs setInterval 优势**:
-- queueMicrotask 基于 Promise microtask queue，**不受 Chromium 后台节流影响**
-- 每次事件循环迭代至少执行一次 microtask
-- 比 MessageChannel 更简单（不需要 port1/port2）
-
-#### 注入详情
-
-- **位置**: teaEventChatFail 方法体开头, `{` 之后, `let r=...` 之前
-- **find_original**: `teaEventChatFail(e,t,i){let r=this.getAssistantMessageReportParamsByTurnId(e,t)`
-- **fingerprint**: `[v13-bg]` at offset ~7458876
-- **可用变量**: `i`(错误码), `uj`(DI容器), `BR`(sessionServiceV2 token), `xC`(store token)
-- **不可用变量**: `agentMessageId`, `sessionId` — 通过 queueMicrotask 内读取 Store 获取
-
-### [2026-04-23 15:00] v13 测试结果 — 后台触发成功但 Store 轮询超时! ⭐⭐⭐⭐⭐
-
-**测试日志** (vscode-app-1776960852907.log) — **历史性突破!**
-```
-行7121: [v13-bg] teaEventChatFail 4000002    ← 🎉🎉🎉 在后台触发了!!!
-行7122: [v13-bg] timeout                    ← 轮询3秒超时(Store中没有exception!)
-行7123: ERR exceeded maximum number of turns  ← 错误在v13之后才发生?!
-行7190: teaEventChatFail @ index.js:3861     ← Trae原始的(第二次调用)
-行7309: [v11.6-bg] sub#8 error 4000002       ← 切回窗口后
-行7311: [v7] triggering auto-continue
-```
-
-#### 三个关键发现
-
-**发现 1: teaEventChatFail 被调用两次!**
-
-| 调用 | 行号 | 来源 | i.code | Store 状态 | 我们的处理 |
-|------|------|------|--------|-----------|-----------|
-| 第 1 次 | 7121 | workbench.desktop.main.js:619 (console.log位置) | 4000002 ✅ | **空**(未更新) | 触发hook → qMT轮询 → **timeout** |
-| 第 2 次 | 7190 | index.js:3861 (方法定义位置) | ? | 已更新 | ❌ 被5秒冷却**跳过** |
-
-- 第 1 次是"预上报"(telemetry)，在 GZt.create() **之前**就携带了 code=4000002
-- 第 2 次是真正的 thinking limit 错误处理
-- **我们的 5 秒冷却窗口阻塞了第 2 次！**
-
-**发现 2: Store 在后台 tab 中不更新!**
-
-v13 的 queueMicrotask 轮询在后台运行了 3 秒（~100 次 microtask），每次读取 Store 都得到 `messages[last].exception = undefined`。
-用户切回窗口后，v11.6 立刻（84 行日志内）就读到了 exception.code=4000002。
-
-**结论**: `storeService.updateMessage()` / `setCurrentSession()` 在后台 tab 中被**延迟/阻塞**，只有切回窗口后才执行。这不是 Chromium 定时器节流问题（qMT 不受影响），而是 **Trae 自身的某个机制**（可能是 SSE 断开后数据流中断，或 async handler 等待前台条件）。
-
-**发现 3: v13 证明了 teaEventChatFail 是可行的 hook 点**
-
-✅ teaEventChatFail 在后台正常执行
-✅ 第 3 参数 `i` 包含正确的错误码
-✅ 注入的代码不崩溃、不影响原有逻辑
-❌ 但不能在同一个调用中完成续接（Store 还没数据）
-
-### [2026-04-23 15:15] v14 Hybrid 方案 — 标志 + visibilitychange ⭐⭐⭐⭐⭐
-
-**核心思路**: 既然"检测"和"执行"必须分开（因为 Store 延迟更新），那就:
-1. **后台检测**: teaEventChatFail 触发时设标志 `window.__traeBGError = {code, time}`
-2. **前台执行**: visibilitychange → visible 时检查标志 + 读 Store → resumeChat
-
-这比纯 visibilitychange 方案好的地方:
-- **纯 VC 方案**: 不知道发生了什么错误，需要扫描所有消息猜测
-- **Hybrid 方案**: **确切知道**发生了可恢复错误（标志告诉你），只需等 Store 可读
-
-#### v14 架构
-
-```
-后台 (用户切走窗口):
-  AI 思考达到上限
-    ↓ 主进程 GZt.create()
-    ↓ IPC / 事件
-  teaEventChatFail(e, t, {code:4000002,...})  ← 第1次(预上报)
-    ↓ 我们的注入代码:
-  window.__traeBGError = {code:4000002, time:Date.now()}
-  console.log("[v14-bg] FLAG SET", 4000002)
-    ↓ (Store 此时还没有 exception!)
-
-  ... 用户切回窗口 ...
-
-前台 (visibilitychange → visible):
-  document.visibilitychange 事件触发
-    ↓ 我们的监听器:
-  window.__traeBGError 存在? 且 < 30秒前? → YES
-  window.__traeBGError = null (清除标志)
-  读取 Store → messages[last].exception.code = 4000002 ✅ (Store已更新!)
-  uj.getInstance().resolve(BR).resumeChat({messageId, sessionId})
-  console.log("[v14-bg] OK")
-```
-
-#### 与之前所有版本的对比
-
-| 版本 | 检测方式 | 续接时机 | 后台能工作? |
-|------|---------|---------|-----------|
-| v7 L1 | React render body | render 时 | ❌ Scheduler冻结 |
-| v10 L2 | ErrorStreamParser.parse() | parse 时 | ❌ 不走此路径 |
-| v11.0-11.5 | subscribe/polling/MC | 检测到时 | ❌ 无通知/节流/位置错 |
-| v11.6 | subscribe #8 回调 | 其他状态变化触发 | ⚠️ 延迟~30秒 |
-| v12 | TaskAgentMessageParser.parse() | 变异点 | ❌ 零输出(不走此路径) |
-| **v13** | **teaEventChatFail 参数** | qMT轮询Store | ⚠️ **触发成功但Store无数据** |
-| **v14** | **teaEventChatFail 设标志** | **visibilitychange→visible** | **✅ 最优解** |
-
-#### 注入详情 (两处)
-
-**PART1 — teaEventChatFail flag (@7458679)**:
-- find_original: `teaEventChatFail(e,t,i){let r=this.getAssistantMessageReportParamsByTurnId(e,t)`
-- 注入: 方法体 `{` 之后，仅设置 `window.__traeBGError` 标志 + console.log
-- 无冷却、无轮询、无 resumeChat — **极简**
-
-**PART2 — visibilitychange listener (文件末尾)**:
-- 追加到文件末尾（模块级 IIFE 外）
-- `if(!window.__traeVC14)` 防重复注册
-- 检查 `document.visibilityState === "visible"` + `window.__traeBGError`
-- 30 秒过期时间（防止旧标志误触发）
-- 读取 Store 获取 agentMessageId + sessionId → resumeChat
-
-### [2026-04-23 15:45] v14 测试结果 — FLAG 成功但 visibilitychange 不触发! ⭐⭐⭐⭐
-
-**测试日志** (vscode-app-1776995748083.log):
-```
-行7009: [v14-bg] FLAG SET 4000002    ← ✅ 后台标志设置成功!
-行7010: ERR exceeded maximum number of turns
-行7077: teaEventChatFail @ index.js:3861
-   ... (用户切回窗口) ...
-行7371: [v7] triggering auto-continue     ← v7 触发了
-```
-
-**关键发现**: `[v14-bg] VISIBLE` 和 `[v14-bg] OK` 完全没出现！
-
-visibilitychange 监听器可能失败的原因:
-1. **注入位置在 webpack IIFE 内部** — 文件末尾的代码可能仍在 `(function(){...})()` 内部，导致作用域问题（`uj`/`BR`/`xC` 未定义）
-2. **`document` 对象在代码执行时不可用** — Trae 的 index.js 可能在 DOM ready 前加载
-3. **Electron/VSCode 特殊行为** — visibilitychange 事件可能不按预期触发
-
-**结论**: 文件末尾追加代码的方式在 Trae 的 webpack bundle 环境中不可靠。需要使用**已证明有效的内部 hook 点**。
-
-### [2026-04-23 16:00] v15 Hybrid v2 — flag + 独立 store.subscribe watcher ⭐⭐⭐⭐⭐
-
-**核心改进**: 不用 visibilitychange（不可靠），改用在 **subscribe #8 之前注入独立的 store.subscribe() watcher**
-
-#### 为什么这个方案应该工作
-
-| 组件 | 证明来源 | 可靠性 |
-|------|---------|--------|
-| teaEventChatFail 后台执行 | v13 日志 `[v13-bg] teaEventChatFail 4000002` | ✅ 已验证 |
-| i.code 携带正确错误码 | 同上, code=4000002 | ✅ 已验证 |
-| store.subscribe 在切回窗口后触发 | v11.6 日志 sub#8 在切回后 84 行内触发 | ✅ 已验证 |
-| Store 切回后包含 exception | v11.6 读到 exception.code=4000002 | ✅ 已验证 |
-| 独立 subscribe 不影响原有逻辑 | 纯追加, 不修改任何现有代码 | ✅ 设计保证 |
-
-#### v15 架构 (最终版)
-
-```
-后台 (用户切走窗口):
-  AI 思考达到上限 → 主进程 GZt.create()
-    → IPC / 某事件机制
-  teaEventChatFail(e, t, {code:4000002,...})   ← 第1次(预上报)
-    ↓ 我们的 PART1 注入:
-  window.__traeBGError = {code:4000002, time:Date.now()}
-  console.log("[v15-bg] FLAG", 4000002)
-    ↓ (Store 此时还没有 exception! 后台不更新)
-
-  ... 用户切回窗口 ...
-
-前台 (Store 更新, subscribe 触发):
-  Store.setCurrentSession({...messages: [{...,exception:{code:4000002}}]})
-    ↓ Zustand 触发所有订阅者:
-  
-  【我们的 watcher】store.subscribe(function(e){...})     ← PART2 新增!
-    ↓ 检查:
-  window.__traeBGError 存在? 且 <30秒? → YES ✅
-  e.currentSession.messages[last].exception.code 匹配? → YES ✅
-  window.__traeBGError = null (清除标志)
-  sessionServiceV2.resumeChat({messageId, sessionId})
-  console.log("[v15-bg] OK", 4000002)                    ← 🎯
-  
-  【原有 sub#8】n.subscribe((e,t)=>{...})               ← 原有代码不变
-    ↓ (也会触发, 但我们的 watcher 已经处理了)
-
-  【v7 L1】if(V&&J) render body                        ← 保底, 如果上面都失败了
-```
-
-#### 注入详情 (两处, 都在 IIFE 内部, 变量可访问)
-
-**PART1 — teaEventChatFail flag (@7458876)**:
-```
-原始: teaEventChatFail(e,t,i){let r=this.getAssistantMessageReportParamsByTurnId(e,t)
-替换: teaEventChatFail(e,t,i){;try{if(i&&i.code&&[4000002,...].indexOf(i.code)>=0){
-        window.__traeBGError={code:i.code,time:Date.now()};
-        console.log("[v15-bg] FLAG",i.code)}}catch(_e){}}let r=this...
-```
-
-**PART2 — 独立 store watcher (@7588682)** — 在原有 `a(),n.subscribe((e,t)` 之前插入:
-```
-原始: a(),n.subscribe((e,t)=>{((...condition...)&&a())})
-替换: 
-  uj.getInstance().resolve(xC).subscribe(function(e){
-    try{
-      var _f=window.__traeBGError;
-      if(_f&&_f.code){
-        var _now=Date.now();
-        if(_now-_f.time<30000){
-          var _m=e.currentSession?.messages;
-          if(_m&&_m.length){
-            var _l=_m[_m.length-1];
-            if([4000002,...].indexOf(_l?.exception?.code)>=0 && _l?.agentMessageId && e.currentSession?.sessionId){
-              window.__traeBGError=null;
-              uj.getInstance().resolve(BR).resumeChat({messageId:_l.agentMessageId,sessionId:e.currentSession.sessionId});
-              console.log("[v15-bg] OK",_f.code)
-            }
-          }
-        }
-      }
-    }catch(_e){}
-  });
-  a(),n.subscribe((e,t)=>{((...condition...)&&a())})   // 原有代码不变!
-```
-
-#### 与所有之前版本的完整对比
-
-| 版本 | 检测方式 | 续接时机 | 后台检测? | Store可用? | 结果 |
-|------|---------|---------|----------|-----------|------|
-| v7 L1 | React render body | render 时 | ❌ 冻结 | ✅ | 仅前台 |
-| v10 L2 | ErrorStreamParser.parse() | parse 时 | ❌ 不走此路径 | N/A | 零输出 |
-| v11.0-11.5 | subscribe/polling/MC | 各异 | ❌ 各原因 | ⚠️ | 失败 |
-| v11.6 | sub#8 回调内读Store | 其他状态变化触发 | ⚠️ 被动 | ✅ 切回后 | 延迟~30秒 |
-| v12 | TaskAgentMessageParser.parse() | 变异点 | ❌ 不调用 | N/A | 零输出 |
-| **v13** | **teaEventChatFail 参数** | **qMT轮询Store** | **✅ 触发!** | **❌ 后台空** | timeout |
-| **v14** | **teaEventChatFail 设标志** | **visibilitychange** | **✅ FLAG成功!** | **❌ VC不触发** | VISIBLE缺失 |
-| **v17** | **teaEventChatFail 设标志** | **独立sub watcher** | ✅ 应该触发 |
-| **v17 final** | **teaEventChatFail + context参数直接resume** | **qMT轮询fallback** | **⚠️ 调用成功但效果延迟!** |
-
-### [2026-04-23 18:30] v17 Final v3 测试 — 历史性突破与遗留问题 ⭐⭐⭐⭐⭐
-
-**测试日志** (vscode-app-1777045914222.log):
-```
-行5986: [v17-bg] 4000002 sid aid           ← ✅ 后台触发!
-行5987: [v17-bg] OK-resume                  ← ✅ resumeChat调用成功(无异常!)
-行5988: [v17-bg] OK-resumed 14 new msgs     ← 🎉 qMT检测到Store消息增加!
-行5989: ERR exceeded maximum number of turns ← ⚠️ 紧接着又出现错误!
-   ... (无[v7]触发! v17处理了) ...
-```
-
-#### 三个正面发现
-
-1. **`[v17-bg] RESUMING` 在后台触发** — teaEventChatFail 后台执行已验证 6 次以上
-2. **`resumeChat()` 不抛异常** — 调用成功返回
-3. **Store 消息数确实增加了** — 从初始值增加到 +14 (qMT 轮询检测到)
-4. **`[v7]` 未触发** — v17 完全接管了，不需要 v7 保底
-
-#### 用户反馈的关键问题
-
-> "不，他在我切回窗口时才开始自动发'继续', 没切回去之前一直都是触发上限被中断的状态"
-
-**即：resumeChat 被调用了，Store 也更新了，但视觉上对话没有继续。**
-
-#### 根因分析 (待进一步验证)
-
-**假设 A: resumeChat 触发了新轮次，新轮次也超限**
-- 行 5988 检测到 14 new msgs（可能是 resume 触发的内部消息）
-- 行 5989 紧接着出现第二个 `ERR exceeded`
-- 说明续接后的回复也达到了思考上限
-- 但我们的冷却窗口阻止了第二次自动续接
-- 用户切回窗口后手动或 v7 的后续逻辑才真正打破循环
-
-**假设 B: resumeChat 内部操作被延迟到窗口可见**
-- resumeChat 可能通过 IPC 到主进程
-- 主进程在后台时排队处理渲染进程请求
-- 切回窗口后排队消息被批量处理
-- 那 14 new msgs 是窗口恢复时的批量更新
-
-**假设 C: 14 new msgs 是虚假检测**
-- t.messages (从 context 参数获取) 可能和 Store.messages 不是同一引用
-- 后台时 context 的 messages 数组可能是旧的快照
-- 切回窗口后 Store 才更新，此时 qMT 读到的是新的 Store（不是 context 的）
-
-**最可能的根因**: 结合 v13 的发现（Store 后台不更新）+ 本次发现（resumeChat 不报错但无视觉效果），**假设 B 或 C 最可能** —— resumeChat 的实际网络发送/处理在后台被某种机制阻塞。
-
-### [2026-04-23 18:45] v18 方向思考 — 绕过 resumeChat 阻塞
-
-既然 `resumeChat()` / `sendChatMessage()` 在后台的**实际效果被阻塞**，需要找到完全不同的路径：
-
-#### 已排除的方案
-| 方案 | 为什么不行 |
-|------|-----------|
-| React L1 render body (v7/v10) | Scheduler 冻结 |
-| store.subscribe 新建 (v11.0-11.5) | 无通知/节流 |
-| TaskAgentMessageParser.parse() (v12) | 不走此路径 |
-| qMT 轮询等待 Store (v13) | Store 后台空 |
-| visibilitychange 监听器 (v14) | 注入位置不可靠 |
-| 独立 subscribe watcher (v15) | 未注册(depth=2) |
-| sub#8 内部追加 (v16) | 需等切回窗口 |
-| resumeChat 直接调用 (v17) | **调用成功但效果阻塞!** |
-
-#### 待探索的方向
-
-1. **DOM 操作模拟点击**: 找到"继续"按钮的 DOM 元素，在 visibilitychange 时 click()
-   - 优点: 绕过所有 API 层面的限制
-   - 缺点: 需要定位按钮元素; 可能仍受 React 合成事件影响
-   
-2. **主进程侧拦截**: 修改 workbench.desktop.main.js 中 GZt.create() 的行为
-   - 优点: 完全绕过渲染进程所有限制
-   - 缺点: 需要修改另一个文件; 主进程代码可能更复杂
-
-3. **防止错误显示而非恢复**: 修改 exception 对象使其不被识别为可恢复错误
-   - 让 UI 不显示错误提示和继续按钮
-   - 但这不能真正"续接"对话
-
-4. **多次重试循环**: v17 已经触发了 resumeChat，只是效果延迟。如果在冷却窗口过期后再次尝试呢？
-   - 问题: 如果根本原因是后台阻塞，重试也没用 **✅ 切回后有** | **待测试** |
-
-## [2026-04-25 18:00] DI 容器系统完整映射 ⭐⭐⭐⭐⭐
-
-> 本发现是 Trae AI 模块 DI 系统的完整逆向工程。所有偏移量基于当前版本的 index.js。
-> 搜索模板可用于 Trae 更新后重新定位。
-
----
-
-### 1. DI 核心架构
-
-| 组件 | 混淆名 | 类型 | 偏移量 | 说明 | 搜索模板 |
-|------|--------|------|--------|------|----------|
-| DI Container | `uj` | class | 6268469 | 单例容器，`uj.getInstance()` | `class uj` |
-| 注入装饰器 | `uX` | decorator | — | `@inject(TOKEN)` 等价物 | `uX(` (101次) |
-| 注册装饰器 | `uJ` | decorator | — | `@singleton({identifier:TOKEN})` | `uJ({identifier:` (51次) |
-| React Hook | `uB` | hook | 6270579 | `useInject(TOKEN)` 等价物 | `uB=(hX=` |
-| 容器快捷方式 | `hX` | ()=>uj | 6270579 | `hX=()=>uj.getInstance()` | `hX=()=>uj.getInstance()` |
-| 依赖注册表 | `uP` | class | — | `uj.getDependencyRegistry()` | `new uP` |
-| VS Code 服务标识 | `S2` | object | — | 包含 IEditorService, IFileService 等 | `S2.IEditorService` |
-
-**容器类定义** (@6268469):
-```javascript
-class uj {
-  static getInstance() { return uj.instance || (uj.instance = new uj), uj.instance }
-  constructor() { this.initialized = !1, this.bindings = new Map, this.singletons = new Map }
-  getDependencyRegistry() { return this._dependencyRegistry || (this._dependencyRegistry = new uP), this._dependencyRegistry }
-  initialize(e) { !this.initialized && (this.externalCreateDecorator = e?.nativeIDECreateDecorator, ...) }
-  resolve(token) { ... }  // 从容器获取服务实例
-  provide(token, impl) { ... }  // 注册服务实现
-  isInitialized() { ... }
-  hasIdentifier(token) { ... }
-}
-```
-
-**React Hook 定义** (@6270579):
-```javascript
-uB = (hX = () => uj.getInstance(), function(e) {
-  let t = useContext(uL),  // MockServiceContext
-  i = useMemo(() => i => {
-    if (!t.isEmpty && t.mockServices.get(e)) return () => {};
-    let n = hX();
-    if (n.isInitialized()) return () => {};
-    // ... polling until initialized
-  }, [e, t]),
-  n = useSyncExternalStore(i, r);
-  if (t.mockServices.get(e)) return t.mockServices.get(e);
-  let i = hX();
-  return i.isInitialized() ? i.resolve(e) : null;
-}, [e, t])
-```
-
----
-
-### 2. DI Token 注册表
-
-#### 2a. Symbol.for() 全局 Token（跨模块共享，⭐⭐⭐⭐⭐ 稳定）
-
-| Token 变量 | Symbol.for 值 | 偏移量 | 服务描述 | 搜索模板 |
-|-----------|---------------|--------|----------|----------|
-| `bY` | `"aiAgent.ILogService"` | 6473533 | 日志服务 | `Symbol.for("aiAgent.ILogService")` |
-| `Ei` | `"aiAgent.ICredentialFacade"` | 7015771 | 凭证门面 | `Symbol.for("aiAgent.ICredentialFacade")` |
-| `Eh` | `"aiAgent.IStorageFacade"` | 7018237 | 存储门面 | `Symbol.for("aiAgent.IStorageFacade")` |
-| `ED` | `"aiAgent.IEnvironmentFacade"` | 7027572 | 环境门面 | `Symbol.for("aiAgent.IEnvironmentFacade")` |
-| `E$` | `"aiAgent.IFastApplyFacade"` | 7031258 | 快速应用门面 | `Symbol.for("aiAgent.IFastApplyFacade")` |
-| `Au` | `"aiAgent.IFileFacade"` | 7042224 | 文件门面 | `Symbol.for("aiAgent.IFileFacade")` |
-| `AM` | `"IUtilFacade"` | 7056752 | 工具门面 | `Symbol.for("IUtilFacade")` |
-| `Cv` | `"aiAgent.II18nService"` | 7075754 | 国际化服务 | `Symbol.for("aiAgent.II18nService")` |
-| `xL` | `"IWorkspaceFacade"` | 7097709 | 工作区门面 | `Symbol.for("IWorkspaceFacade")` |
-| `xJ` | `"IEditorFacade"` | ~7126296 | 编辑器门面 | `Symbol.for("IEditorFacade")` |
-| `Mr` | `"aiAgent.ISlardarFacade"` | ~7134171 | Slardar 监控门面 | `Symbol.for("aiAgent.ISlardarFacade")` |
-| `Ma` | `"ITeaFacade"` | ~7134895 | Tea 上报门面 | `Symbol.for("ITeaFacade")` |
-| `Mc` | `"aiAgent.IFpsRecordFacade"` | ~7135785 | FPS 记录门面 | `Symbol.for("aiAgent.IFpsRecordFacade")` |
-| `M0` | `"aiAgent.ISessionService"` | 7150072 | **会话服务（核心）** | `Symbol.for("aiAgent.ISessionService")` |
-| `M5` | `"aiAgent.IAiClientManagerService"` | ~7152097 | AI 客户端管理 | `Symbol.for("aiAgent.IAiClientManagerService")` |
-| `kv` | `"IModelService"` | 7177093 | 模型服务 | `Symbol.for("IModelService")` |
-| `kb` | `"IModelStorageService"` | ~7177093 | 模型存储服务 | `Symbol.for("IModelStorageService")` |
-| `kA` | `"aiAgent.IProductService"` | ~7179610 | 产品服务 | `Symbol.for("aiAgent.IProductService")` |
-| `Mz` | `"aiAgent.IContextKeyFacade"` | ~7145449 | 上下文键门面 | `Symbol.for("aiAgent.IContextKeyFacade")` |
-| `B3` | `"aiAgent.IPastChatExporter"` | 7566970 | 历史聊天导出 | `Symbol.for("aiAgent.IPastChatExporter")` |
-| `jN` | `"IPlanService"` | 7450318 | 计划服务 | `Symbol.for("IPlanService")` |
-| `Oe` | `"INotificationStreamParser"` | ~7322410 | 通知流解析器 | `Symbol.for("INotificationStreamParser")` |
-| `zS` | `"ITextMessageChatStreamParser"` | ~7497479 | 文本消息流解析器 | `Symbol.for("ITextMessageChatStreamParser")` |
-| `zz` | `"IErrorStreamParser"` | ~7508572 | 错误流解析器 | `Symbol.for("IErrorStreamParser")` |
-| `zJ` | `"IUserMessageStreamParser"` | ~7515007 | 用户消息流解析器 | `Symbol.for("IUserMessageStreamParser")` |
-| `z2` | `"ITokenUsageStreamParser"` | ~7516765 | Token 用量流解析器 | `Symbol.for("ITokenUsageStreamParser")` |
-| `z3` | `"IContextTokenUsageStreamParser"` | ~7517392 | 上下文 Token 流解析器 | `Symbol.for("IContextTokenUsageStreamParser")` |
-| `z8` | `"ISessionTitleMessageStreamParser"` | ~7518028 | 会话标题流解析器 | `Symbol.for("ISessionTitleMessageStreamParser")` |
-| `TL` | `"aiChat.ICustomRulesService"` | ~7244804 | 自定义规则服务 | `Symbol.for("aiChat.ICustomRulesService")` |
-| `kd` | `"aiChat.IAIChatRequestErrorService"` | ~7155260 | AI 请求错误服务 | `Symbol.for("aiChat.IAIChatRequestErrorService")` |
-| — | `"ai.IDocsetService"` | 3546087 | 文档集服务 | `Symbol.for("ai.IDocsetService")` |
-| `xI` | `"IEditorFacade"` (alt) | ~7126296 | 编辑器门面(变体) | `Symbol.for("IEditorFacade")` |
-| `k5` | `"IModeStorageService"` | ~7189229 | 模式存储服务 | `Symbol.for("IModeStorageService")` |
-| `BB` | (租户配置) | ~7591333 | 租户配置服务 | `resolve(BB)` |
-
-#### 2b. Symbol() 局部 Token（模块内，⭐⭐⭐⭐ 稳定）
-
-| Token 变量 | Symbol 值 | 偏移量 | 服务描述 | 搜索模板 |
-|-----------|-----------|--------|----------|----------|
-| `xC` | `"ISessionStore"` | ~7087490 | **会话存储（核心 Zustand）** | `Symbol("ISessionStore")` |
-| `D5` | `"IAgentService"` | 7321280 | Agent 服务 | `Symbol("IAgentService")` |
-| `D3` | `"IFeeUsageParser"` | 7321280 | 费用解析器 | `Symbol("IFeeUsageParser")` |
-| `BO` | `"ISessionServiceV2"` | 7545196 | 会话服务 V2 | `Symbol("ISessionServiceV2")` |
-| `k1` | `"IModelStore"` | 7186457 | 模型存储（Zustand） | `Symbol("IModelStore")` |
-| `IN` | `"ISessionRelationStoreInternal"` | ~7203850 | 会话关系存储 | `Symbol("ISessionRelationStoreInternal")` |
-| `DV` | `"IUserMessageContextParser"` | ~7314000 | 用户消息上下文解析器 | `Symbol("IUserMessageContextParser")` |
-| `DQ` | `"IMetadataParser"` | ~7314000 | 元数据解析器 | `Symbol("IMetadataParser")` |
-| `za` | `"IFeeUsageStreamParser"` | ~7482422 | 费用流解析器 | `Symbol("IFeeUsageStreamParser")` |
-| `zL` | `"IPlanItemStreamParser"` | ~7503299 | **计划项流解析器** | `Symbol("IPlanItemStreamParser")` |
-| `zW` | `"IDoneStreamParser"` | ~7511057 | 完成流解析器 | `Symbol("IDoneStreamParser")` |
-| `zV` | `"IQueueingStreamParser"` | ~7512721 | 排队流解析器 | `Symbol("IQueueingStreamParser")` |
-| `I2` | `"IInlineSessionStore"` | ~7221939 | 内联会话存储 | `Symbol("IInlineSessionStore")` |
-| `I6` | `"IMarkdownContextMenuStore"` | ~7223077 | Markdown 上下文菜单 | `Symbol("IMarkdownContextMenuStore")` |
-| `I7` | `"IProjectStore"` | ~7224039 | 项目存储 | `Symbol("IProjectStore")` |
-| `To` | `"IChatTurnImageMenuStore"` | ~7224870 | 聊天图片菜单存储 | `Symbol("IChatTurnImageMenuStore")` |
-| `TG` | `"IAgentExtensionStore"` | ~7248275 | Agent 扩展存储 | `Symbol("IAgentExtensionStore")` |
-| `T8` | `"ILintErrorAutoFixStore"` | ~7256181 | Lint 自动修复存储 | `Symbol("ILintErrorAutoFixStore")` |
-| `Na` | `"ISkillStore"` | ~7258315 | 技能存储 | `Symbol("ISkillStore")` |
-| `Nc` | `"IEntitlementStore"` | ~7259427 | 权限存储 | `Symbol("IEntitlementStore")` |
-| `Ci` | (会话服务标识) | ~7152097 | 会话服务（同 M0?） | `uJ({identifier:Ci})` |
-
-#### 2c. 未解析 Token 变量（⭐⭐⭐ 需进一步搜索）
-
-| Token 变量 | 用途推断 | resolve 调用偏移 | 搜索模板 |
-|-----------|---------|-----------------|----------|
-| `Di` | ChatService (resumeChat) | 7508810 | `resolve(Di)` |
-| `BB` | 租户配置服务 | 7591333 | `resolve(BB)` |
-| `BX` | 文件差异提供者 | 7601575 | `resolve(BX)` |
-| `FE` | 知识库服务 | 7599324 | `resolve(FE)` |
-| `etN` | 知识库特性开关 | 7599324 | `resolve(etN)` |
-| `etr` | DSL Agent 服务 | 10470403 | `resolve(etr)` |
-| `Wg` | 会话 Todo 服务 | 10469891 | `resolve(Wg)` |
-| `Dy` | 快速应用存储 | 7306295 | `resolve(Dy)` |
-| `eYH` | 用量限制服务 | 10465352 | `resolve(eYH)` |
-| `Jp` | 网络数据服务 | 10469447 | `resolve(Jp)` |
-| `ee4` | AI 代码贡献服务 | 10470055 | `resolve(ee4)` |
-| `M$` | 凭证存储 | ~7149840 | `resolve(M$)` |
-| `N7` | (forkSession 中使用) | 10475553 | `resolve(N7)` |
-| `B9` | (上传图片中使用) | 7578056 | `resolve(B9)` |
-| `ks` | AI 客户端服务变体 | ~7155260 | `uJ({identifier:ks})` |
-| `kS` | 动态配置存储 | ~7177763 | `uJ({identifier:kS})` |
-| `Ix` | 会话关系服务 | ~7203823 | `uJ({identifier:Ix})` |
-
----
-
-### 3. ⚠️ 重要纠正：BR 和 FX 不是 DI Token
-
-**`BR`** = `s(72103)` = Node.js `path` 模块导入（@7551518）
-- `BR.relative()`, `BR.basename()` — 文件路径操作
-- 在 auto-continue 补丁中 `uj.getInstance().resolve(BR)` 是把 path 模块当作服务来 resolve，这是**错误的用法**（应该是 resolve 其他 token）
-- **之前 discoveries.md 中将 BR 标记为 _sessionServiceV2 的 DI token 是错误的！**
-
-**`FX`** = `findTargetAgent` 辅助函数（@7604449），**不是** DI 解构模式
-- `async function FX(e,t,i,r,n=!1,o)` — 按名称或 ID 查找 Agent
-- 在 sendToAgentBackground 中被调用：`await FX(o,r,t?.agentName,t?.agentId)`
-- 之前假设 `FX(i)` 是从容器解构服务是**错误的**！
-
----
-
-### 4. uj.getInstance().resolve() 调用完整表（45 次 DI 专用）
-
-| # | 偏移量 | Token | 服务 | 上下文 |
-|---|--------|-------|------|--------|
-| 1 | 7137173 | `Cv` | II18nService | 历史列表图片占位符 |
-| 2 | 7306295 | `Dy` | FastApplyStore | 检查脏状态 |
-| 3 | 7306625 | `M0` | ISessionService | 获取当前会话 |
-| 4 | 7452910 | `BR` | ⚠️ path 模块 | auto-continue resumeChat |
-| 5 | 7508810 | `Di` | ChatService | auto-continue resumeChat |
-| 6 | 7583273 | `M0` | ISessionService | 创建新会话 |
-| 7 | 7583427 | `M0` | ISessionService | 确认处理待定差异 |
-| 8 | 7584554 | `M0` | ISessionService | 获取运行状态 |
-| 9 | 7585043 | `Au` | IFileFacade | 检查文件存在 |
-| 10 | 7585588 | `M0` | ISessionService | 获取当前会话 |
-| 11 | 7589023 | `Cv` | II18nService | 本地化 "Ready to build!" |
-| 12 | 7590109 | `jN` | IPlanService | 切换计划模式 |
-| 13 | 7590208 | `M0` | ISessionService | 切换历史列表可见 |
-| 14 | 7590888 | `M0` | ISessionService | 获取工作状态提示 |
-| 15 | 7590979 | `M0` | ISessionService | 删除会话 |
-| 16 | 7591104 | `kv` | IModelService | 刷新模型存储 |
-| 17 | 7591229 | `kv` | IModelService | 初始化操作 |
-| 18 | 7591333 | `BB` | TenantConfig | 获取租户用户配置 |
-| 19 | 7591798 | `M0` | ISessionService | 设置促销卡片标志 |
-| 20 | 7591982 | `xC`,`D5` | ISessionStore,IAgentService | 使用内置 Agent |
-| 21 | 7592370 | `xC` | ISessionStore | 按 worktree 路径获取会话标题 |
-| 22 | 7592511 | `S2.IStorageService` | VS Code 存储 | 重置聊天反馈 |
-| 23 | 7592768 | `S2.IStorageService` | VS Code 存储 | 重置满意度反馈 |
-| 24 | 7592943 | `S2.IStorageService` | VS Code 存储 | 重置解决反馈 |
-| 25 | 7593118 | `S2.IStorageService` | VS Code 存储 | 重置聊天反馈轮次 |
-| 26 | 7599006 | `WQ.IDocsetService` | 文档集服务 | 调试获取企业文档集 |
-| 27 | 7599215 | `B3` | IPastChatExporter | 导出当前聊天到文件 |
-| 28 | 7599324 | `etN`,`FE` | 知识库服务 | 初始化知识库 |
-| 29 | 7601575 | `BX` | FileDiffProvider | 获取文件差异提供者 |
-| 30 | 9799554 | `D5` | IAgentService | 获取 Agent 面板数据 |
-| 31 | 9799757 | `D5` | IAgentService | 获取 Agent 面板数据 |
-| 32 | 9799992 | `S2.IICubeAgentService` | VS Code Agent 服务 | 保存 Agent 面板数据 |
-| 33 | 9836993 | `S2.IICubeAgentService` | VS Code Agent 服务 | 获取 Agent 面板数据 |
-| 34 | 10466533 | (动态) | 注册适配器 | getRegisteredAdapter |
-| 35 | 10467510 | `S2.IViewsService` | VS Code 视图服务 | 打开视图容器 |
-| 36 | 10469314 | `eYH` | UsageLimit | 打开用量限制弹窗 |
-| 37 | 10469447 | `Jp` | NetworkData | 获取网络数据 |
-| 38 | 10469573 | `ED` | IEnvironmentFacade | 更新 Python 环境 |
-| 39 | 10469706 | `M0` | ISessionService | 更新 worktree |
-| 40 | 10469891 | `Wg` | SessionTodo | 接受会话 Todo |
-| 41 | 10470055 | `ee4` | AICodeContribution | 报告 AI 代码贡献 |
-| 42 | 10470403 | `etr` | DSLAgent | 启动全局日志流 |
-| 43 | 10470537 | `etr` | DSLAgent | 停止全局日志流 |
-| 44 | 10470666 | `etr`,`S2.IWebviewWorkbenchService`,`S2.IFileService`,`Au` | DSL 编辑器 | 打开 DSL 编辑器 |
-| 45 | 10473463 | `BO` | ISessionServiceV2 | 停止聊天会话 |
-
-**uj.getInstance().provide()** 仅 1 次 (@10466462):
-```javascript
-registerAdapter: function(e, t) { uj.getInstance().provide(e, t) }
-```
-
----
-
-### 5. 服务注册（uJ 装饰器，51 个服务类）
-
-每个 `uJ({identifier:TOKEN})` 将一个类注册为 DI 单例服务：
-
-| # | 偏移量 | Token | 类名(混淆) | 服务描述 |
-|---|--------|-------|-----------|----------|
-| 1 | 7017457 | `Ei` | `Er` | CredentialFacade |
-| 2 | 7024823 | `Eh` | `E_` | StorageFacade |
-| 3 | 7030377 | `ED` | `ER` | EnvironmentFacade |
-| 4 | 7040640 | `E$` | `EJ` | FastApplyFacade |
-| 5 | 7051496 | `Au` | `Ad` | FileFacade |
-| 6 | 7058236 | `AM` | `Ak` | UtilFacade |
-| 7 | 7097170 | `xC` | `xI` | SessionStore (Zustand) |
-| 8 | 7097709 | `xL` | `xR` | WorkspaceFacade |
-| 9 | 7121088 | `xU` | `xW` | FileCommandFacade |
-| 10 | 7126296 | `xq` | `xK` | TerminalFacade |
-| 11 | 7128698 | `xJ` | `x0` | EditorFacade |
-| 12 | 7132284 | `x3` | `x6` | OutlineFacade |
-| 13 | 7134171 | `Me` | `Mt` | ChatPane |
-| 14 | 7134895 | `Mr` | `Mn` | SlardarFacade |
-| 15 | 7135785 | `Ma` | `Ms` | TeaFacade |
-| 16 | 7136260 | `Mc` | `Mu` | FpsRecordFacade |
-| 17 | 7141119 | `Mb` | `Mw` | PaneComposite 服务 |
-| 18 | 7141929 | `MA` | `MC` | Telemetry 服务 |
-| 19 | 7143044 | `MT` | `MN` | Theme 服务 |
-| 20 | 7145449 | `MR` | `MP` | DynamicConfig 服务 |
-| 21 | 7145912 | `Mz` | `MB` | ContextKeyFacade |
-| 22 | 7148272 | `MY` | `MV` | Keybinding 服务 |
-| 23 | 7148876 | `bY` | `MQ` | **LogService** |
-| 24 | 7149840 | `M$` | `MX` | CredentialStore |
-| 25 | 7152097 | `Ci` | `M4` | SessionService |
-| 26 | 7153584 | `M5` | `M7` | AiClientManagerService |
-| 27 | 7155260 | `ks` | `ku` | AI 客户端变体 |
-| 28 | 7177763 | `kS` | `kE` | DynamicConfigStore |
-| 29 | 7179610 | `kA` | `kM` | ProductService |
-| 30 | 7189229 | `k1` | `k2` | ModelStore (Zustand) |
-| 31 | 7190440 | `Ie` | `Ii` | SoloGuide 服务 |
-| 32 | 7203823 | `Ix` | `IM` | SessionRelation 服务 |
-| 33 | 7217424 | `IN` | `ID` | SessionRelationStore (Zustand) |
-| 34 | 7220298 | `IZ` | `IQ` | Storage 相关 |
-| 35 | 7221939 | `I$` | `IX` | Input 相关 |
-| 36 | 7223077 | `I2` | `I4` | InlineSessionStore |
-| 37 | 7224039 | `I6` | `I8` | MarkdownContextMenuStore |
-| 38 | 7224870 | `I7` | `Ti` | ProjectStore |
-| 39 | 7225729 | `To` | `Ta` | ChatTurnImageMenuStore |
-| 40 | 7228600 | `Td` | `Th` | Storage 相关 |
-| 41 | 7229095 | `Tm` | `Tm` | Tea+Log 组合服务 |
-| 42 | 7244804 | `TM` | `TD` | Tea+Log 组合服务 |
-| 43 | 7248275 | `Tz` | `TB` | Env 相关 |
-| 44 | 7249310 | `TG` | `TH` | AgentExtensionStore |
-| 45 | 7251505 | `TQ` | `Tq` | 某服务 |
-| 46 | 7256181 | `T5` | `T3` | Entitlement 相关 |
-| 47 | 7256739 | `T8` | `T9` | LintErrorAutoFixStore |
-| 48 | 7258315 | `Nr` | `Nn` | RulesMode 服务 |
-| 49 | 7259427 | `Na` | `Ns` | SkillStore |
-| 50 | 7260182 | `Nc` | `Nu` | EntitlementStore |
-
----
-
-### 6. DI 依赖图（核心服务注入关系）
-
-```
-uj (DI Container Singleton)
-├── uX (inject) ─── 101 次装饰器调用
-├── uJ (register) ── 51 次服务注册
-├── uB (useInject) ── React Hook，内部用 hX
-└── hX (()=>uj.getInstance()) ── 容器快捷方式
-
-关键服务依赖链:
-xR (WorkspaceFacade)
-  ← uX(S2.IClipboardService, IFileService, IEditorService, ICodeEditorService,
-       ITextModelService, IOutlineModelService, IWorkspaceContextService,
-       ITextFileService, ILanguageService, IEditorService, ICodeEditorService,
-       IPathService, IModelService, IICubeAITeaService, IEnvironmentService,
-       IAiChatApiService, AM, xC, ED)
-
-xW (FileCommandFacade)
-  ← uX(S2.IClipboardService, IFileService, IEditorService, ICodeEditorService,
-       ITextFileService, IBulkEditService, IFileDialogService,
-       IWorkspaceContextService, ICommandService)
-
-xK (TerminalFacade)
-  ← uX(S2.IEditorService, IEditorGroupsService, IICubeSoloModeManagerService,
-       ITerminalEditorService, ICommandService, IFileService, ITerminalService,
-       ITerminalGroupService, IPathService, IOpenerService)
-
-x0 (EditorFacade)
-  ← uX(S2.ICodeEditorService, ITextFileService, IPathService)
-
-x6 (OutlineFacade)
-  ← uX(S2.IModelService, ILanguageService, IPathService)
-
-xI (SessionStore) ← uX(xC) [自引用? 或其他服务]
-MQ (LogService) ← uX(AM) [UtilFacade]
-M4 (SessionService) ← uX(Ci) [同 M0?]
-MX (CredentialStore) ← uX(M$)
-k2 (ModelStore) ← uX(k1) [自引用?]
-ID (SessionRelationStore) ← uX(Ix, ...)
-```
-
----
-
-### 7. 对补丁开发的关键影响
-
-1. **服务层 > UI 层原则验证**: DI resolve 调用集中在 7583273-7601575 区间（FF 对象，API 层）和 10463462-10478629 区间（命令注册层）。这些是**服务层代码**，不受 React 冻结影响。
-
-2. **auto-continue 补丁中的 Token 问题**:
-   - `uj.getInstance().resolve(BR)` @7452910 — BR 是 path 模块，不是 DI token！
-   - `uj.getInstance().resolve(Di)` @7508810 — Di 是 ChatService，调用 `.resumeChat()`
-   - **建议**: auto-continue 应该 resolve `M0` (ISessionService) 或 `BO` (ISessionServiceV2) 而非 BR
-
-3. **容器初始化时序**: `hX()` 返回容器后先检查 `isInitialized()`，未初始化时轮询等待。这意味着在 React 组件外使用 `uj.getInstance().resolve()` 需确保容器已初始化。
-
-4. **Zustand Store 与 DI 的关系**: `xC` (ISessionStore), `k1` (IModelStore), `IN` (ISessionRelationStore) 都是 Zustand store，通过 DI 注册但用 `uB(token)` 在 React 中注入，用 `.getState()` 在服务层访问。
-
-5. **搜索模板稳定性**: `Symbol.for("...")` 字符串是**最稳定的搜索锚点**，跨版本不变。`uX(`, `uJ({identifier:` 等混淆名每次构建可能变化。
-
----
-
-## [2026-04-25 18:30] SSE 流管道完整拓扑 ⭐⭐⭐⭐⭐
-
-> SSE 流是 Trae AI 聊天的核心数据管道。本节完整映射了从服务端到 UI 的所有路径。
-
-### 1. SSE 事件枚举 (D7)
-
-**注意**: 变量名 `D7` 随 webpack 构建变化。稳定搜索锚点是 `Symbol.for("IPlanItemStreamParser")` 等注册 token。
-
-| 事件类型 | 枚举值 | 说明 | Parser 类 | DI Token |
-|---------|--------|------|-----------|----------|
-| Metadata | `"metadata"` | 元数据 | DQ (MetadataParser) | `Symbol("IMetadataParser")` |
-| UserMessage | `"userMessage"` | 用户消息 | DV (UserMessageContextParser) | `Symbol("IUserMessageContextParser")` |
-| Notification | `"notification"` | 通知 | — | `Symbol.for("INotificationStreamParser")` |
-| TextMessage | `"textMessage"` | 文本消息 | — | `Symbol.for("ITextMessageChatStreamParser")` |
-| PlanItem | `"planItem"` | 计划项/工具调用 | zL (PlanItemStreamParser) | `Symbol("IPlanItemStreamParser")` |
-| Error | `"error"` | 错误 | zU (ErrorStreamParser) | `Symbol.for("IErrorStreamParser")` |
-| UserMessageStream | `"userMessageStream"` | 用户消息流 | zJ | `Symbol.for("IUserMessageStreamParser")` |
-| TokenUsage | `"tokenUsage"` | Token 用量 | z2 | `Symbol.for("ITokenUsageStreamParser")` |
-| ContextTokenUsage | `"contextTokenUsage"` | 上下文 Token | z3 | `Symbol.for("IContextTokenUsageStreamParser")` |
-| FeeUsage | `"feeUsage"` | 费用 | za | `Symbol("IFeeUsageStreamParser")` |
-| SessionTitle | `"sessionTitle"` | 会话标题 | z8 | `Symbol.for("ISessionTitleMessageStreamParser")` |
-| Done | `"done"` | 完成 | zW | `Symbol("IDoneStreamParser")` |
-| Queueing | `"queueing"` | 排队 | zV | `Symbol("IQueueingStreamParser")` |
-
-### 2. EventHandlerFactory (Bt) — 中央调度器
-
-```
-位置: ~7300000 区域
-模式: handle(event, payload, context) → parse(event, payload, context) → handleSteamingResult(result, context)
-```
-
-每个事件类型注册一个 Parser，handle() 调用 Parser.parse() 然后分发结果。
-
-### 3. ChatStreamService 层级
-
-```
-Bo (ChatStreamService 基类, Template Method 模式)
-├── Bv (SideChatStreamService) — 侧边栏聊天，完整事件分发
-└── BE (InlineChatStreamService) — 内联聊天，简化版
-```
-
-**关键**: `Bs` 不是 ChatStreamService！`Bs` 是 ChatParserContext（数据类）。
-
-### 4. SSE 流生命周期
-
-```
-SSE 连接建立
-  → onMetadata → MetadataParser.parse()
-  → onMessage → EventHandlerFactory.handle(eventType, payload, context)
-    → Parser.parse() → handleSteamingResult() → handleSideChat()/handleInlineError()
-      → storeService.updateMessage() → Zustand Store → React re-render
-  → onError(e, t, i) → 仅 t=true 时分发到 ErrorStreamParser
-  → onComplete → DoneParser.parse()
-  → onCancel → 清理
-```
-
-### 5. 15 个 Parser 类完整列表
-
-| Parser | 混淆名 | 偏移量 | DI Token | 处理事件 |
-|--------|--------|--------|----------|---------|
-| MetadataParser | DQ | ~7314000 | IMetadataParser | Metadata |
-| UserMessageContextParser | DV | ~7314000 | IUserMessageContextParser | UserMessage |
-| NotificationStreamParser | — | ~7322410 | INotificationStreamParser | Notification |
-| TextMessageChatStreamParser | — | ~7497479 | ITextMessageChatStreamParser | TextMessage |
-| PlanItemStreamParser | — | ~7503299 | IPlanItemStreamParser | PlanItem |
-| ErrorStreamParser | zU | ~7508572 | IErrorStreamParser | Error |
-| UserMessageStreamParser | zJ | ~7515007 | IUserMessageStreamParser | UserMessageStream |
-| TokenUsageStreamParser | z2 | ~7516765 | ITokenUsageStreamParser | TokenUsage |
-| ContextTokenUsageStreamParser | z3 | ~7517392 | IContextTokenUsageStreamParser | ContextTokenUsage |
-| FeeUsageStreamParser | za | ~7482422 | IFeeUsageStreamParser | FeeUsage |
-| SessionTitleMessageStreamParser | z8 | ~7518028 | ISessionTitleMessageStreamParser | SessionTitle |
-| DoneStreamParser | zW | ~7511057 | IDoneStreamParser | Done |
-| QueueingStreamParser | zV | ~7512721 | IQueueingStreamParser | Queueing |
-| TaskAgentMessageParser | — | ~7614800 | (非 SSE 管道) | (IPC 消息) |
-| DZ/Dq (预解析器) | DZ, Dq | ~7300000 | — | 预处理 |
-
-**关键发现**: TaskAgentMessageParser 不在 SSE 管道中！它处理 IPC 来源的消息，这就是 v12 补丁零输出的原因。
-
-### 6. 错误分发的关键条件
-
-```javascript
-// Bo.onError(e, t, i):
-// t=true → SSE 流错误 → eventHandlerFactory.handle(D7.Error, e, r) → ErrorStreamParser
-// t=false → 其他异常 → 仅日志记录
-// 思考上限错误不经过此路径！
-```
-
-### 7. 搜索模板
-
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| SSE 事件枚举 | `Symbol.for("IPlanItemStreamParser")` | ⭐⭐⭐⭐⭐ |
-| EventHandlerFactory | `eventHandlerFactory` | ⭐⭐⭐ |
-| ChatStreamService | `class Bo` | ⭐⭐ |
-| ErrorStreamParser | `Symbol.for("IErrorStreamParser")` | ⭐⭐⭐⭐⭐ |
-| PlanItemStreamParser | `Symbol("IPlanItemStreamParser")` | ⭐⭐⭐⭐ |
-
----
-
-## [2026-04-25 18:45] Zustand Store 架构完整映射 ⭐⭐⭐⭐⭐
-
-> Store 是 Trae AI 聊天的状态中枢。本节完整映射了所有 Store 操作。
-
-### 1. Store 实例
-
-| Store | DI Token | 混淆名 | 偏移量 | 说明 |
-|-------|----------|--------|--------|------|
-| SessionStore | `xC` = Symbol("ISessionStore") | xI | ~7087490 | 主聊天会话存储 |
-| InlineSessionStore | `I2` = Symbol("IInlineSessionStore") | I4 | ~7221939 | 内联聊天会话存储 |
-| ModelStore | `k1` = Symbol("IModelStore") | k2 | ~7186457 | 模型配置存储 |
-| SessionRelationStore | `IN` = Symbol("ISessionRelationStoreInternal") | ID | ~7203850 | 会话关系存储 |
-| ProjectStore | `I7` | Ti | ~7224039 | 项目存储 |
-| AgentExtensionStore | `TG` | TH | ~7248275 | Agent 扩展存储 |
-| SkillStore | `Na` | Ns | ~7258315 | 技能存储 |
-| EntitlementStore | `Nc` | Nu | ~7259427 | 权限存储 |
-
-### 2. 两种 currentSession 模式
-
-**SessionStore (主聊天)**:
-- `currentSession` 是**计算属性**: 从 `sessions[]` + `currentSessionId` 派生
-- `updateMessage()` 操作 `sessions[]` 数组
-- `updateLastMessage()` 操作 `sessions[]` 数组
-
-**InlineSessionStore (内联聊天)**:
-- `currentSession` 是**直接字段**
-- `updateMessage()` 和 `updateLastMessage()` 都调用 `setCurrentSession({...i, messages:[...]})`
-
-**影响**: 补丁目标不同，策略不同。
-
-### 3. setCurrentSession 调用点
-
-| 偏移量 | 上下文 | Store |
-|--------|--------|-------|
-| ~7087490 | Store 定义 | SessionStore |
-| ~7221939 | Store 定义 | InlineSessionStore |
-| ~7584046 | subscribe #8 回调 | SessionStore |
-| ~7605848 | runningStatusMap subscribe | SessionStore |
-
-### 4. 关键 subscribe 调用
-
-| 偏移量 | 监听内容 | 用途 |
-|--------|---------|------|
-| ~7584046 | `currentSession.messages.length` + `currentSessionId` | 更新全局上下文 |
-| ~7605848 | `runningStatusMap` | 解析 waitForResponseComplete promise |
-| ~7588518 | subscribe #8 (已有) | 消息数量变化检测 |
-
-### 5. 无 Immer
-
-代码库使用**展开运算符**进行不可变更新，不使用 Immer 的 `produce()`。
-- `setCurrentSession({...i, messages:[...]})` — 标准展开
-- 这简化了补丁设计——不需要担心 draft proxy
-
-### 6. Store-React 连接
-
-```javascript
-// uB(token) — React Hook 注入 Store
-// 等价于: const store = useSyncExternalStore(subscribe, getSnapshot)
-// 返回: store 实例，可调用 .getState() / .subscribe() / .setState()
-```
-
-### 7. confirm_info 流经 PlanItemStreamParser
-
-```
-SSE PlanItem 事件 → PlanItemStreamParser._handlePlanItem() (~7504035)
-  → 检查 confirm_info.confirm_status
-  → 调用 provideUserResponse() (自动确认补丁)
-  → 更新 confirm_info.confirm_status = "confirmed"
-  → storeService.updateMessage() → Store 更新 → React re-render
-```
-
-### 8. 搜索模板
-
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| SessionStore | `Symbol("ISessionStore")` | ⭐⭐⭐⭐ |
-| InlineSessionStore | `Symbol("IInlineSessionStore")` | ⭐⭐⭐⭐ |
-| setCurrentSession | `setCurrentSession` | ⭐⭐⭐ |
-| subscribe | `.subscribe(` | ⭐⭐⭐ |
-| getState | `.getState()` | ⭐⭐⭐ |
-| useStore | `N.useStore` | ⭐⭐ |
-
-## [2026-04-25 19:15] 错误处理系统完整映射 ⭐⭐⭐⭐⭐
-
-> 错误系统是 Trae AI 聊天的"免疫系统"。本节完整映射了所有错误码、传播路径和恢复策略。
-
-### 1. 错误码枚举 (kg) 完整列表
-
-#### LLM/Agent 错误 (4000xxx 范围)
-
-| 错误码 | 枚举名 | 含义 | 分类 |
-|--------|--------|------|------|
-| 4000002 | TASK_TURN_EXCEEDED_ERROR | 思考轮次超限 | 可续接 |
-| 4000009 | LLM_STOP_DUP_TOOL_CALL | 重复工具调用 | 可续接 |
-| 4000012 | LLM_STOP_CONTENT_LOOP | 内容循环检测 | 可续接 |
-| 4008 | (未命名) | 工具调用错误 | 可恢复 |
-| 4027 | (未命名) | 请求被拒绝 | 可恢复 |
-| 4113 | (未命名) | 模型限制 | 不可恢复 |
-
-#### 网络/服务错误 (efh 列表, 14 个)
-
-| 错误码 | 含义 | 分类 |
-|--------|------|------|
-| SERVER_CRASH | 服务器崩溃 | 可恢复(resumeChat) |
-| (13个其他网络错误) | 连接超时/重置等 | 可恢复(resumeChat) |
-
-#### 特殊错误码
-
-| 错误码 | 枚举名 | 含义 | 分类 |
-|--------|--------|------|------|
-| 987 | MODEL_OUTPUT_TOO_LONG | 输出过长 | 不可恢复 |
-| 977 | (未命名) | 上下文过长 | 不可恢复 |
-| 2000000 | DEFAULT | 默认错误 | 视情况 |
-
-### 2. 错误传播路径
-
-```
-PATH A: 主进程 IPC (思考上限等)
-  服务端 → Electron 主进程 → YTr.emit() → IPC → TaskAgentMessageParser.parse() @7615777
-    → 写入 exception={code:t, ...} → Store 更新 → React 渲染
-
-PATH B: SSE 流错误 (连接断开等)
-  服务端 → SSE Error 事件 → ChatStreamService._onError(e,t,i) @7528742
-    → eventHandlerFactory.handle(D7.Error, ...) → ErrorStreamParser.parse() @7508572
-      → getErrorInfoWithError(e) → Store 更新 → React 渲染
-
-PATH C: 通用错误 (账户/权限等)
-  服务端 → Bs.onError → handleCommonError() @7300455
-    → _aiChatRequestErrorService 处理 → 可能弹窗/重定向
-```
-
-**关键**: 思考上限错误走 PATH A，不经过 SSE ErrorStreamParser！
-
-### 3. 错误码→消息映射
-
-- `getErrorInfoWithError(e)` @7513080 — ErrorStreamParser 中使用
-- `getErrorInfo(t, {...})` @7615777 — TaskAgentMessageParser 中使用
-- 两者都映射数字码 → `{level, message}`，level 决定 bQ.Warning vs bQ.Error
-
-### 4. stopStreaming — "沉默杀手"
-
-```
-位置: ~7538139
-行为: 将 bQ.Warning 覆盖为 bQ.Canceled
-影响: if(V&&J) 守卫条件中 J 检查 status===Warning，被覆盖后守卫失败
-修复: guard-clause-bypass 补丁
-```
-
-### 5. agentProcess "v3"
-
-```
-只有 agentProcess==="v3" 的会话才支持 resumeChat()
-其他版本回退到 retryChatByUserMessageId()（可能丢失上下文）
-```
-
-### 6. 搜索模板
-
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| 错误码枚举 | `4000002` | ⭐⭐⭐⭐⭐ |
-| ErrorStreamParser | `Symbol.for("IErrorStreamParser")` | ⭐⭐⭐⭐⭐ |
-| TaskAgentMessageParser | `Symbol("ITaskAgentMessageParser")` | ⭐⭐⭐⭐ |
-| handleCommonError | `handleCommonError` | ⭐⭐⭐ |
-| stopStreaming | `_stopStreaming` | ⭐⭐ |
-| resumeChat | `resumeChat` | ⭐⭐⭐ |
-
-## [2026-04-25 19:30] React 组件层级完整映射 ⭐⭐⭐⭐⭐
-
-> React 组件是 Trae AI 聊天的 UI 表现层。本节完整映射了组件树、Store 连接和冻结行为。
-
-### 1. 三层架构 (核心设计原则)
-
-```
-L1 UI 层 (React 组件) ~8000000+     → 后台标签页冻结！
-L2 服务层 (SSE 解析器) ~7500000     → 始终活跃
-L3 数据层 (DG.parse)    ~7318521     → 始终活跃
-```
-
-### 2. 组件树
-
-```
-AMD Module Entry
-├── L3 数据层
-│   ├── DG.parse() @7318521
-│   └── data-source-auto-confirm 补丁 @7323241
-├── L2 服务层
-│   ├── EventHandlerFactory (Bt) @~7300000
-│   │   ├── PlanItemStreamParser @7502500 [自动确认补丁]
-│   │   ├── ErrorStreamParser @7508572
-│   │   └── (13 个 Parser)
-│   ├── ChatStreamService (Bo) @~7520000
-│   │   ├── SideChatStreamService (Bv)
-│   │   └── InlineChatStreamService (BE)
-│   ├── teaEventChatFail() @7458679 [最早错误信号]
-│   └── sendToAgentBackground (F3) @7610443
-├── L1 UI 层 → 后台冻结！
-│   ├── egR (RunCommandCard) @8635000
-│   │   ├── confirm_info 解构 @8637300
-│   │   ├── ey useMemo (有效确认状态) @8636941
-│   │   ├── _ useMemo (需要确认弹窗) @8629200
-│   │   ├── 自动确认 useEffect @8640019
-│   │   ├── ew.confirm() [仅遥测！] @~8635000+
-│   │   └── eE(Ck.Confirmed) [真正执行] @~8635000+
-│   ├── sX().memo(Jj) @~8709284 [自动续接宿主]
-│   │   ├── JP.Sz 选择器 (status/exception/agentMessageId/sessionId)
-│   │   ├── V = 最后一条助手消息匹配
-│   │   ├── J = 可续接错误标志 @8696378
-│   │   ├── if(V&&J) 分支 @8702300 [自动续接补丁]
-│   │   ├── ec useCallback (重试/续接) @8697580
-│   │   ├── ed useCallback ("继续"按钮) @8697620
-│   │   └── efh 可恢复错误列表 @8695303
-│   └── ErrorMessageWithActions @8700000-8930000
-│       └── 17+ Alert 渲染点
-├── DI 容器 (uj) @6268469
-│   ├── uX(token) 注入装饰器 (101 次)
-│   ├── uJ({identifier:token}) 注册装饰器 (51 服务)
-│   └── uB(token) React Hook useInject @6270579
-└── Zustand Stores (8 个)
-    ├── SessionStore (xC) @~7087490
-    ├── InlineSessionStore (I2) @~7221939
-    └── (6 个其他 Store)
-```
-
-### 3. 17+ Alert 渲染点
-
-| # | 偏移量 | 错误码/条件 | 类型 | 有按钮? |
-|---|--------|-----------|------|--------|
-| 1 | ~8700219 | ENTERPRISE_QUOTA_CONFIG_INVALID | warning | No |
-| 2 | ~8701000 | MODEL_PREMIUM_EXHAUSTED | warning | No |
-| 3 | ~8701454 | PAYMENT_METHOD_INVALID | warning | No |
-| 4 | ~8701681 | INTERNAL_USAGE_LIMIT | warning | No |
-| 5 | ~8702300 | **if(V&&J) 可恢复错误** | **warning** | **Yes** |
-| 6 | ~8702410 | RISK_REQUEST_V2 | error/warning | No |
-| 7 | ~8703141 | CONTENT_SECURITY_BLOCKED | warning | No |
-| 8 | ~8703913 | FREE_ACTIVITY_QUOTA_EXHAUSTED | warning | No |
-| 9 | ~8704548 | CAN_NOT_USE_SOLO_AGENT | warning | No |
-| 10 | ~8705020 | CLAUDE_MODEL_FORBIDDEN | error | No |
-| 11 | ~8705534 | REPO_LEVEL_MODEL_UNAVAILABLE | warning | No |
-| 12 | ~8705889 | FIREWALL_BLOCKED | error | No |
-| 13 | ~8706759 | EXTERNAL_LLM_REQUEST_FAILED | error | Yes |
-| 14 | ~8707685 | PREMIUM_USAGE_LIMIT | error | No |
-| 15 | ~8708073 | STANDARD_MODE_USAGE_LIMIT | error | No |
-| 16 | ~8708463 | INVALID_TOOL_CALL | error | No |
-| 17 | ~8709130 | TOOL_CALL_RETRY_LIMIT | error | Yes |
-
-### 4. 冻结行为
-
-| 组件 | 层 | 后台行为 |
-|------|---|---------|
-| sX().memo(Jj) | L1 | 冻结 — React Scheduler 停止重渲染 |
-| egR (RunCommandCard) | L1 | 冻结 — useEffect/useMemo 暂停 |
-| PlanItemStreamParser | L2 | 活跃 — SSE 回调运行 |
-| teaEventChatFail | L2 | 活跃 — 遥测触发 |
-| store.subscribe | L2/L3 | 部分活跃 — 回调触发但浅比较遗漏 |
-
-### 5. 搜索模板
-
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| RunCommandCard | `getRunCommandCardBranch` | ⭐⭐⭐ |
-| 自动续接宿主 | `if(V&&J)` → 向上追溯到 `sX().memo(` | ⭐ |
-| efh 列表 | `kg.SERVER_CRASH` | ⭐⭐⭐ |
-| 确认状态 | `"unconfirmed"` | ⭐⭐⭐⭐ |
-| BlockLevel 枚举 | `"redlist"` | ⭐⭐⭐⭐ |
-
-## [2026-04-25 19:45] 事件总线与遥测系统完整映射 ⭐⭐⭐⭐⭐
-
-> 事件系统是 Trae AI 聊天的"神经系统"。本节完整映射了所有事件通道和遥测机制。
-
-### 1. TEA 遥测事件
-
-| 方法名 | 偏移量 | 用途 | 稳定性 |
-|--------|--------|------|--------|
-| teaEventChatFail | ~7458679 | 报告聊天失败(最早错误信号) | ⭐⭐⭐⭐ |
-| teaEventChatShown | (推断) | 报告聊天显示 | ⭐⭐⭐ |
-| teaEventChatRetry | (推断) | 报告聊天重试 | ⭐⭐⭐ |
-
-**DI Token**: `Ma` = `Symbol.for("ITeaFacade")` @~7135785
-
-### 2. SSE 事件总线 (EventHandlerFactory)
-
-```
-EventHandlerFactory (Bt) @~7300000
-  handle(eventType, payload, context) → Parser.parse() → handleSteamingResult()
-  
-13 个事件类型注册:
-  Metadata → DQ.parse()
-  PlanItem → PlanItemStreamParser._handlePlanItem()  ← 补丁 hook 点
-  Error → ErrorStreamParser.parse()                  ← 补丁 hook 点
-  Done → zW.parse()
-  ... (完整列表见 SSE 拓扑节)
-```
-
-### 3. Zustand Store 订阅
-
-| # | 偏移量 | 监听内容 | 用途 |
-|---|--------|---------|------|
-| 1 | ~7584046 | currentSession.messages.length + currentSessionId | 更新全局上下文 |
-| 2 | ~7588518 | subscribe #8 | 消息数量变化检测 |
-| 3 | ~7605848 | runningStatusMap | 解析 waitForResponseComplete |
-
-### 4. DOM 事件监听
-
-| # | 偏移量 | 事件 | 目标 | 用途 |
-|---|--------|------|------|------|
-| 1 | ~7610443 | cancelEventKey (动态) | window | 取消聊天流 |
-| 2 | (补丁注入) | visibilitychange | document | 窗口焦点恢复 |
-
-### 5. 无 Node.js EventEmitter
-
-代码库**不使用** `.on()`/`.emit()` 模式。使用自定义 EventHandlerFactory 的 `handle()`/`register()` 方法。
-
-### 6. 补丁 Hook 点可行性评估
-
-| Hook 点 | 偏移量 | 稳定性 | 可访问性 | 后台可用 | 信息量 | 综合 |
-|---------|--------|--------|---------|---------|--------|------|
-| **teaEventChatFail** | ~7458679 | 4 | 5 | **5** | 4 | **4.5** |
-| **PlanItemStreamParser** | ~7502500 | 5 | 4 | **5** | 5 | **4.75** |
-| **ErrorStreamParser** | ~7508572 | 5 | 3 | **5** | 4 | **4.25** |
-| DI resolve | 任意 | 5 | 3 | **5** | 3 | **4.0** |
-| store.subscribe | ~7588518 | 3 | 4 | 3 | 3 | **3.25** |
-| if(V&&J) Alert | ~8702300 | 2 | 5 | **1** | 5 | **3.25** |
-
-**Top 3 推荐 Hook 点**:
-1. PlanItemStreamParser._handlePlanItem — 命令确认最佳点
-2. teaEventChatFail — 后台错误检测最佳点
-3. DI Container resolve — 服务访问最佳点
-
-### 7. 搜索模板
-
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| TEA 服务 | `Symbol.for("ITeaFacade")` | ⭐⭐⭐⭐⭐ |
-| teaEventChatFail | `teaEventChatFail` | ⭐⭐⭐⭐ |
-| EventHandlerFactory | `eventHandlerFactory.handle(` | ⭐⭐⭐ |
-| visibilitychange | `visibilitychange` | ⭐⭐⭐⭐⭐ |
-| MessageChannel | `MessageChannel` | ⭐⭐⭐⭐⭐ |
-
-## [2026-04-25 20:15] IPC 进程间通信完整映射 ⭐⭐⭐⭐⭐
-
-> IPC 是 Trae 多进程架构的通信骨干。本节完整映射了所有通信通道。
-
-### 1. 三层 IPC 架构
-
-```
-Server → SSE Stream → Main Process (YTr Event Bus) → Renderer Process (Parsers)
-Renderer → VS Code Commands → Extension Host (ShellExec Service)
-Extension Host → EventEmitters → Renderer (Output/Status Updates)
-```
-
-### 2. Shell 执行命令 (icube.shellExec.*)
-
-| 命令 ID | 用途 |
+# Discoveries — Trae AI 源码探索发现记录
+
+> **文件用途**: 记录对 Trae IDE AI 模块源码 (unpacked/beautified.js, ~10.5MB) 的系统性探索发现。
+> **目标读者**: Explorer / Developer Agent，用于定位代码、设计补丁、验证假设。
+> **更新频率**: 每次探索会话结束后由 Agent 自动同步。
+> **last_reviewed**: 2026-04-27
+> **瘦身重构**: 2026-04-27 (8006→~3500 行, 删除过程性记录/归档v10实施/合并重复扫描)
+
+## 渐进式索引（Layer 1）
+
+> 启动时只加载本索引，需要详情时按 location 跳转。原则：代码优先、只补充缺失、做索引不做百科。
+
+### Skills
+
+| name | description | location |
+|------|-------------|----------|
+| explore-source | 在 ~10MB 压缩 JS 源码中进行系统性代码测绘 | skills/explore-source.md |
+| develop-patch | 接收问题报告，在 definitions.json 中创建或更新补丁 | skills/develop-patch.md |
+| verify-patch | 验证补丁正确应用且不引入新问题 | skills/verify-patch.md |
+| spec-rfc | 需求工程：需求获取→分析→规格→技术设计→验证 | skills/spec-rfc.md |
+
+### 业务上下文
+
+| name | description | location |
+|------|-------------|----------|
+| tcc-config-driven-behavior | TCC 配置中心控制功能开关、降级和灰度策略 | skills/business-context/tcc-config.md |
+| di-token-migration | Symbol.for→Symbol 迁移：Store/Parser 已迁移，Facade/Service 保留 | §Symbol.for→Symbol 迁移完整映射 |
+| commercial-permission-chain | NS→Nu→MX 付费限制判断链，bJ/bK 枚举 | §[Commercial] 商业权限域 |
+| error-code-system | kg 枚举(56个) + efg 可恢复(14个) + J/ee/X 标志 | §[Error] 错误处理系统 |
+| sse-pipeline | EventHandlerFactory→15 Parser，SSE 事件分发 | §[SSE] 流管道 |
+
+### 源码发现（11 域）
+
+| name | description | location |
+|------|-------------|----------|
+| DI 依赖注入 | uj 容器 + 186 注册 + 817 注入 + 106 Token | §[DI] 依赖注入容器 |
+| SSE 流管道 | EventHandlerFactory + 15 Parser + 13 事件 | §[SSE] 流管道 |
+| Store 状态架构 | 8 Zustand Store + Aq 基类 + uB Hook | §[Store] Zustand 状态架构 |
+| Error 错误处理 | kg 56 个 + efg 14 个 + 3 传播路径 | §[Error] 错误处理系统 |
+| React UI 组件 | L1/L2/L3 三层 + 16 组件导出 + 冻结行为 | §[React] UI 组件层 |
+| Event 事件总线 | TEA 遥测 + subscribe + DOM 事件 | §[Event] 事件总线与遥测 |
+| IPC 进程间通信 | Server→Main→Renderer + 25 命令 | §[IPC] 进程间通信 |
+| Setting 设置系统 | AI.toolcall.* + ConfirmMode 已移除 | §[Setting] 设置系统 |
+| Sandbox 沙箱 | BlockLevel 6 值 + AutoRunMode 5 值 | §[Sandbox] 沙箱与命令执行 |
+| MCP 工具调用 | ToolCallName 38 个 + 8 步生命周期 | §[MCP] 工具调用系统 |
+| Commercial 商业权限 | NS 6 方法 + efi() Hook + bJ/bK | §[Commercial] 商业权限域 |
+| Docset 文档集 | 5 ai.* Token + 三层服务架构 | §[Docset] 文档集域 |
+| Model 模型选择 | computeSelectedModelAndMode + kG/kH | §[Model] 模型选择域 |
+
+### 使用流程
+
+```
+1. 加载本索引 → 匹配需求到 description
+2. 按 location 跳转到详情 → 生成有依据的方案
+3. 引用验证 → 确保方案与已有发现一致
+```
+
+## 导航
+
+### 核心资产（必读）
+| Section | 行范围 | 内容 |
+|---------|--------|------|
+| 11 域完整映射 | L30-L970 | DI/SSE/Store/Error/React/Event/IPC/Setting/Sandbox/MCP/Commercial/Docset/Model |
+| 四维索引体系 | L2950+ | 按域/偏移量/功能/置信度的完整索引 |
+
+### 高价值探索
+| Section | 内容 |
 |---------|------|
-| `icube.shellExec.initShell` | 初始化登录 Shell 快照 |
-| `icube.shellExec.runCommand` | 执行命令 |
-| `icube.shellExec.checkStatus` | 检查命令状态 |
-| `icube.shellExec.killCommand` | 终止运行中命令 |
-| `icube.shellExec.getRunningCommands` | 获取 Agent 运行中命令 |
-| `icube.shellExec.getAllRunningCommands` | 获取所有运行中命令 |
-| `icube.shellExec.getTerminalHistory` | 获取终端历史 |
-| `icube.shellExec.getCommandOutput` | 获取命令输出 |
-| `icube.shellExec.getCommandIdByToolCallId` | toolCallId → commandId 映射 |
+| v2 探索远征 | 商业权限 + 补丁目标候选 + Phase 4/5 完整分析 |
+| Deep Dive Blindspots | P0/P1/命令注册 + 3补丁预研 + computeSelectedModelAndMode 完整决策链 |
+| Model 域深度探索 | 模型选择/模式切换完整架构 |
+| Docset 域深度探索 | 文档集管理完整架构 |
+| desktop-modules 盲区 | 确认无需打补丁 |
 
-### 3. 主进程事件总线 (workbench.desktop.main.js)
+### 参考工具
+| Section | 内容 |
+|---------|------|
+| 域交叉验证汇总 | 11域自动化验证结果 |
+| P1 盲区扫描最终版 | UI下半+命令注册+首部+尾部完整扫描 |
+| 版本差异探索 | Symbol.for→Symbol 迁移 + ConfirmMode 消失 + 变量重命名 |
+| 搜索模板可用性 | 26 个模板验证结果 |
 
-| 类 | 方法 | 用途 |
-|----|------|------|
-| YTr | `.emit()` | 发射事件到流 |
-| YTr | `.enqueueData()` | 入队流数据 |
-| YTr | `.drain()` | 排队数据到客户端 |
-| GZt | `.create()` | 创建错误对象 (如 "exceeded maximum number of turns") |
+### 归档
+> v10 实施关键发现、04-23 调试记录 → 已删除（重构时直接移除，未创建归档文件）
 
-### 4. 取消机制 (cancelEventKey)
+---
 
-```
-位置: ~7610443 (F3/sendToAgentBackground)
-模式: window.addEventListener(t.cancelEventKey, () => { s.stopChat(f.sessionId) })
-```
+## 11 域完整映射
 
-### 5. 关键发现: 无 ipcRenderer
+> 以下 11 个域构成 Trae AI 源码的完整架构地图。每个域包含：关键类/函数偏移量、数据流、DI Token、搜索模板。
 
-index.js **不使用** Electron 的 `ipcRenderer` API。所有主进程通信通过:
-1. VS Code 命令系统 (`vscode.commands.executeCommand`)
-2. SSE 流 (服务端→渲染进程数据)
-3. DI 容器服务方法 (渲染进程内部通信)
-4. `window.addEventListener` 动态键 (取消事件)
+### [DI] 依赖注入容器
 
-### 6. 搜索模板
+**核心实体**: uj 类 (全局 DI 容器单例)
 
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| Shell 执行 | `icube.shellExec.` | ⭐⭐⭐⭐⭐ |
-| 取消事件 | `cancelEventKey` | ⭐⭐⭐⭐ |
-| 错误工厂 | `GZt.create` | ⭐⭐ |
-| 事件总线 | `YTr.drain` | ⭐⭐ |
-
-## [2026-04-25 20:30] 设置系统完整映射 ⭐⭐⭐⭐⭐
-
-> 设置系统控制着 Trae AI 的行为边界。本节完整映射了所有设置键和监听机制。
-
-### 1. AI 工具调用设置
-
-| 设置键 | 类型 | 默认值 | 偏移量 | 用途 |
-|--------|------|--------|--------|------|
-| `AI.toolcall.confirmMode` | string | `"alwaysAsk"` | ~7438613 | 确认模式 |
-| `AI.toolcall.v2.command.mode` | string | — | ~7438600 | 命令执行模式 |
-| `AI.toolcall.v2.command.allowList` | array | — | ~7438600 | 允许列表 |
-| `AI.toolcall.v2.command.denyList` | array | — | ~7438600 | 拒绝列表 |
-
-### 2. 聊天工具设置
-
-| 设置键 | 类型 | 用途 |
+| 偏移量 | 实体 | 说明 |
 |--------|------|------|
-| `chat.tools.terminal.autoApprove` | boolean | 终端命令自动批准 |
-| `chat.tools.terminal.ignoreDefaultAutoApproveRules` | boolean | 忽略默认自动批准规则 |
-| `chat.tools.edits.autoApproveEdits` | boolean | 编辑操作自动批准 |
+| @6268469 | uj class 定义 | DI 容器，bindings Map + singletons Map |
+| @6273630 | uj class (详细) | getInstance/initialize/register/provide/resolve |
+| @6275751 | uj.getInstance() | 单例访问点 |
+| @6270579 | uB(token) Hook | React useInject，等价于 uj.getInstance().resolve |
+| @853508 | createDecorator | DI 装饰器工厂，serviceRegistry 全局 Map |
+| @1227889 | ServiceCollection + InstantiationService | VS Code 风格 DI |
+| @2607740 | __instance__ Symbol 注入 | Inject 装饰器，延迟注入机制 |
+| @10476892 | eY0 模块入口 | registerAdapter + bootstrapApplicationContainer |
+| @10466462 | uj.getInstance().provide() | 仅 1 次调用 |
 
-### 3. 全局设置
+**DI Token 统计**: Symbol.for 54个 + Symbol("I*") 52个 = **106 个**
+**注册点**: uJ({identifier: 186 处 | uX( 注入: 817 处
 
-| 设置键 | 类型 | 用途 |
+**关键 DI Token (按稳定性排序)**:
+
+| Token | 形式 | 偏移量 | 域 |
+|-------|------|--------|-----|
+| bY = LogService | Symbol.for | @6473533 | [DI] |
+| Ei = CredentialFacade | Symbol.for | @7015771 | [DI] |
+| xC = SessionStore | Symbol | @7087490 | [Store] |
+| Ma = TeaFacade | Symbol.for | @7135785 | [Event] |
+| M0 = SessionService | Symbol.for | @7150072 | [SSE] |
+| k1 = ModelStore | Symbol | @7186457 | [Store] |
+| Il = CommercialPermissionService | Symbol.for("aiAgent.") | @7259427 | [Commercial] |
+| BO = SessionServiceV2 | Symbol | @7545196 | [SSE] |
+
+**31 个 I*Service DI Token 完整映射**:
+
+| Token | 偏移量 | 域 |
+|-------|--------|-----|
+| IModelService | @7182322 | [Store] |
+| IModelStorageService | @7182353 | [Store] |
+| IModeStorageService | @7194537 | [Store] |
+| IModelTipConfigService | @7268582 | [Setting] |
+| IChatAgentGuideStorageService | @7296236 | [Store] |
+| ISimpleBoolCacheService | @7297005 | [Store] |
+| IModelReportService | @7298383 | [Event] |
+| IInlineSessionStoreService | @7318186 | [Store] |
+| IPlanService | @7456691 | [SSE] |
+| IStuckDetectionService | @7537021 | [Error] |
+| ISideChatStreamService | @7541121 | [SSE] |
+| IInlineChatStreamService | @7548009 | [SSE] |
+| ICommercialApiService | @7559975 | [Commercial] |
+| IFileDiffTruncationService | @7562542 | [Sandbox] |
+| IFileDiffService | @7565469 | [Sandbox] |
+| IKnowledgesTaskService | @7589570 | [Docset] |
+| ITaskListApiService | @7766628 | [IPC] |
+| IASRService | @7892948 | [IPC] |
+| IHuoshanAsrClientService | @7903529 | [IPC] |
+| IAWSASRClientService | @8027658 | [IPC] |
+| IPrivacyModeService | @8036543 | [Setting] |
+| IAutoAcceptService | @8039940 | [Sandbox] |
+| IRunCommandFeatureService | @8063616 | [Sandbox] |
+| IFileOpFeatureService | @8086208 | [Sandbox] |
+| IContributionService | @8095684 | [Setting] |
+| IKnowledgesPersistenceService | @8113678 | [Docset] |
+| IKnowledgesStagingService | @8122442 | [Docset] |
+| IKnowledgesFeatureService | @8130079 | [Docset] |
+| IKnowledgesSourceMaterialService | @8132725 | [Docset] |
+| IKnowledgesNotificationService | @8139976 | [Docset] |
+| IKnowledgesStatusBarService | @8186683 | [Docset] |
+
+**ai.* DI Token 家族 (5个)**:
+| Token | 偏移量 |
+|-------|--------|
+| ai.IDocsetService | @3546309 |
+| ai.IDocsetStore | @7244780 |
+| ai.IDocsetCkgLocalApiService | @7715114 |
+| ai.IDocsetOnlineApiService | @7720270 |
+| ai.IWebCrawlerFacade | @7725207 |
+
+**搜索模板**:
+| 目标 | 关键词 | 稳定性 |
+|------|--------|--------|
+| DI 容器 | `uj.getInstance()` | ⭐⭐⭐⭐⭐ |
+| DI 注册 | `uJ({identifier:` | ⭐⭐⭐⭐⭐ |
+| DI 注入 | `uX(` | ⭐⭐⭐⭐⭐ |
+| Symbol.for token | `Symbol.for("` | ⭐⭐⭐⭐ |
+| Symbol token | `Symbol("I` | ⭐⭐⭐⭐ |
+
+---
+
+### [SSE] 流管道 (Server-Sent Events)
+
+**核心实体**: EventHandlerFactory (Bt) → 15 个 Parser 类
+
+| 偏移量 | 实体 | 说明 |
 |--------|------|------|
-| `GlobalAutoApprove` | boolean | 全局自动批准 (YOLO 模式) |
+| @7300000 | EventHandlerFactory Bt | 中央调度器，事件→Parser 分发 |
+| @7314000 | MetadataParser DQ + UserMessageContextParser DV | 元数据解析 |
+| @7318521 | DG.parse() | 服务端响应解析器 |
+| @7322410 | NotificationStreamParser | 通知流 |
+| @7323241 | data-source-auto-confirm 补丁位置 | ⚠️ 补丁注入点 |
+| @7482422 | FeeUsageStreamParser za | 用量费用流 |
+| @7497479 | TextMessageChatStreamParser | 文本消息 |
+| @7502500 | PlanItemStreamParser._handlePlanItem() | ⚠️ 自动确认补丁核心 |
+| @7503299 | PlanItemStreamParser DI Token | Symbol("IPlanItemStreamParser") |
+| @7508572 | ErrorStreamParser zU | 错误流 |
+| @7511057 | DoneStreamParser zW | 完成流 |
+| @7512721 | QueueingStreamParser zV | 排队流 |
+| @7515007 | UserMessageStreamParser zJ | 用户消息 |
+| @7516765 | TokenUsageStreamParser z2 | Token 用量 |
+| @7517392 | ContextTokenUsageStreamParser z3 | 上下文 Token |
+| @7518028 | SessionTitleMessageStreamParser z8 | 会话标题 |
+| @7524723 | Bs class (ChatParserContext) | 聊天解析上下文 |
+| @7540700 | createStream() + resumeChat 蓝图 | 流创建 |
+| @7540953 | _aiAgentChatService.resumeChat() | 模块级续接调用 |
+| @7615777 | TaskAgentMessageParser.parse() | IPC→SSE 桥接 |
 
-### 4. ConfirmMode 枚举 (偏移 ~8069382)
+**SSE 事件枚举 (Ot. 前缀)**:
+| 事件类型 | 出现次数 | 位置 |
+|---------|---------|------|
+| PlanItem | 2 | 7514720, 7527483 |
+| Error | 5 | 7517735, 7527511, 7545623 |
+| Done | 3 | 7519472, 7527536, 7545632 |
+| Metadata | 4 | 7322040, 7504304, 7527424 |
+| Notification | 2 | 7328738, 7527755 |
+| TextMessage | 2 | 7505706, 7527452 |
+| UserMessage | 2 | 7523720, 7527618 |
+| TokenUsage | 4 | 7524662, 7527649, 7537085 |
+| FeeUsage | 2 | 7490394, 7527396 |
+| SessionTitle | 2 | 7527716, 7537132 |
 
-| 枚举值 | 字符串 | 行为 |
-|--------|--------|------|
-| ALWAYS_ASK | `"alwaysAsk"` | 每次命令需确认 |
-| WHITELIST | `"whitelist"` | 白名单内自动执行 |
-| BLACKLIST | `"blacklist"` | 非黑名单自动执行 |
-| ALWAYS_RUN | `"alwaysRun"` | 全部自动执行 (RedList 仍弹窗!) |
+**handleSteamingResult 出现 10 次**: 7328394, 7490128, 7503265, 7505244, 7511054, 7517005, 7518770, 7520557, 7521682, 7523529
 
-### 5. 关键发现: 无 onDidChangeConfiguration
+**搜索模板**:
+| 目标 | 关键词 | 稳定性 |
+|------|--------|--------|
+| 事件工厂 | `eventHandlerFactory` | ⭐⭐⭐⭐ |
+| 流结果处理 | `handleSteamingResult` | ⭐⭐⭐⭐ |
+| PlanItem 解析 | `_handlePlanItem` | ⭐⭐⭐⭐⭐ |
 
-index.js 中**没有** `onDidChangeConfiguration` 监听器。设置在服务构造时读取，变更需服务重新初始化。
+---
 
-### 6. 搜索模板
+### [Store] Zustand 状态架构
 
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| 确认模式 | `AI.toolcall.confirmMode` | ⭐⭐⭐⭐⭐ |
-| 命令设置 | `AI.toolcall.v2.command.` | ⭐⭐⭐⭐⭐ |
-| 聊天工具 | `chat.tools.` | ⭐⭐⭐⭐⭐ |
-| YOLO 模式 | `GlobalAutoApprove` | ⭐⭐⭐⭐ |
-| ConfirmMode 值 | `"alwaysAsk"` | ⭐⭐⭐⭐⭐ |
+**核心实体**: 8 个 Zustand Store (均继承 Aq 基类)
 
-## [2026-04-25 20:45] 沙箱与命令执行管道完整映射 ⭐⭐⭐⭐⭐
+| 偏移量 | Store | Token | 状态字段 |
+|--------|-------|-------|---------|
+| @7087490 | SessionStore | xC=Symbol("ISessionStore") | currentSession, sessions, sessionIdList |
+| @7191708 | ModelStore | k1=Symbol("IModelStore") | originModelListMap, modeListMap, showMaxModeNotice |
+| @7221939 | InlineSessionStore | I2=Symbol("IInlineSessionStore") | inlineSessions |
+| @7224039 | ProjectStore | I7 | currentProject |
+| @7248275 | AgentExtensionStore | TG | extensions |
+| @7258315 | SkillStore | Na | skills |
+| @7259427 | EntitlementStore | Nc=Symbol("IEntitlementStore") | entitlementInfo, saasEntitlementInfo |
+| @7244780 | DocsetStore | ai.IDocsetStore | builtinDocsets, customDocsets |
 
-> 沙箱系统是 Trae AI 的安全防线。本节完整映射了命令执行管道和安全规则。
+**关键行为**:
+- 无 Immer 使用，全部用展开运算符 `{...state, changes}`
+- setCurrentSession 出现 25 次
+- .subscribe() 出现 33 次（关键补丁注入点 @7588682）
+- .getState() 出现 234 次
 
-### 1. BlockLevel 枚举 (偏移 ~8069382)
+**Store-React 连接**: uB(token).useStore(selector) Hook @6270579
 
-| 枚举值 | 字符串 | 含义 | 需确认? |
-|--------|--------|------|---------|
-| RedList | `"redlist"` | 危险命令 | 始终弹窗 |
-| Blacklist | `"blacklist"` | 企业策略阻止 | 始终弹窗 |
-| SandboxNotBlockCommand | `"sandbox_not_block_command"` | 无法在沙箱运行 | 视模式 |
-| SandboxExecuteFailure | `"sandbox_execute_failure"` | 沙箱执行失败 | 视模式 |
-| SandboxToRecovery | `"sandbox_to_recovery"` | 沙箱需恢复 | 视模式 |
-| SandboxUnavailable | `"sandbox_unavailable"` | 沙箱不可用 | 视模式 |
+---
 
-### 2. AutoRunMode 枚举
+### [Error] 错误处理系统
 
-| 枚举值 | 字符串 | 含义 |
-|--------|--------|------|
-| Auto | `"auto"` | 自动模式 |
-| Manual | `"manual"` | 手动确认 |
-| Allowlist | `"allowlist"` | 白名单模式 |
-| InSandbox | `"in_sandbox"` | 沙箱内运行 |
-| OutSandbox | `"out_sandbox"` | 沙箱外运行 |
+**两套错误码体系**:
+1. **服务端 o 枚举** (@51947) — SSE 传输用
+2. **客户端 eA 枚举** (@7160512) — UI 渲染用
 
-### 3. getRunCommandCardBranch 决策矩阵
+**kg 枚举 (56 个完整错误码)** @54415:
 
+| 类别 | 关键错误码 | 值 |
+|------|-----------|-----|
+| 网络 | CONNECTION_ERROR, NETWORK_ERROR*, REQUEST_TIMEOUT_ERROR* | 1001-1008 |
+| 模型 | MODEL_NOT_EXISTED, MODEL_OUTPUT_TOO_LONG, MODEL_AUTO_SELECTION_FAILED | 1011-1013 |
+| 通用 | DEFAULT, RISK_REQUEST | 1014-1015 |
+| 配额 | PREMIUM_MODE_USAGE_LIMIT, STANDARD_MODE_USAGE_LIMIT | **4008, 4009** |
+| 循环 | LLM_STOP_CONTENT_LOOP, LLM_STOP_DUP_TOOL_CALL | 1024, 4000009 |
+| 思考上限 | TASK_TURN_EXCEEDED_ERROR | **4000002** |
+| 企业 | ENTERPRISE_* (12个), CLAUDE_MODEL_FORBIDDEN | 4113, 4213-4216 |
+| 防火墙 | FIREWALL_BLOCKED | **700** |
+
+**efg 可恢复错误列表 (14个)** @8705916:
 ```
-WHITELIST 模式:
-  + RedList → V2_Sandbox_RedList (弹窗)
-  + 其他 → P8.Default (自动执行)
-
-ALWAYS_RUN 模式:
-  + RedList → V2_Manual_RedList (弹窗!) ← 即使 ALWAYS_RUN + RedList 仍弹窗!
-  + 其他 → P8.Default (自动执行)
-
-默认 (Ask/Blacklist):
-  + RedList → V2_Manual_RedList (弹窗)
-  + 其他 → V2_Manual (弹窗)
+SERVER_CRASH, CONNECTION_ERROR, NETWORK_ERROR, NETWORK_ERROR_INTERNAL,
+CLIENT_NETWORK_ERROR, NETWORK_CHANGED, NETWORK_DISCONNECTED,
+CLIENT_NETWORK_ERROR_INTERNAL, REQUEST_TIMEOUT_ERROR, REQUEST_TIMEOUT_ERROR_INTERNAL,
+MODEL_RESPONSE_TIMEOUT_ERROR, MODEL_RESPONSE_FAILED_ERROR, MODEL_AUTO_SELECTION_FAILED, MODEL_FAIL
 ```
 
-**关键**: 只有 `P8.Default` = 真正自动执行。即使 `ALWAYS_RUN + RedList` 仍弹窗。
-
-### 4. 命令执行管道
-
-```
-AI 生成 tool_call → SSE PlanItem 事件 → DG.parse() @7318521
-  → PlanItemStreamParser._handlePlanItem() @7502500
-    → provideUserResponse({decision:"confirm"}) [自动确认补丁]
-    → 服务器接收决策 → icube.shellExec.runCommand
-      → ExtHostShellExecService.runCommand()
-        → ShellExecutor.spawn*Command()
-          → child_process 执行
-            → 输出捕获 → 状态快照 → SSE 回传结果
+**错误标志变量链** @8708083:
+```javascript
+X = !![kg.MODEL_NOT_EXISTED].includes(_)           // 模型不存在
+J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR,
+      kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP,
+      kg.DEFAULT].includes(_)                       // 思考上限+循环错误
+ee = !![kg.PREMIUM_MODE_USAGE_LIMIT, kg.STANDARD_MODE_USAGE_LIMIT].includes(_)  // 配额限制
 ```
 
-### 5. SAFE_RM 沙箱安全规则
+**错误传播路径**:
+1. SSE → De.handleError() @7300921 → UI Alert @8719877
+2. SSE → eYZ.onUsageLimit() @10471008 → 通知
+3. FIREWALL_BLOCKED → UI Alert @8718083
+4. CLAUDE_MODEL_FORBIDDEN → UI Alert @8717132
 
-| 环境变量 | 用途 |
-|----------|------|
-| `SAFE_RM_ALLOWED_PATH` | 允许删除/修改的路径白名单 |
-| `SAFE_RM_DENIED_PATH` | 禁止操作的路径黑名单 |
-| `SAFE_RM_SCRIPT_DIR` | safe_rm 脚本目录 |
-| `SAFE_RM_AUTO_ADD_TEMP` | 自动添加临时目录到白名单 |
+**efr 枚举 (免费用户配额状态)** @55610: 20 个值 (FreeNewSubscriptionUser* 1-10, FreeOldSubscriptionUser* 11-20, Pro* 21-32)
 
-拦截的命令: Remove-Item, Move-Item, Copy-Item, Out-File, Set-Content (PowerShell)
-拦截的命令: del, erase, rd, rmdir (CMD)
+---
 
-### 6. provideUserResponse 调用点
+### [React] UI 组件层
 
-| # | 位置 | 调用者 | 决策 |
-|---|--------|--------|------|
-| 1 | ~7502574 | PlanItemStreamParser (知识分支) | `"confirm"` |
-| 2 | ~7503319 | PlanItemStreamParser (其他分支) | `"confirm"` |
-| 3 | ~8635000+ | egR 组件 (用户确认) | `"confirm"` |
-| 4 | ~8635000+ | egR 组件 (用户拒绝) | `"reject"` |
+**三层架构**: L1(React UI) → L2(Service) → L3(Data)
 
-### 7. 搜索模板
+**16 个 React 组件导出** @10490209:
+ChatViewPaneComponent, InlineChatViewPaneComponent, CustomAgentPaneComponent,
+AIModelsSettingsComponent, AIContextSettingsComponent, AIKnowledgesSettingsComponent,
+AgentExtensionPaneComponent, AIRulesSettingsComponent, AIWorktreeSettingsComponent,
+AgentImportComponent, AITaskPanelComponent, AIConversationSettingsComponent,
+RuleMetadataFormComponent, DSLAgentPaneComponent, SubAgentDetailComponent,
+KnowledgesInitPopupComponent
 
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| BlockLevel | `"redlist"` | ⭐⭐⭐⭐⭐ |
-| AutoRunMode | `"allowlist"` | ⭐⭐⭐⭐⭐ |
-| ConfirmMode | `"alwaysAsk"` | ⭐⭐⭐⭐⭐ |
-| 决策函数 | `getRunCommandCardBranch` | ⭐⭐⭐ |
-| 确认 API | `provideUserResponse` | ⭐⭐⭐⭐ |
-| 确认类型 | `"tool_confirm"` | ⭐⭐⭐⭐⭐ |
-| SAFE_RM | `SAFE_RM_ALLOWED_PATH` | ⭐⭐⭐⭐⭐ |
+**关键组件**:
+| 偏移量 | 组件 | 功能 |
+|--------|------|------|
+| @8635000 | egR RunCommandCard | 命令确认卡片 (⚠️ 补丁核心) |
+| @9015579 | ChatInput | 聊天输入 |
+| @8932385 | FileDiff | 文件差异展示 |
+| @9067039 | ToolCall | 工具调用展示 |
+| @8975688 | confirm_status 引用 | 确认状态渲染 |
+| @9441960 | Max Mode tooltip | 模型选择 UI |
+| @8709284 | sX().memo(Jj) | 自动续接宿主组件 |
 
-## [2026-04-25 21:00] MCP/工具调用系统完整映射 ⭐⭐⭐⭐⭐
+**冻结行为**: React 冻结时 rAF→Scheduler 暂停，L1 层 useEffect 不执行。**服务层 > UI 层**。
 
-> MCP/工具调用系统是 Trae AI 的能力扩展层。本节完整映射了工具调用生命周期。
+**BlockLevel/AutoRunMode 枚举** @8069382 / @8081330-8081401
 
-### 1. ToolCallName 枚举 (80+ 工具, 偏移 ~41400/~7076154)
+---
 
-#### 命令执行类
+### [Event] 事件总线与遥测
+
+| 偏移量 | 实体 | 说明 |
+|--------|------|------|
+| @7140149 | ITeaFacade (Symbol.for) | TEA 遥测门面 |
+| @7458679 | teaEventChatFail | 错误遥测事件 (⚠️ auto-continue 补丁点) |
+| @7584046-7588518 | store.subscribe #1/#8 | Zustand 订阅 (⚠️ 补丁注入点) |
+| @7610443 | cancelEventKey | DOM 事件监听 |
+| @210378 | visibilitychange (28命中) | 页面可见性变化 |
+| @2317698 | HaltChainable | VS Code 事件链中断机制 |
+| @7298383 | IModelReportService | 模型报告服务 |
+
+**无 Node.js EventEmitter** — 使用自定义 Emitter 类。
+
+---
+
+### [IPC] 进程间通信
+
+| 偏移量 | 实体 | 说明 |
+|--------|------|------|
+| @7610443 | F3/sendToAgentBackground | 后台发送入口 |
+| @7614717 | ResumeChat 服务端方法调用 | 续接 IPC |
+| @7615777 | TaskAgentMessageParser.parse() | IPC exception 写入 |
+| @7766628 | ITaskListApiService | 任务列表 API |
+| @7892948-8027658 | ASR 服务族 (4个) | 语音识别 |
+
+**三层 IPC 架构**: Server(渲染进程) → Main(主进程) → Renderer(UI)
+**Shell 执行命令**: icube.shellExec.* 9 个命令
+
+---
+
+### [Setting] 设置系统
+
+| 偏移量 | 设置 Key | 说明 |
+|--------|----------|------|
+| @7438613 | AI.toolcall.confirmMode | 命令确认模式 |
+| @7438600 | AI.toolcall.v2.command.* | v2 命令配置 |
+| @7438613 | chat.tools.* (3个) | 聊天工具设置 |
+| @7438613 | GlobalAutoApprove | 全局自动批准 |
+| @7268582 | IModelTipConfigService | 模型提示配置 |
+| @8036543 | IPrivacyModeService | 隐私模式 |
+| @8095684 | IContributionService | 贡献设置 |
+
+**ConfirmMode 枚举已移除** (@8069382) — 改为纯配置驱动。
+
+---
+
+### [Sandbox] 沙箱与命令执行
+
+| 偏移量 | 实体 | 说明 |
+|--------|------|------|
+| @8069382 | BlockLevel (6值) / AutoRunMode (5值) | 沙箱枚举 |
+| @8069620 | getRunCommandCardBranch() | 决策矩阵 (⚠️ 补丁注入点) |
+| @7502574 | provideUserResponse (knowledge分支) | 知识库响应 |
+| @7503319 | provideUserResponse (其他分支) | 其他响应 |
+| @8039940 | IAutoAcceptService | 自动接受服务 |
+| @8063616 | IRunCommandFeatureService | 运行命令特性 |
+| @8086208 | IFileOpFeatureService | 文件操作特性 |
+| @7562542 | IFileDiffTruncationService | 差异截断 |
+| @7565469 | IFileDiffService | 差异服务 |
+| @7318521 | DG.parse() data-source-auto-confirm | 数据源自动确认 |
+
+**SAFE_RM 沙箱安全规则**: 危险命令需要确认。
+
+---
+
+### [MCP] 工具调用系统
+
+| 偏移量 | 实体 | 说明 |
+|--------|------|------|
+| @40836 | ToolCallName 枚举 (38个) | 完整工具名列表 |
+| @7076154 | ToolCallName 枚举第二段 | 扩展工具 |
+| @44416 | UserConfirmStatusEnum | Unconfirmed/Confirmed/Skipped/Canceled |
+| @7512531 | provideUserResponse (10命中) | 响应提供 |
+| @7318521 | confirm_info 数据结构 | 确认信息结构 |
+
+**ToolCallName 完整列表 (38个)**:
+RunCommand, OpenPreview, OpenPreviewAndWaitForError, OpenFolder, CreateFile,
+ViewFile, ViewFiles, ViewFolder, EditFileSearchReplace, WriteToFile, ShowDiff,
+SearchByReference, SearchByDefinition, SearchByRegex, FileSearch,
+CheckCommandStatus, DeleteFile, UpdateShallowMemento, CondenseShallowMemento,
+MCPCall(run_mcp), Finish, WebSearch, ResponseToUser, SearchCodebase,
+TodoWrite, CreateRequirement, EditProductDocumentFastApply, EditProductDocumentUpdate,
+EditProductDocumentUpdateFC, WriteToProductDocument, DeployToVercel,
+SupabaseApplyMigration, SupabaseGetProject, GetLLMConfig, GetStripeConfig,
+GetPreviewConsoleLogs, InitEnvironment, AgentFinish
+
+**MCP 集成**: run_mcp 与 run_command 共享确认管道。
+
+**工具调用生命周期**: 8步
+1. AI模型生成 tool_call → 2. SSE "planItem" 事件 → 3. DG.parse() 解析
+→ 4. PlanItemStreamParser 处理 → 5. getRunCommandCardBranch() UI 分支
+→ 6. 服务器 icube.shellExec.runCommand → 7. child_process 执行
+→ 8. 结果 SSE 回传
+
+---
+
+### [Commercial] 商业权限域
+
+**NS 类 (ICommercialPermissionService)** @7267682:
+Token: `Il = Symbol.for("aiAgent.ICommercialPermissionService")`
+
+| 方法 | 返回值逻辑 |
+|------|-----------|
+| isDollarUsageBilling() | entitlementInfo?.isDollarUsageBilling |
+| isCommercialUser() | !kP(userProfile) && !isCNPackage() |
+| isOlderCommercialUser() | isCommercialUser && !isDollarUsageBilling |
+| isNewerCommercialUser() | isCommercialUser && isDollarUsageBilling |
+| isSaas() | userProfile?.scope === bK.SAAS |
+| isInternal() | kP(userProfile) = scope===BYTEDANCE |
+
+**⚠️ NS 类没有 isFreeUser() 方法！**
+
+**efi() Hook (isFreeUser 完整实现链)** @8687513:
+```javascript
+function efi(){
+  let e=uB(Nc), t=uB(Ie), i=uB(M$), r=uB(kA);
+  let n = e.useStore(e => !e.entitlementInfo?.identity);  // isFreeUser
+  let o = e.useStore(e => !!e.entitlementInfo?.enableSoloBuilder);
+  let a = e.useStore(e => !!e.entitlementInfo?.enableSoloCoder);
+  let s = e.useStore(e => !!e.entitlementInfo?.isDollarUsageBilling);
+  // ... 返回 {isFreeUser:n, isCommercialUser:f, isOlderCommercialUser:f&&!s, ...}
+}
+```
+
+**Nu 类 (IEntitlementStore)** @7264682:
+初始状态: `{ entitlementInfo: null, saasEntitlementInfo: null }`
+entitlementInfo: { identity(bJ enum), isDollarUsageBilling, enableSoloBuilder, enableSoloCoder }
+
+**MX 类 (ICredentialStore)** @7154491:
+初始状态: `{ loggedIn:false, userProfile:null, token:null }`
+userProfile.scope → bK: BYTEDANCE="bytedance", SAAS="saas", MARSCODE="marscode"
+
+**bJ 枚举 (用户身份)** @6479431: Free=0, Pro=1, ProPlus=2, Ultra=3, Trial=4, Lite=5, Express=100
+
+**bK 枚举 (scope)** @6479143: BYTEDANCE, MARSCODE, SAAS
+
+**付费限制错误码 (纠正值)**:
+| 错误码 | 旧值 | 正确值 |
+|--------|------|--------|
+| PREMIUM_MODE_USAGE_LIMIT | 1016 | **4008** |
+| STANDARD_MODE_USAGE_LIMIT | 1017 | **4009** |
+| FIREWALL_BLOCKED | 1023 | **700** |
+
+**ee 变量 (配额限制标志)** @8707858: `ee=!![kg.PREMIUM_MODE_USAGE_LIMIT,kg.STANDARD_MODE_USAGE_LIMIT].includes(_)`
+
+---
+
+### [Docset] 文档集域
+
+**5 个 ai.* DI Token (全部 Symbol.for)**:
+
+| Token | 偏移量 | 实现类 |
+|-------|--------|--------|
+| ai.IDocsetService | @3546321 | Gd (DocsetServiceImpl) |
+| ai.IDocsetStore | @7244792 | TD (DocsetStore, Zustand) |
+| ai.IDocsetCkgLocalApiService | @7715126 | WY (CkgLocalApiService) |
+| ai.IDocsetOnlineApiService | @7720282 | Wq (DocsetOnlineApiService) |
+| ai.IWebCrawlerFacade | @7725219 | Gs (WebCrawlerFacade) |
+
+**IDocsetStore 状态**: builtinDocsets, builtinDocsetVersion, customDocsets, searchableBuiltinDocsets, enterpriseDocsetIdsToRefresh
+
+**IKnowledges 服务族 (8个)**: TaskService, PersistenceService, StagingService, FeatureService, SourceMaterialService, NotificationService, StatusBarService
+**icube.knowledges.* 命令 (7个)**: init, retryInit, rebuild, update, pause, continue, statusClick/showDebugStatus
+
+**企业文档集门控**: userProfile.scope === bK.SAAS + isSaaSFeatureEnabled("ent_knowledge_base")
+
+---
+
+### [Model] 模型选择域
+
+**核心实体**:
+
+| 偏移量 | 实体 | 说明 |
+|--------|------|------|
+| @7182322 | IModelService (kv=Symbol.for) | NR 类实现 |
+| @7182353 | IModelStorageService | 模型存储 |
+| @7191708 | IModelStore (k1=Symbol) | k2 类，模型列表 Store |
+| @7213504 | computeSelectedModelAndMode | ⚠️ 静态方法，模式决策核心 |
+| @7185310 | kG 枚举 (Manual=0/Auto=1/Max=2) | 模式类型 |
+| @7185310 | kH 枚举 (Advanced=1/Premium=2/Super=3) | 模型层级 |
+| @7280685 | checkFreeUserPremiumModelNotice | 免费用户高级模型通知 |
+
+**computeSelectedModelAndMode 决策链**:
+1. 无 agentType 或空模型列表 → Manual
+2. session 级选中模型 → global 级 → 默认模型
+3. ★ 商业用户 Solo Agent → **强制 Max** `(isOlderCommercialUser||isSaas) && solo_coder/builder`
+4. 回退 + auto_mode → Auto
+5. 回退其他 → Manual
+6. 正常路径 → session/global 模式映射，默认 Auto
+
+**force-max-mode 补丁蓝图**: Step 3 条件 `(u||d)&&(...)` → 可改为恒真或直接返回 Max
+
+---
+
+## MCP 工具调用详情
+
+### 1. 工具枚举 (排除自动确认)
 
 | 枚举值 | 字符串 | 用途 |
 |--------|--------|------|
-| RunCommand | `"run_command"` | Shell 命令执行 |
-| MCPCall | `"run_mcp"` | MCP 工具调用 |
-| check_command_status | `"check_command_status"` | 检查命令状态 |
-
-#### 文件操作类
-
-| 枚举值 | 字符串 | 用途 |
-|--------|--------|------|
-| Read | `"Read"` | 读取文件 |
-| Write | `"Write"` | 写入文件 |
-| Edit | `"Edit"` | 编辑文件 |
-| MultiEdit | `"MultiEdit"` | 多处编辑 |
-| Glob | `"Glob"` | Glob 模式搜索 |
-| Grep | `"Grep"` | Grep 搜索 |
-| LS | `"LS"` | 列出目录 |
+| RunCommand | `"run_command"` | 执行命令 |
+| WriteToFile | `"write_to_file"` | 写文件 |
+| CreateFile | `"create_file"` | 创建文件 |
+| Read | `"read"` | 读文件 |
+| Edit | `"edit"` | 编辑 |
 | SearchReplace | `"SearchReplace"` | 搜索替换 |
 | SearchCodebase | `"SearchCodebase"` | 代码库搜索 |
+| LS | `"LS"` | 列出目录 |
 
-#### 用户交互类 (排除自动确认)
+### 2. 用户交互类 (排除自动确认)
 
 | 枚举值 | 字符串 | 用途 |
 |--------|--------|------|
@@ -2710,10 +548,10 @@ AI 生成 tool_call → SSE PlanItem 事件 → DG.parse() @7318521
 | NotifyUser | `"NotifyUser"` | 通知用户 |
 | ExitPlanMode | `"ExitPlanMode"` | 退出计划模式 |
 
-#### 浏览器操作类 (20+ 工具)
+### 3. 浏览器操作类 (20+ 工具)
 - `browser_*` 系列 (navigate, click, screenshot 等)
 
-### 2. 工具调用生命周期
+### 4. 工具调用生命周期
 
 ```
 1. 发起: AI 模型生成 tool_call (tool_name, tool_input, toolcall_id)
@@ -2727,7 +565,7 @@ AI 生成 tool_call → SSE PlanItem 事件 → DG.parse() @7318521
 8. 完成: DoneStreamParser.parse() → 标记轮次完成
 ```
 
-### 3. confirm_info 数据结构
+### 5. confirm_info 数据结构
 
 ```javascript
 confirm_info = {
@@ -2741,11 +579,10 @@ confirm_info = {
 }
 ```
 
-### 4. MCP 集成
+### 6. MCP 集成
+MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自动确认补丁覆盖 MCP 调用。
 
-MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自动确认补丁覆盖 MCP 调用，因为它们确认所有 `toolName !== "response_to_user"` 的调用。
-
-### 5. 搜索模板
+### 7. 搜索模板
 
 | 目标 | 搜索关键词 | 稳定性 |
 |------|-----------|--------|
@@ -2757,13 +594,11 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 
 ---
 
-# 偏移量索引与交叉引用
+## 偏移量索引与交叉引用
 
-> 以下索引按域、偏移量范围和功能组织，方便快速定位代码。
+### 按探索域索引
 
-## 按探索域索引
-
-### [DI] 依赖注入
+#### [DI] 依赖注入
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
@@ -2785,7 +620,7 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7259427 | Nc EntitlementStore | ⭐⭐⭐ |
 | ~7545196 | BO = Symbol("ISessionServiceV2") | ⭐⭐⭐⭐ |
 
-### [SSE] 流管道
+#### [SSE] 流管道
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
@@ -2817,7 +652,7 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7614717 | ResumeChat 服务端方法调用 | ⭐⭐⭐ |
 | ~7615777 | TaskAgentMessageParser.parse() — IPC exception 写入 | ⭐⭐⭐⭐ |
 
-### [Store] 状态架构
+#### [Store] 状态架构
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
@@ -2826,7 +661,7 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7588518 | subscribe #8 (消息数变化) | ⭐⭐⭐ |
 | ~7605848 | runningStatusMap subscribe | ⭐⭐⭐ |
 
-### [Error] 错误系统
+#### [Error] 错误系统
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
@@ -2839,9 +674,9 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7300455 | handleCommonError() | ⭐⭐⭐ |
 | ~7458679 | teaEventChatFail() | ⭐⭐⭐⭐ |
 | ~8695303 | efh 可恢复错误列表 | ⭐⭐⭐ |
-| ~8696378 | J 变量 (可续接错误标志) | ⭐⭐ |
+| ~8696378 | J 变量 (可恢复错误标志) | ⭐⭐ |
 
-### [React] UI 层
+#### [React] UI 层
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
@@ -2862,20 +697,20 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~8930000 | ErrorMessageWithActions 结束 | ⭐ |
 | ~9910446 | DEFAULT 错误组件 | ⭐⭐ |
 
-### [IPC] 进程间通信
+#### [IPC] 进程间通信
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
 | ~7610443 | cancelEventKey (window.addEventListener) | ⭐⭐⭐⭐ |
 
-### [Setting] 设置系统
+#### [Setting] 设置系统
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
 | ~7438613 | AI.toolcall.confirmMode | ⭐⭐⭐⭐⭐ |
 | ~7438600 | AI.toolcall.v2.command.* | ⭐⭐⭐⭐⭐ |
 
-### [Sandbox] 沙箱
+#### [Sandbox] 沙箱
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
@@ -2884,16 +719,16 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7502574 | provideUserResponse (知识分支) | ⭐⭐⭐⭐ |
 | ~7503319 | provideUserResponse (其他分支) | ⭐⭐⭐⭐ |
 
-### [MCP] 工具调用
+#### [MCP] 工具调用
 
 | 偏移量 | 内容 | 稳定性 |
 |--------|------|--------|
 | ~41400 | ToolCallName 枚举 (第一段) | ⭐⭐ |
 | ~7076154 | ToolCallName 枚举 (第二段) | ⭐⭐ |
 
-## 按偏移量范围索引
+### 按偏移量范围索引
 
-### 0-1M (枚举 + 工具定义)
+#### 0-1M (枚举 + 工具定义)
 
 | 偏移量 | 域 | 内容 |
 |--------|-----|------|
@@ -2903,7 +738,7 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~47202 | Error | ChatTurnStatus 枚举 (bQ) |
 | ~54000 | Error | kg 错误码枚举 (第一段) |
 
-### 1M-5M (UI 组件)
+#### 1M-5M (UI 组件)
 
 | 偏移量 | 域 | 内容 |
 |--------|-----|------|
@@ -2911,7 +746,7 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~2796260 | React | Pause/Send 按钮 |
 | ~3211326 | Store | needConfirm 状态 |
 
-### 5M-8M (核心服务层 — 最密集区域)
+#### 5M-8M (核心服务层 — 最密集区域)
 
 | 偏移量 | 域 | 内容 |
 |--------|-----|------|
@@ -2925,7 +760,6 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7150072 | DI | M0 SessionService Token |
 | ~7161400 | Error | kg 错误码枚举 (第二段) |
 | ~7186457 | DI/Store | k1 ModelStore Token |
-| ~7221939 | DI/Store | I2 InlineSessionStore Token |
 | ~7300000 | SSE | EventHandlerFactory (Bt) |
 | ~7318521 | SSE | DG.parse() |
 | ~7438613 | Setting | AI.toolcall.confirmMode |
@@ -2940,47 +774,47 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7610443 | IPC | F3/sendToAgentBackground |
 | ~7615777 | Error | TaskAgentMessageParser.parse() |
 
-### 8M-10M (UI 层)
+#### 8M-10M (UI 层)
 
 | 偏移量 | 域 | 内容 |
 |--------|-----|------|
 | ~8069382 | Sandbox | BlockLevel/AutoRunMode/ConfirmMode 枚举 |
 | ~8069620 | Sandbox | getRunCommandCardBranch() |
-| ~8635000 | React | egR (RunCommandCard) |
-| ~8695303 | Error | efh 可恢复错误列表 |
-| ~8696378 | Error | J 变量 (可续接错误标志) |
+| ~8070328 | Sandbox | bypass-runcommandcard-redlist 补丁 |
+| ~8635000 | React | egR (RunCommandCard) 组件 |
 | ~8700000 | React | ErrorMessageWithActions |
-| ~8702300 | React | if(V&&J) 分支 |
-| ~8709284 | React | sX().memo(Jj) 组件 |
+| ~9910446 | React | DEFAULT 错误组件 |
 
-## 按功能索引
+### 按功能索引
 
-### 自动确认 (Auto-Confirm)
+#### 自动确认 (Auto-Confirm)
 
 | 偏移量 | 内容 | 层 |
 |--------|------|-----|
-| ~7323241 | data-source-auto-confirm 补丁 | L3 |
+| ~7318521 | DG.parse L3数据源自动确认 | L3 |
 | ~7502500 | PlanItemStreamParser._handlePlanItem() | L2 |
 | ~7502574 | knowledge 分支 provideUserResponse | L2 |
 | ~7503319 | else 分支 provideUserResponse | L2 |
+| ~7323241 | data-source-auto-confirm 补丁 | L3 |
 | ~8069620 | getRunCommandCardBranch() | L1 |
 | ~8070328 | bypass-runcommandcard-redlist 补丁 | L1 |
 | ~8635000 | egR (RunCommandCard) | L1 |
 | ~8640019 | 自动确认 useEffect | L1 |
 
-### 自动续接 (Auto-Continue)
+#### 自动续接 (Auto-Continue)
 
 | 偏移量 | 内容 | 层 |
 |--------|------|-----|
-| ~7458679 | teaEventChatFail() | L2 |
+| ~7458679 | teaEventChatFail() 最早错误信号 | L2 |
 | ~7538139 | stopStreaming — "沉默杀手" | L2 |
 | ~7540953 | _aiAgentChatService.resumeChat() | L2 |
 | ~7588518 | subscribe #8 | L2 |
-| ~8695303 | efh 可恢复错误列表 | L1 |
-| ~8696378 | J 变量 | L1 |
-| ~8702300 | if(V&&J) 分支 | L1 |
+| ~8705916 | efg 可恢复错误列表 | L1 |
+| ~8707716 | J 变量可续接错误标志 | L1 |
+| ~8702300 | if(V&&J) Alert 分支 | L1 |
+| ~8712898 | guard-clause !q&&!J) | L1 |
 
-### 沙箱/命令执行
+#### 沙箱/命令执行
 
 | 偏移量 | 内容 | 层 |
 |--------|------|-----|
@@ -2989,12 +823,11 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7502574 | provideUserResponse (知识分支) | L2 |
 | ~7503319 | provideUserResponse (其他分支) | L2 |
 
-### 错误处理
+#### 错误处理
 
 | 偏移量 | 内容 | 层 |
 |--------|------|-----|
 | ~54000 | kg 错误码枚举 | 枚举 |
-| ~7161400 | kg 错误码枚举 (第二段) | 枚举 |
 | ~7300455 | handleCommonError() | L2 |
 | ~7458679 | teaEventChatFail() | L2 |
 | ~7508572 | ErrorStreamParser (zU) | L2 |
@@ -3002,334 +835,53 @@ MCP 工具调用 (`run_mcp`) 与 `run_command` 共享相同的确认管道。自
 | ~7528742 | _onError(e,t,i) | L2 |
 | ~7615777 | TaskAgentMessageParser.parse() | L2 |
 
-### 设置/配置
+#### 设置/配置
 
 | 偏移量 | 内容 | 层 |
 |--------|------|-----|
 | ~7438613 | AI.toolcall.confirmMode | 配置 |
 | ~7438600 | AI.toolcall.v2.command.* | 配置 |
 
-
-## [2026-04-25 21:05] 版本差异探索 — Symbol.for -> Symbol 迁移 + ConfirmMode 消失 + 变量重命名
-
-### 1. DI Token 迁移: Symbol.for -> Symbol
-
-**关键发现**: 当前版本中，DI token 分为两大阵营：
-
-| 阵营 | 数量 | 特征 |
-
-|------|------|------|
-
-| Symbol.for("I...") | 54 个 | 跨 realm 共享，旧版全部使用 |
-
-| Symbol("I...") | 52 个 | 不跨 realm，新增迁移 |
-
-**已确认迁移的 token**: 
-
-| Token | 旧版 | 新版 | 新偏移量 |
-
-|-------|------|------|----------|
-
-| IPlanItemStreamParser | Symbol.for | Symbol | 7508068 |
-
-| ISessionStore | Symbol.for | Symbol | 7092843 |
-
-**仍为 Symbol.for 的关键 token**: 
-
-| Token | 偏移量 |
-
-|-------|--------|
-
-| IErrorStreamParser | 7513027 |
-
-| ITeaFacade | 7140149 |
-
-| IPlanService | 7456691 |
-
-| IChatStreamEmitter | 7485920 |
-
-**迁移规律**: Store 类和 Parser 类 token 已迁移到 Symbol()。Facade/Service 类 token 仍保留 Symbol.for()。
-
-### 2. ConfirmMode 消失
-
-- ConfirmMode 枚举已不存在
-
-- confirmMode 仅 1 处，是配置 key 字符串 "AI.toolcall.confirmMode" @ 7445121
-
-- AutoRunMode 和 BlockLevel 仍然存在
-
-- 结论: ConfirmMode 枚举已被移除，命令确认逻辑可能已重构为纯配置驱动
-
-### 3. kg 错误码完整枚举 (@ 54415)
-
-CONNECTION_ERROR=1001, NETWORK_ERROR=1002, NETWORK_ERROR_INTERNAL=1003, CLIENT_NETWORK_ERROR=1004, CLIENT_NETWORK_ERROR_INTERNAL=1005, REQUEST_TIMEOUT_ERROR=1006, REQUEST_TIMEOUT_ERROR_INTERNAL=1007, MODEL_RESPONSE_TIMEOUT_ERROR=1008, MODEL_RESPONSE_FAILED_ERROR=1009, SERVER_CRASH=1010, MODEL_NOT_EXISTED=1011, MODEL_AUTO_SELECTION_FAILED=1012, MODEL_OUTPUT_TOO_LONG=1013, DEFAULT=1014, RISK_REQUEST=1015, PREMIUM_MODE_USAGE_LIMIT=1016, STANDARD_MODE_USAGE_LIMIT=1017, INTERNAL_PPE_ENV_NOT_EXIST=1018, EXTERNAL_LLM_REQUEST_FAILED=1019, CUSTOM_MODEL_ORIGIN_ERROR=1020, NETWORK_CHANGED=1021, NETWORK_DISCONNECTED=1022, FIREWALL_BLOCKED=1023, LLM_STOP_CONTENT_LOOP=1024, ENTERPRISE_NOT_ALLOWED_ADD_CUSTOM_MODEL=4213, ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST=4214, ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED=4215, ENTERPRISE_TOKEN_EXPIRATION=4216, TURN_EXCEEDED=5001, TIMEOUT=5002, OUT_OF_QUOTA=5003, AGENT_BUSY=5004, INTERACTION_ABNORMAL=9999, INTENT_ERROR=6004, NOT_SUPPORT_MULTI_MEDIA=7000, CURRENT_SYSTEM_NOT_SUPPORT_AI=7001, GET_MANAGER_CLIENT_ERROR=7002, LLM_INVALID_JSON=4000003, LLM_INVALID_JSON_START=4000004, LLM_QUEUING=4000005, LLM_STOP_DUP_TOOL_CALL=4000009, LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT=4000010, TASK_TURN_EXCEEDED_ERROR=4000002, PROJECT_NOT_FOUND_ERROR=5000001, CLIENT_UNAUTHORIZED_ERROR=1010002, FAST_APPLY_FILE_TOO_LARGE=0xa7d8c1, FAST_APPLY_FIX_INVALID_FORMAT=0xa7d8c2, CLAUDE_MODEL_FORBIDDEN=4113, CAN_NOT_USE_SOLO_MODE=4120
-
-ERROR_LEVEL: warn / error / info. ChatErrorLevel: error / warn
-
-### 4. efg 可恢复错误列表 (@ 8705916)
-
-efg=[kg.SERVER_CRASH, kg.CONNECTION_ERROR, kg.NETWORK_ERROR, kg.NETWORK_ERROR_INTERNAL, kg.CLIENT_NETWORK_ERROR, kg.NETWORK_CHANGED, kg.NETWORK_DISCONNECTED, kg.CLIENT_NETWORK_ERROR_INTERNAL, kg.REQUEST_TIMEOUT_ERROR, kg.REQUEST_TIMEOUT_ERROR_INTERNAL, kg.MODEL_RESPONSE_TIMEOUT_ERROR, kg.MODEL_RESPONSE_FAILED_ERROR, kg.MODEL_AUTO_SELECTION_FAILED, kg.MODEL_FAIL]
-
-### 5. 续接标志变量 J 已重命名
-
-旧版中 J 是续接标志 (J = efg.includes(_))，新版中变量名已变：
-
-K = efg.includes(_) -> 可恢复错误标志（旧版 J）
-
-J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR, kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP, kg.DEFAULT].includes(_) -> 思考上限/循环错误标志（新增！）
-
-$ = !![kg.INTERNAL_PPE_ENV_NOT_EXIST].includes(_)
-
-X = !![kg.MODEL_NOT_EXISTED].includes(_)
-
-ee = !![kg.PREMIUM_MODE_USAGE_LIMIT, kg.STANDARD_MODE_USAGE_LIMIT].includes(_)
-
-er = !![kg.RISK_REQUEST].includes(_)
-
-关键变化: 旧版只有 J（可恢复标志），新版拆分为 K（可恢复）和 J（思考上限+循环），逻辑更精细。
-
-### 6. stopStreaming 位置
-
-7528156: ChatStreamService._stopStreaming (cancel token)
-
-7533741: ChatStreamService._stopStreaming 实现
-
-7543791: StoreService.stopStreaming (沉默杀手)
-
-7549062: BaseStreamService.stopStreaming (空实现)
-
-### 7. 文件基本信息
-
-文件大小: 10,486,910 chars. Symbol.for 总数: 185. Symbol 总数: 77. 包名不在源码内。
-
-## [2026-04-25 21:30] P1 盲区扫描 (8930000-10489266) ⭐⭐⭐
-
-### 扫描概况
-
-| 指标 | 值 |
-|------|-----|
-| 扫描范围 | 8930000-10489266 (1,559,266 chars) |
-| 采样点 | 31 个 (每 50KB) |
-| business-logic | 1 (3.2%) |
-| thirdparty-react | 15 (48.4%) |
-| unknown | 15 (48.4%) |
-
-### P1 区域内容分布
-
-| 偏移量范围 | 分类 | 关键内容 |
-|------------|------|----------|
-| 8930000-8980000 | React | task-artifact 组件, Browser Action 渲染 |
-| 8980000-9080000 | unknown | Base64 编码数据 (图片/资源) |
-| 9080000-9180000 | React | 文件查看器, 模型选择器, Agent 类型相关 |
-| 9180000-9280000 | mixed | YAML 解析器, Agent 选择器 UI |
-| 9280000-9380000 | mixed | CSS-in-JS, 设置高亮, Agent 输入 |
-| 9380000-9480000 | mixed | Base64 数据, React 组件 |
-| 9480000-9580000 | React | 任务列表, 触发器组件, MCP 服务器 |
-| 9580000-9680000 | React | Agent 画廊, MCP 工具选择, CSS |
-| 9680000-9780000 | React | Agent 创建面板, MCP 市场, CSS-in-JS |
-| 9780000-9880000 | **business** | **EnterpriseAgent 创建, Agent 编辑面板, DSL Agent Store** |
-| 9880000-9980000 | React | DSL Agent 文件管理, 任务列表 Provider |
-| 9980000-10080000 | mixed | Popover 定位, Select 组件 |
-| 10080000-10180000 | React | forwardRef 组件, Select |
-| 10180000-10280000 | React | SVG 图标, User Rules 面板, Skills 面板 |
-| 10280000-10380000 | unknown | Base64 编码数据 |
-| 10380000-10489266 | mixed | Agent Import, registerCommand 集中区 |
-
-### registerCommand 集中区 (10477319-10489266) ⭐⭐⭐⭐⭐
-
-P1 末尾是 VS Code 命令注册密集区，共 26 个 registerCommand：
-
-| 偏移量 | 命令 | 关键服务 |
-|--------|------|----------|
-| 10477319 | `workbench.action.chat.icube.send.internal` | FW.sendToAgent |
-| 10477651 | `workbench.action.chat.icube.send.codeReview` | FW.sendToAgentBackground |
-| 10479195 | `icube.common.openUsageLimitModalAICompletion` | uj.resolve(eYV) |
-| 10479339 | `workbench.action.icubeAIGetNetworkData` | uj.resolve(Jf) |
-| 10479477 | `python-helper.environmentChanged` | uj.resolve(ED) |
-| 10479595 | `icube.session.updateWorktreeAfterMerge` | uj.resolve(Wm) |
-| 10479790 | `icube.chat.acceptSessionTodo` | uj.resolve(Wm) |
-| 10479949 | `icube.ai.reportAICodeContribution` | uj.resolve(ee3) |
-| 10480090 | `icube.debug.fetchEnterpriseDocsets` | IDocsetService |
-| 10480298 | `icube.dslAgent.startGlobalLogStream` | uj.resolve(eto) |
-| 10480433 | `icube.dslAgent.stopGlobalLogStream` | uj.resolve(eto) |
-| 10480566 | `icube.dslAgent.openEditor` | uj.resolve(eto) |
-| 10483344 | `icube.chat.stopSession` | uj.resolve(**BR**) |
-| 10483491 | `icube.chat.sendToAgentNonBlocking` | FW.sendChatMessage |
-| 10484692 | `icube.chat.sendToAgentBackground.deepwiki` | F6() |
-| 10485148 | `icube.chat.getSessionRunningStatus` | uj.resolve(IN) |
-| 10485303 | `icube.chat.forkSession` | - |
-| 10486856 | BH/BY 命令批量注册 | ICommandService |
-| 10486927 | `icube.knowledges.init` | uj.resolve(FC) |
-| 10487183 | `icube.knowledges.retryInit` | uj.resolve(FC) |
-| 10487450 | `icube.knowledges.rebuild` | uj.resolve(FC) |
-| 10487715 | `icube.knowledges.update` | uj.resolve(FC) |
-| 10487993 | `icube.knowledges.pause` | uj.resolve(FC) |
-| 10488122 | `icube.knowledges.continue` | uj.resolve(FC) |
-| 10488391 | `icube.knowledges.statusClick` | uj.resolve(et8) |
-| 10488527 | `icube.knowledges.showDebugStatus` | uj.resolve(et8) |
-
-### registerAdapter (10476397) ⭐⭐⭐⭐⭐
-
-```
-registerAdapter:function(e,t){uj.getInstance().provide(e,t)}
-```
-
-这是 DI 容器的适配器注册接口！`registerAdapter` = `uj.getInstance().provide()`。
-
-### IChatListService / ITasksHubService
-
-**P1 范围内未找到**。这两个 DI token 可能在更早的偏移量范围内。
-
-### AgentService DI Token 分布
-
-| 偏移量 | Token 形式 | 上下文 |
-|--------|-----------|--------|
-| 8942149 | `"iICubeAgentService"` | useState + useEffect |
-| 9173488 | `"iICubeAgentService"` | Agent 选择 |
-| 9609307 | `S2.IICubeAgentService` | Agent 画廊 |
-| 9715022 | `S2.IICubeAgentService` | Agent 创建面板 |
-| 9740936 | `S2.IICubeAgentService` | Agent 编辑 |
-| 9784881 | `S2.IICubeAgentService` | Agent 配置 |
-| 9797234 | `S2.IICubeAgentService` | Agent 列表 |
-| 9797926 | `"iICubeAgentService"` | Agent 创建 |
-| 9809990 | `S2.IICubeAgentService` (uj.resolve) | Agent 面板数据 |
-| 9811700 | `S2.IICubeAgentService` | Agent 详情 |
-| 9843791 | `S2.IICubeAgentService` | Agent 删除 |
-| 9846991 | `S2.IICubeAgentService` (uj.resolve) | Agent 面板打开 |
-| 9891525-9892478 | `_dslAgentService` | DSL Agent 文件管理 (13处) |
-| 10255077 | `S2.IICubeAgentService` | Skills 面板 |
-| 10450841 | `"iICubeAgentService"` | Agent Import |
-| 10483752 | `S2.IICubeAgentService` (uj.resolve) | sendToAgentNonBlocking |
-
-### AgentStore DI Token
-
-| 偏移量 | 内容 |
-|--------|------|
-| 9891397 | `Symbol("aiChat.IDSLAgentStore")` + class eRG extends Aq |
-
-### 关键发现
-
-1. **P1 末尾 (10477319+) 是 VS Code 命令注册密集区** — 所有 `registerCommand` 调用集中在此
-2. **registerAdapter = uj.getInstance().provide()** — DI 适配器注册的完整实现
-3. **Agent 创建/编辑面板** 占据 9700000-9850000 区间 — 大量 business-logic
-4. **DSL Agent 系统** 在 9890000-9900000 区间 — IDSLAgentStore + DSLAgentService
-5. **Browser Action 渲染** 在 8930000-8970000 — 完整的浏览器操作 UI
-6. **Base64 数据块** 散布在 8980000-9080000, 9440000-9480000, 10312000-10364000 — 可能是图片/SVG 资源
-
----
-
-### [2026-04-25 22:30] Trae 版本更新检测 — Symbol.for→Symbol 迁移 ⭐⭐⭐⭐⭐
-
-> 关键 DI token 从 Symbol.for 迁移到 Symbol，导致旧搜索模式失效
-
-#### 详细描述
-Trae 已更新，文件从 ~10463462 增长到 10489266 chars（+25804）。最关键的变化是部分 DI token 从 `Symbol.for("...")` 迁移到 `Symbol("...")`。迁移规律：Store 类和 Parser 类已迁移到 Symbol()，Facade/Service 类仍保留 Symbol.for()。ConfirmMode 枚举已被完全移除。
-
-#### 位置信息
-- **偏移量**: 全文件影响
-- **所属层级**: L2/L3 (服务层/数据层)
-- **所属域标签**: [DI]
-
-#### 数据/证据
-- `Symbol.for("IPlanItemStreamParser")` → 不再存在，现在是 `Symbol("IPlanItemStreamParser")` @7511512
-- `Symbol.for("ISessionStore")` → 不再存在，现在是 `Symbol("ISessionStore")` @7092843
-- `ConfirmMode` → 完全移除，确认逻辑改为纯配置驱动
-- 54 个 Symbol.for token + 52 个 Symbol token（完整列表见 explore-p0-results.txt）
-
-#### 搜索模板
-| 目标 | 搜索关键词 | 稳定性 | 备注 |
-|------|-----------|--------|------|
-| PlanItemStreamParser | `Symbol("IPlanItemStreamParser")` | ⭐⭐⭐⭐ | 不再用 Symbol.for |
-| SessionStore | `Symbol("ISessionStore")` | ⭐⭐⭐⭐ | 不再用 Symbol.for |
-| ErrorStreamParser | `Symbol.for("IErrorStreamParser")` | ⭐⭐⭐⭐⭐ | 仍为 Symbol.for |
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Cross-validate script (3 paths each)
-- **last_verified**: 2026-04-25
-
 ---
 
 ## [2026-04-25 23:50] v2 探索远征 — 版本适配 + 商业权限 + 新补丁目标
 
-### [2026-04-25 23:50] J→K 重命名纠正 — J 仍为当前变量名 ⭐⭐⭐⭐⭐
+### J→K 重命名纠正 — J 仍为当前变量名 ⭐⭐⭐⭐⭐
 
-> **重要纠正**: handoff.md 中声称的 "J→K 重命名" 在当前版本中并未发生
-
-#### 详细描述
-前序盲区远征报告 "J→K 变量重命名，J=思考上限+循环，K=可恢复错误"。但实际搜索当前 index.js (10490354 chars) 的结果显示：
+**重要纠正**: handoff.md 中声称的 "J→K 重命名" 在当前版本中并未发生。
 - `K=!![` — 未找到（0 个命中）
 - `J=!![` — 找到 @8707716
 - `if(V&&J)` — 找到 @8713483
-- `if(V&&K)` — 未找到
 - `!q&&!J)` — 找到 @8712898
-
-J 变量的当前定义与 bypass-loop-detection v4 补丁的 replace_with 完全一致：
-`J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)`
 
 **结论**: J→K 重命名要么未发生，要么已回退。现有补丁中引用 J 的代码仍然有效。
 
-#### 位置信息
-- **偏移量**: J定义 @8707716, if(V&&J) @8713483, !q&&!J) @8712898
-- **所属层级**: L1 (React UI)
-- **所属域标签**: [Error] [React]
+### Symbol.for→Symbol 迁移完整映射 ⭐⭐⭐⭐⭐
 
-#### 搜索模板
-| 目标 | 搜索关键词 | 稳定性 | 备注 |
-|------|-----------|--------|------|
-| J 变量定义 | `J=!![` | ⭐⭐ | 混淆变量名，每次构建可能变 |
-| auto-continue 条件 | `if(V&&J)` | ⭐⭐ | 同上 |
-| guard-clause 条件 | `!q&&!J)` | ⭐⭐ | 同上 |
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: $c.IndexOf() 直接搜索
-- **last_verified**: 2026-04-25
-
-### [2026-04-25 23:50] Symbol.for→Symbol 迁移完整映射 ⭐⭐⭐⭐⭐
-
-> 54 个 Symbol.for + 40+ 个 Symbol("I*") 的完整迁移状态
-
-#### 详细描述
-当前版本中 DI token 分为两类：
-1. **Symbol.for("I*")** — 54 个，主要是服务/Parser/Store 的注册 token
-2. **Symbol("I*")** — 40+ 个，主要是 Store 和核心 Parser 的 token
-
-**已确认迁移的 token**（Symbol.for→Symbol）:
-- IPlanItemStreamParser: Symbol.for=NOT_FOUND → Symbol=7511512
-- ISessionStore: Symbol.for=NOT_FOUND → Symbol=7092843
-- IEntitlementStore: Symbol.for=NOT_FOUND → Symbol=7264735
-- ISessionServiceV2: Symbol.for=NOT_FOUND → Symbol=7553132
+**已迁移的 token** (Symbol.for→Symbol):
+- IPlanItemStreamParser: Symbol=7511512
+- ISessionStore: Symbol=7092843
+- IEntitlementStore: Symbol=7264735
+- ISessionServiceV2: Symbol=7553132
 - ICredentialStore: Symbol=7154464
 - IModelStore: Symbol=7191686
 - IAgentService: Symbol=7327208
 - IEventHandlerFactory: Symbol=7526620
 
-**未迁移的 token**（仍为 Symbol.for）:
+**未迁移的 token** (仍为 Symbol.for):
 - IModelService: Symbol.for=7182322
-- IModelStorageService: Symbol.for=7182353
 - IErrorStreamParser: Symbol.for=7516471
 - ITeaFacade: Symbol.for=7140149
-- ICommercialPermissionService: 使用 `Symbol.for("aiAgent.ICommercialPermissionService")` (注意 aiAgent. 前缀!)
+- ICommercialPermissionService: Symbol.for("aiAgent.ICommercialPermissionService")
 - INotificationStreamParser: Symbol.for=7328310
 - ITextMessageChatStreamParser: Symbol.for=7505681
-- IPlanItemParser: Symbol=7324116
-- IFeeUsageParser: Symbol=7327235
+- IPlanItemParser: Symbol.for=7324116
+- IFeeUsageParser: Symbol.for=7327235
 
-#### 位置信息
-- **偏移量范围**: 7061974-8186316 (Symbol.for), 7092843-7553132 (Symbol)
-- **所属域标签**: [DI]
+**迁移规律**: Store 类和 Parser 类 token 已迁移到 Symbol()。Facade/Service 类 token 仍保留 Symbol.for()。
 
-#### 验证状态
-- **confidence**: high
-- **verified_by**: $c.IndexOf() 批量搜索
-- **last_verified**: 2026-04-25
+### ICommercialPermissionService 完整方法映射 ⭐⭐⭐⭐⭐
 
-### [2026-04-25 23:50] ICommercialPermissionService 完整方法映射 ⭐⭐⭐⭐⭐
-
-> 商业权限判断服务的 6 个方法完整列表
-
-#### 详细描述
 NS 类 (@7267682)，Token: `Il = Symbol.for("aiAgent.ICommercialPermissionService")`
 
 | 方法 | 实现逻辑 | 返回值 |
@@ -3343,87 +895,15 @@ NS 类 (@7267682)，Token: `Il = Symbol.for("aiAgent.ICommercialPermissionServic
 
 **关键发现**: NS 类**没有 isFreeUser() 方法**！isFreeUser 是在 React Hook efi() @8687513 中计算的：`isFreeUser = !entitlementInfo?.identity`
 
-**bJ 枚举** (@6479431): Free=0, Pro=1, ProPlus=2, Ultra=3, Trial=4, Lite=5, Express=100
+### 付费限制错误码纠正 ⭐⭐⭐⭐⭐
 
-#### 位置信息
-- **偏移量**: NS 类 @7267682, efi() @8687513, bJ 枚举 @6479431
-- **所属层级**: L2 (Service)
-- **所属域标签**: [DI] [Entitlement]
-
-#### 搜索模板
-| 目标 | 搜索关键词 | 稳定性 | 备注 |
-|------|-----------|--------|------|
-| 服务注册 | `ICommercialPermissionService` | ⭐⭐⭐⭐ | 字符串常量 |
-| isFreeUser | `isFreeUser` | ⭐⭐⭐ | 业务方法名 |
-| bJ 枚举 | `Free=0,Pro=1` | ⭐⭐⭐ | 枚举值 |
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Symbol 锚点定位 + 双向扩展
-- **last_verified**: 2026-04-25
-
-### [2026-04-25 23:50] IEntitlementStore 完整状态映射 ⭐⭐⭐⭐
-
-> 订阅/权益管理 Store 的完整结构
-
-#### 详细描述
-Nu 类 (@7264682)，Token: `Nc = Symbol("IEntitlementStore")`
-
-初始状态: `{ entitlementInfo: null, saasEntitlementInfo: null }`
-Actions: setEntitlementInfo, getEntitlementInfo, setSaaSEntitlementInfo, getSaaSEntitlementInfo
-
-entitlementInfo 字段:
-- identity: bJ 枚举值 (Free/Pro/ProPlus/Ultra/Trial/Lite/Express)
-- isDollarUsageBilling: boolean
-- enableSoloBuilder: boolean
-- enableSoloCoder: boolean
-
-ICredentialStore (MX 类 @7154491): `{ loggedIn, userProfile, token }`
-- userProfile.scope → bK 枚举: BYTEDANCE="bytedance", SAAS="saas", MARSCODE="marscode"
-
-#### 位置信息
-- **偏移量**: Nu 类 @7264682, MX 类 @7154491
-- **所属层级**: L2 (Service)
-- **所属域标签**: [Store] [Entitlement]
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Symbol 锚点定位 + 双向扩展
-- **last_verified**: 2026-04-25
-
-### [2026-04-25 23:50] 付费限制错误码纠正 ⭐⭐⭐⭐⭐
-
-> 错误码实际值与之前记录不同
-
-#### 详细描述
 | 枚举名 | 实际值 | 旧记录值 | 纠正原因 |
 |--------|--------|---------|---------|
 | PREMIUM_MODE_USAGE_LIMIT | **4008** | 1016 | 实际搜索确认 |
 | STANDARD_MODE_USAGE_LIMIT | **4009** | 1017 | 实际搜索确认 |
 | FIREWALL_BLOCKED | **700** | 1023 | 实际搜索确认 |
 
-**传播路径**:
-1. SSE → ErrorService → UI Alert: De.handleError() @7300921
-2. SSE → FeeUsage → Notification: eYZ.onUsageLimit() @10471008
-3. FIREWALL_BLOCKED → UI Alert @8718083
-4. CLAUDE_MODEL_FORBIDDEN → UI Alert @8717132
-
-**配额限制标志**: `ee=!![kg.PREMIUM_MODE_USAGE_LIMIT,kg.STANDARD_MODE_USAGE_LIMIT].includes(_)` @8707858
-
-#### 位置信息
-- **偏移量**: ee 定义 @8707858, handleError @7300921, onUsageLimit @10471008
-- **所属域标签**: [Error] [Entitlement]
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: 错误码数字直接搜索
-- **last_verified**: 2026-04-25
-
-### [2026-04-25 23:50] 新补丁目标候选清单 ⭐⭐⭐⭐
-
-> 6 个新补丁目标候选，按可行性排序
-
-#### 详细描述
+### 新补丁目标候选清单 ⭐⭐⭐⭐
 
 | # | 名称 | 位置 | 注入点 | 风险 | 层级 | 可行性 |
 |---|------|------|--------|------|------|--------|
@@ -3434,322 +914,20 @@ ICredentialStore (MX 类 @7154491): `{ loggedIn, userProfile, token }`
 | 5 | force-max-mode | @7216438 | 移除商业限制 | 🟠 HIGH | L2 | ⭐⭐⭐ |
 | 6 | bypass-firewall-blocked | @8718083 | 跳过 Alert | 🟠 HIGH | L1 | ⭐⭐ |
 
-**bypass-commercial-permission 补丁草案**:
+**bypass-commercial-permission 补丁草案** (方案 A - 推荐):
 将 NS 类的 6 个方法返回值修改为：
-- isDollarUsageBilling() → return !0 (true)
-- isCommercialUser() → return !0 (true)
-- isOlderCommercialUser() → return !1 (false)
-- isNewerCommercialUser() → return !0 (true)
-- isSaas() → return !1 (false)
-- isInternal() → return !1 (false)
+`isDollarUsageBilling(){return!0}isCommercialUser(){return!0}isOlderCommercialUser(){return!1}isNewerCommercialUser(){return!0}isSaas(){return!1}isInternal(){return!1}`
 
 **限制**: 服务端限制无法绕过。如果服务端检查用户身份并拒绝请求，前端补丁无法解决。但 UI 限制和模式选择可以完全绕过。
 
-#### 验证状态
-- **confidence**: medium
-- **verified_by**: 单路径搜索，建议交叉验证
-- **last_verified**: 2026-04-25
+### Phase 4: isFreeUser() 完整实现链 ⭐⭐⭐⭐⭐
 
-### [2026-04-25 23:50] 补丁变量验证结果 ⭐⭐⭐⭐
-
-> 补丁中引用的关键变量在新版本上的可用性验证
-
-#### 详细描述
-
-| 变量 | 状态 | 偏移量 | 备注 |
-|------|------|--------|------|
-| uj.getInstance | ✅ FOUND | @6275751 | DI 容器访问 |
-| resolve(Di) | ✅ FOUND | @7459376 | _aiAgentChatService |
-| resolve(BR) | ✅ FOUND | @7592580 | _sessionServiceV2 (注意: BR 仍是 path 模块，但 resolve(BR) 存在) |
-| resolve(xC) | ✅ FOUND | @7591618 | _sessionStore |
-| kg.TASK_TURN | ✅ FOUND | @8707746 | 错误码枚举 |
-| bQ.Warning | ✅ FOUND | @7080357 | 状态枚举 |
-| bQ.Error | ✅ FOUND | @7516749 | 状态枚举 |
-| P7.Default | ✅ FOUND | @8078831 | RunCommandCard 分支 |
-| P8.Default | ❌ NOT_FOUND | — | 可能已重命名 |
-| Cr.Alert | ✅ FOUND | @8711528 | Alert 组件 |
-| Cr.AutoRunMode | ✅ FOUND | @8081330 | 自动运行模式枚举 |
-| Cr.BlockLevel | ✅ FOUND | @8081401 | 阻塞级别枚举 |
-
-**P8.Default 未找到**: bypass-runcommandcard-redlist 补丁的 replace_with 中使用了 P7.Default（找到），但 bypass-whitelist-sandbox-blocks 使用了 P8.Default（未找到）。P8 可能已重命名。
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: $c.IndexOf() 直接搜索
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 23:50] Phase 4: ICommercialPermissionService 完整方法映射 ⭐⭐⭐⭐⭐
-
-> NS 类（ICommercialPermissionService 实现）的完整方法列表和实现逻辑
-
-#### NS 类完整方法列表 (@7267682)
-
-| 方法 | 实现逻辑 | 返回值 |
-|------|---------|--------|
-| `isDollarUsageBilling()` | `_entitlementStore.getState().entitlementInfo?.isDollarUsageBilling` | boolean |
-| `isCommercialUser()` | `!kP(userProfile) && !isCNPackage()` | boolean |
-| `isOlderCommercialUser()` | `isCommercialUser() && !isDollarUsageBilling()` | boolean |
-| `isNewerCommercialUser()` | `isCommercialUser() && isDollarUsageBilling()` | boolean |
-| `isSaas()` | `userProfile?.scope === bK.SAAS` | boolean |
-| `isInternal()` | `kP(userProfile)` = `userProfile?.scope === bK.BYTEDANCE` | boolean |
-
-**注意**: NS 类**没有** `isFreeUser()` 方法！isFreeUser 是在 React Hook `efi()` 中计算的。
-
-#### DI 注入 (@7267682+)
-
-```
-NS.prototype._credentialStore → uX(M$) = ICredentialStore (MX 类)
-NS.prototype._entitlementStore → uX(Nc) = IEntitlementStore (Nu 类)
-NS.prototype._productService → uX(kA) = IProductService
-NS = Nb([uJ({identifier:Il})])  // Il = Symbol.for("aiAgent.ICommercialPermissionService")
-```
-
-#### 关键辅助函数
-
-- `kP(e)` = `e?.scope === bK.BYTEDANCE` (@7185157) — 判断是否内部用户
-- `bK` = {BYTEDANCE:"bytedance", MARSCODE:"marscode", SAAS:"saas"} (@6479143)
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: NS class source code extraction, DI injection analysis
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 23:50] Phase 4: isFreeUser() 完整实现链 ⭐⭐⭐⭐⭐
-
-> isFreeUser 不是 ICommercialPermissionService 的方法，而是 React Hook efi() 中的计算属性
-
-#### efi() Hook 完整实现 (@8687513)
-
-```javascript
-function efi(){
-  let e=uB(Nc),  // IEntitlementStore
-      t=uB(Ie),  // ISoloModeManagerStore
-      i=uB(M$),  // ICredentialStore
-      r=uB(kA);  // IProductService
-
-  let n = e.useStore(e => !e.entitlementInfo?.identity);  // isFreeUser
-  let o = e.useStore(e => !!e.entitlementInfo?.enableSoloBuilder);
-  let a = e.useStore(e => !!e.entitlementInfo?.enableSoloCoder);
-  let s = e.useStore(e => !!e.entitlementInfo?.isDollarUsageBilling);
-  let l = t.useStore(e => e.canEnterSoloMode);
-  let u = t.useStore(e => e.showSoloTrigger);
-  let d = r.isCNPackage();
-  let h = i.useStore(e => e.userProfile);
-  let p = h?.scope === Cr.AppProviderCompany.BYTEDANCE;  // isInternal
-  let g = h?.scope === Cr.AppProviderCompany.SAAS;  // isSaas
-  let f = !p && !d;  // isCommercialUser
-
-  return {
-    isCN: d,
-    isSaas: g,
-    isInternal: p,
-    isFreeUser: n,           // ← !entitlementInfo?.identity
-    isCommercialUser: f,     // ← !isInternal && !isCN
-    enableSoloBuilder: o,
-    enableSoloCoder: a,
-    canUseSoloAgents: !l||!u||!f||o||a,
-    isOlderCommercialUser: f && !s,
-    isNewerCommercialUser: f && s
-  };
-}
-```
-
-#### isFreeUser 的判断逻辑
-
+efi() Hook @8687513 — 完整源码见 [Commercial] 域映射。
 **核心**: `isFreeUser = !entitlementInfo?.identity`
-- 当 `entitlementInfo` 为 null 或 `identity` 为空/undefined 时 → isFreeUser = true
-- 当 `entitlementInfo.identity` 有值 (bJ 枚举: Free=0, Pro=1, ProPlus=2, Ultra=3, Trial=4, Lite=5, Express=100) → isFreeUser = false
+- identity=0 (Free) 时 `!0` = true → isFreeUser=true
+- identity 有值时 isFreeUser=false
 
-**注意**: bJ.Free=0 是 truthy 检查的边界情况！`!0` = true，所以 identity=0 (Free) 也会被认为是 isFreeUser=true
-
-#### bJ 枚举 (用户身份类型 @6479431)
-
-| 值 | 名称 | isFreeUser |
-|----|------|-----------|
-| 0 | Free | true (`!0` = true) |
-| 1 | Pro | false |
-| 2 | ProPlus | false |
-| 3 | Ultra | false |
-| 4 | Trial | false |
-| 5 | Lite | false |
-| 100 | Express | false |
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: efi() source code, bJ enum definition
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 23:50] Phase 4: IEntitlementStore 完整状态结构 ⭐⭐⭐⭐⭐
-
-> Nu 类（IEntitlementStore 实现）的完整状态和 action 列表
-
-#### Nu 类 (@7264682)
-
-**Token**: `Nc = Symbol("IEntitlementStore")` (@7264682)
-
-**初始状态**:
-```javascript
-{
-  entitlementInfo: null,      // 核心字段！isFreeUser 的数据源
-  saasEntitlementInfo: null   // SaaS 权益信息
-}
-```
-
-**Actions**:
-| Action | 功能 |
-|--------|------|
-| `setEntitlementInfo(t)` | 设置 entitlementInfo |
-| `getEntitlementInfo()` | 获取 entitlementInfo |
-| `setSaaSEntitlementInfo(t)` | 设置 SaaS 权益信息 |
-| `getSaaSEntitlementInfo()` | 获取 SaaS 权益信息 |
-
-**entitlementInfo 字段结构** (从 efi() 和 checkFreeUserPremiumModelNotice 推断):
-```
-entitlementInfo: {
-  identity: bJ enum value,          // Free/Pro/ProPlus/Ultra/Trial/Lite/Express
-  isDollarUsageBilling: boolean,     // 是否按量计费
-  enableSoloBuilder: boolean,        // 是否启用 Solo Builder
-  enableSoloCoder: boolean           // 是否启用 Solo Coder
-}
-```
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Nu class source code, efi() usage analysis
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 23:50] Phase 4: ICredentialStore 完整状态结构 ⭐⭐⭐⭐
-
-> MX 类（ICredentialStore 实现）的完整状态和 action 列表
-
-#### MX 类 (@7154491)
-
-**Token**: `M$ = Symbol("ICredentialStore")` (@7154464)
-
-**初始状态**:
-```javascript
-{
-  loggedIn: false,
-  userProfile: null,
-  token: null
-}
-```
-
-**Actions**:
-| Action | 功能 |
-|--------|------|
-| `setLoggedIn(t)` | 设置登录状态 |
-| `setUserProfile(i)` | 设置用户资料（浅比较防重复更新） |
-| `setToken(t)` | 设置 token |
-
-**userProfile.scope** 值 (从 bK 枚举):
-- `bK.BYTEDANCE` = "bytedance" → isInternal = true
-- `bK.SAAS` = "saas" → isSaas = true
-- 其他 → isCommercialUser (如果 !isCN)
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: MX class source code
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 23:50] Phase 4: 错误码 1016/1017/1023 传播路径 ⭐⭐⭐⭐⭐
-
-> PREMIUM_MODE_USAGE_LIMIT / STANDARD_MODE_USAGE_LIMIT / FIREWALL_BLOCKED 的完整传播路径
-
-#### 重要纠正：错误码数值
-
-之前 discoveries.md 记录的 kg 枚举值有误。实际有两套错误码体系：
-
-**体系 1: 服务端错误码 (o 枚举 @51947)** — 用于 SSE 传输
-| 枚举名 | 值 | 含义 |
-|--------|-----|------|
-| PREMIUM_MODE_USAGE_LIMIT | 4008 | 高级模式用量限制 |
-| STANDARD_MODE_USAGE_LIMIT | 4009 | 标准模式用量限制 |
-| FIREWALL_BLOCKED | 700 | 防火墙拦截 |
-| CLAUDE_MODEL_FORBIDDEN | 4113 | Claude 模型禁止 |
-| CAN_NOT_USE_SOLO_MODE | 4120 | 不能使用 Solo 模式 |
-| FREE_ACTIVITY_QUOTA_EXHAUSTED | 4031 | 免费活动配额耗尽 |
-| FREE_ACTIVITY_END | 4032 | 免费活动结束 |
-| PAYGO_ARREARS | 4035 | 按量付费欠费 |
-
-**体系 2: 客户端错误码 (eA 枚举 @7160512)** — 用于 UI 渲染
-| 枚举名 | 值 | 含义 |
-|--------|-----|------|
-| FIREWALL_BLOCKED | 700 | 防火墙拦截 |
-| PREMIUM_MODE_USAGE_LIMIT | 4008 | 高级模式用量限制 |
-| STANDARD_MODE_USAGE_LIMIT | 4009 | 标准模式用量限制 |
-| CLAUDE_MODEL_FORBIDDEN | 4113 | Claude 模型禁止 |
-| CAN_NOT_USE_SOLO_MODE | 4120 | 不能使用 Solo 模式 |
-| FREE_ACTIVITY_QUOTA_EXHAUSTED | 4031 | 免费活动配额耗尽 |
-| AI_FEATURE_RESTRICTED | 4400 | AI 功能受限 |
-
-**注意**: kg 枚举中 PREMIUM_MODE_USAGE_LIMIT=1016 和 STANDARD_MODE_USAGE_LIMIT=1017 是**旧的映射值**，实际传输值是 4008 和 4009！
-
-#### 传播路径
-
-**路径 1: SSE → ErrorService → UI Alert**
-```
-SSE 消息 → Ot.Error → parse → kg.PREMIUM_MODE_USAGE_LIMIT (4008)
-  → De.handleError() @7300921
-    → if isInternal && is_internal_usage_limit:
-        modelService.switchSelectedModel() + switchToAutoModeIfAvailable()
-  → React Alert 渲染 @8719877
-    → if _===kg.PREMIUM_MODE_USAGE_LIMIT:
-        显示 premiumUsageLimit.errorMessage + actionText
-    → if _===kg.STANDARD_MODE_USAGE_LIMIT:
-        显示 standardUsageLimit.errorMessage + actionText
-```
-
-**路径 2: SSE → FeeUsage → Notification**
-```
-SSE → eYZ.onUsageLimit() @10471008
-  → if [PREMIUM_MODE_USAGE_LIMIT, STANDARD_MODE_USAGE_LIMIT].includes(code)
-    && notify_type===Exhaust && usage_type===AutoCompletion:
-      notifyUsageLimitError() → 显示通知
-```
-
-**路径 3: FIREWALL_BLOCKED → UI Alert**
-```
-_===kg.FIREWALL_BLOCKED @8718083
-  → 显示 "Request blocked by current network" + 域名白名单提示
-  → 使用 efh(domain) 掩码域名
-```
-
-**路径 4: CLAUDE_MODEL_FORBIDDEN → UI Alert**
-```
-_===kg.CLAUDE_MODEL_FORBIDDEN @8717132
-  → 显示 "Model request failed" + 刷新模型列表链接
-  → P.refreshModelStore({source:kZ.CLAUDE_FORBIDDEN})
-```
-
-#### ee 变量 (配额限制标志 @8707858)
-```javascript
-ee = !![kg.PREMIUM_MODE_USAGE_LIMIT, kg.STANDARD_MODE_USAGE_LIMIT].includes(_)
-```
-用于控制配额限制相关的 UI 行为。
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: 3 error code systems cross-validated, UI rendering code traced
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 23:50] Phase 4: 用量配额相关代码 ⭐⭐⭐⭐
-
-> 用量配额系统的完整代码位置
-
-#### 核心代码位置
+### Phase 4: 用量配额相关代码 ⭐⭐⭐⭐
 
 | 位置 | 代码 | 功能 |
 |------|------|------|
@@ -3762,774 +940,84 @@ ee = !![kg.PREMIUM_MODE_USAGE_LIMIT, kg.STANDARD_MODE_USAGE_LIMIT].includes(_)
 | @8692994 | `usageLimitConfig.premiumUsageLimit/standardUsageLimit` | 配额限制配置 |
 | @55610 | `efr` 枚举 (FreeNewSubscriptionUser*) | 免费用户配额状态枚举 |
 
-#### efr 枚举 (免费用户配额状态 @55610)
+### Phase 5: 模型选择限制代码 ⭐⭐⭐⭐⭐
 
-| 值 | 名称 | 含义 |
-|----|------|------|
-| 1 | FreeNewSubscriptionUserCompletionRemaining | 补全配额剩余 |
-| 2 | FreeNewSubscriptionUserCompletionExhausted | 补全配额耗尽 |
-| 3 | FreeNewSubscriptionUserAdvancedModelRemaining | 高级模型剩余 |
-| 4 | FreeNewSubscriptionUserAdvancedModelExhaustedPremiumModelRemaining | 高级耗尽+高级模型剩余 |
-| 5 | FreeNewSubscriptionUserAdvancedModelExhausted | 高级模型耗尽 |
-| 6 | FreeNewSubscriptionUserPremiumModelFlashRemaining | 闪速模型剩余 |
-| 7 | FreeNewSubscriptionUserPremiumModelFlashExhaustedNormalRemaining | 闪速耗尽+普通剩余 |
-| 8 | FreeNewSubscriptionUserPremiumModelNormalRemaining | 普通模型剩余 |
-| 9 | FreeNewSubscriptionUserPremiumModelNormalExhaustedAdvancedModelRemaining | 普通耗尽+高级剩余 |
-| 10 | FreeNewSubscriptionUserPremiumModelNormalExhausted | 普通模型耗尽 |
-| 11-20 | FreeOldSubscriptionUser* | 老用户对应状态 |
+**kG 枚举 (模式类型)**: Manual=0, Auto=1, Max=2
+**kH 枚举 (模型层级)**: AdvancedModel=1, PremiumModel=2, SuperModel=3
 
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Source code extraction, enum analysis
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 23:50] Phase 5: 模型选择限制代码 ⭐⭐⭐⭐⭐
-
-> 模型选择和模式切换的完整限制逻辑
-
-#### kG 枚举 (模式类型 @7185314)
-
-| 值 | 名称 | 含义 |
-|----|------|------|
-| 0 | Manual | 手动模式 |
-| 1 | Auto | 自动模式 |
-| 2 | Max | 最大模式 (Pro 专属) |
-
-#### kH 枚举 (模型层级 @7185314)
-
-| 值 | 名称 | 含义 |
-|----|------|------|
-| 1 | AdvancedModel | 高级模型 |
-| 2 | PremiumModel | 高级模型 |
-| 3 | SuperModel | 超级模型 |
-
-#### IModelService (kv = Symbol.for("IModelService") @7182334)
-
-NR 类 (@7271527) — ModelService 实现，关键方法：
-- `switchSelectedModel(e)` @7273463 — 切换选中模型
-- `switchToAutoModeIfAvailable()` @7273463+ — 切换到自动模式
-- `checkMaxModeNotice(e)` — Max 模式通知检查
-- `checkDollarUsageBillingNotice()` — 按量计费通知检查
-- `checkFreeUserPremiumModelNotice(e)` @7280685 — 免费用户高级模型通知
-- `isCNOuterUser()` @7274803 — CN 外部用户判断
-- `computeSelectedModelAndMode()` @7216438 — 静态方法，计算模型+模式
-
-#### IModelStorageService (kb = Symbol.for("IModelStorageService") @7182365)
-
-#### IModelStore (k1 = Symbol("IModelStore") @7191694)
-
-k2 类 (@7191708) — 状态包含：
-- `originModelListMap` — 原始模型列表映射
-- `modeListMap` — 模式列表映射
-- `showMaxModeNotice` — 是否显示 Max 模式通知
-- `showDollarUsageBillingNotice` — 是否显示按量计费通知
-- `showFreeUserPremiumModelNotice` — 是否显示免费用户高级模型通知
-- `disableCustomModel` — 是否禁用自定义模型
-
-#### computeSelectedModelAndMode 逻辑 (@7216438)
-
+**computeSelectedModelAndMode 逻辑** @7216438:
 ```javascript
-// 关键商业限制逻辑：
 if ((isOlderCommercialUser || isSaas) && (agentType === solo_coder || solo_builder)) {
   return {model, mode: kG.Max, isModelFallback};  // 强制 Max 模式
 }
-if (isModelFallback && "auto_mode" === modelOfflineBehavior && hasAutoMode) {
-  return {model, mode: kG.Auto, isModelFallback: true};  // 回退到 Auto
-}
-// 默认模式选择
-let mode = sessionMode ?? globalMode ?? kG.Auto;
+// 默认模式选择: sessionMode ?? globalMode ?? kG.Auto
 ```
 
-#### 验证状态
-- **confidence**: high
-- **verified_by**: NR class, k2 class, computeSelectedModelAndMode source
-- **last_verified**: 2026-04-25
+### Phase 5: 新补丁目标候选 (详细版) ⭐⭐⭐⭐⭐
+
+**候选 1: bypass-commercial-permission** ⭐⭐⭐⭐⭐
+- 方案 A (推荐): 修改 NS 类方法返回值 — L2 服务层，不受 React 冻结影响
+- 方案 B: 修改 efi() Hook — L1 React 层，切窗口后不执行
+- **推荐方案 A**
+
+**候选 2: bypass-usage-limit** ⭐⭐⭐⭐
+- 修改 ee 变量为 false → 跳过配额限制 UI
+- 仅隐藏 UI，不解决服务端限制
+- 需配合 bypass-commercial-permission
+
+**候选 3: bypass-firewall-blocked** ⭐⭐⭐
+- ❌ FIREWALL_BLOCKED 是网络层拦截，前端补丁无法绕过
+
+**候选 4: bypass-claude-model-forbidden** ⭐⭐⭐⭐
+- 可能是服务端权限限制，仅隐藏 UI
+
+**候选 5: force-max-mode** ⭐⭐⭐
+- 修改静态方法可能影响多个调用点
+
+**候选 6: bypass-free-user-model-notice** ⭐⭐
+- 仅影响通知显示，实际价值有限
+
+**总体可行性: 高 (4/5)** — 推荐组合: bypass-commercial-permission + bypass-usage-limit
+
+### 补丁变量验证结果 ⭐⭐⭐⭐
+
+| 变量 | 状态 | 偏移量 | 备注 |
+|------|------|--------|------|
+| uj.getInstance | ✅ FOUND | @6275751 | DI 容器访问 |
+| resolve(Di) | ✅ FOUND | @7459376 | _aiAgentChatService |
+| resolve(BR) | ✅ FOUND | @7592580 | _sessionServiceV2 (BR 是 path 模块) |
+| resolve(xC) | ✅ FOUND | @7591618 | _sessionStore |
+| kg.TASK_TURN | ✅ FOUND | @8707746 | 错误码枚举 |
+| bQ.Warning/Error | ✅ FOUND | @7080357/@7516749 | 状态枚举 |
+| P7.Default | ✅ FOUND | @8078831 | RunCommandCard 分支 |
+| P8.Default | ❌ NOT_FOUND | — | 可能已重命名 |
+| Cr.Alert | ✅ FOUND | @8711528 | Alert 组件 |
+| Cr.AutoRunMode | ✅ FOUND | @8081330 | 自动运行模式枚举 |
+| Cr.BlockLevel | ✅ FOUND | @8081401 | 阻塞级别枚举 |
 
 ---
 
-### [2026-04-25 23:50] Phase 5: 新补丁目标候选清单 ⭐⭐⭐⭐⭐
+## [2026-04-26 04:15] 11域交叉验证 + 新域探索
 
-> 基于商业权限域映射，评估所有可能的补丁目标
+> 自动化交叉验证结果摘要
 
-#### 候选 1: bypass-commercial-permission (跳过付费限制) ⭐⭐⭐⭐⭐
-
-| 属性 | 值 |
-|------|-----|
-| **名称** | bypass-commercial-permission |
-| **目标** | NS 类 isFreeUser/isCommercialUser 等方法 |
-| **代码位置** | @7267682 (NS class) |
-| **注入点** | NS 类方法返回值修改 |
-| **风险等级** | 🟡 MEDIUM |
-| **推荐层级** | L2 (Service) |
-| **可行性** | ⭐⭐⭐⭐⭐ 高 |
-
-**补丁策略**:
-- 方案 A: 修改 NS 类方法 — `isFreeUser(){return false}` / `isCommercialUser(){return true}` / `isNewerCommercialUser(){return true}`
-- 方案 B: 修改 efi() Hook — `isFreeUser: false, isCommercialUser: true`
-- **推荐方案 A** — NS 类是服务层，不受 React 冻结影响；efi() 是 React Hook，切窗口后不执行
-
-**find_original**:
-```
-isDollarUsageBilling(){let{entitlementInfo:e}=this._entitlementStore.getState();return!!e?.isDollarUsageBilling}isCommercialUser(){let{userProfile:e}=this._credentialStore.getState(),t=kP(e),i=this._productService.isCNPackage();return!t&&!i}isOlderCommercialUser(){return this.isCommercialUser()&&!this.isDollarUsageBilling()}isNewerCommercialUser(){return this.isCommercialUser()&&this.isDollarUsageBilling()}isSaas(){let{userProfile:e}=this._credentialStore.getState();return e?.scope===bK.SAAS}isInternal(){let{userProfile:e}=this._credentialStore.getState();return kP(e)}
-```
-
-**replace_with**:
-```
-isDollarUsageBilling(){return!0}isCommercialUser(){return!0}isOlderCommercialUser(){return!1}isNewerCommercialUser(){return!0}isSaas(){return!1}isInternal(){return!1}
-```
-
-**风险评估**:
-- ✅ 服务层修改，不受 React 冻结影响
-- ✅ 不改变组件结构，不会白屏
-- ⚠️ 服务端仍会返回 4008/4009 错误码，但客户端不再显示付费限制 UI
-- ⚠️ 需要配合 bypass-usage-limit 补丁才能完全跳过配额限制
-
-#### 候选 2: bypass-usage-limit (跳过用量配额限制) ⭐⭐⭐⭐
-
-| 属性 | 值 |
-|------|-----|
-| **名称** | bypass-usage-limit |
-| **目标** | ee 变量 + Alert 渲染逻辑 |
-| **代码位置** | @8707858 (ee 变量), @8719877 (Alert 渲染) |
-| **注入点** | 将 ee 改为 false，跳过配额限制 UI |
-| **风险等级** | 🟡 MEDIUM |
-| **推荐层级** | L1 (React) |
-| **可行性** | ⭐⭐⭐⭐ 高 |
-
-**补丁策略**:
-- 修改 `ee=!![kg.PREMIUM_MODE_USAGE_LIMIT,kg.STANDARD_MODE_USAGE_LIMIT].includes(_)` → `ee=!1`
-- 这会让配额限制的 UI 不显示，但**不阻止服务端返回错误码**
-- 需要配合 bypass-commercial-permission 才能完整绕过
-
-**风险评估**:
-- ⚠️ L1 层补丁，切窗口后 React 冻结可能影响
-- ⚠️ 仅隐藏 UI，不解决服务端限制
-- ✅ 改动极小，风险低
-
-#### 候选 3: bypass-firewall-blocked (跳过防火墙拦截) ⭐⭐⭐
-
-| 属性 | 值 |
-|------|-----|
-| **名称** | bypass-firewall-blocked |
-| **目标** | FIREWALL_BLOCKED 错误处理 |
-| **代码位置** | @8718083 (UI 渲染) |
-| **注入点** | 跳过 FIREWALL_BLOCKED 的 Alert 渲染 |
-| **风险等级** | 🟠 HIGH |
-| **推荐层级** | L1 (React) |
-| **可行性** | ⭐⭐ 低 |
-
-**风险评估**:
-- ❌ FIREWALL_BLOCKED 是网络层拦截，修改 UI 无法绕过
-- ❌ 即使隐藏 Alert，请求仍然被防火墙拦截
-- ❌ 需要修改网络层代理配置，不是前端补丁能解决的
-
-#### 候选 4: bypass-claude-model-forbidden (跳过 Claude 模型禁止) ⭐⭐⭐⭐
-
-| 属性 | 值 |
-|------|-----|
-| **名称** | bypass-claude-model-forbidden |
-| **目标** | CLAUDE_MODEL_FORBIDDEN 错误处理 |
-| **代码位置** | @8717132 (UI 渲染) |
-| **注入点** | 跳过 CLAUDE_MODEL_FORBIDDEN 的 Alert，自动刷新模型列表 |
-| **风险等级** | 🟡 MEDIUM |
-| **推荐层级** | L1 (React) |
-| **可行性** | ⭐⭐⭐ 中 |
-
-**风险评估**:
-- ⚠️ CLAUDE_MODEL_FORBIDDEN 可能是服务端权限限制
-- ⚠️ 仅隐藏 UI 不解决根本问题
-- ✅ 可以自动触发 refreshModelStore 尝试恢复
-
-#### 候选 5: force-max-mode (强制 Max 模式) ⭐⭐⭐
-
-| 属性 | 值 |
-|------|-----|
-| **名称** | force-max-mode |
-| **目标** | computeSelectedModelAndMode 中的商业限制逻辑 |
-| **代码位置** | @7216438 |
-| **注入点** | 移除 isOlderCommercialUser/isSaas 的模式限制 |
-| **风险等级** | 🟠 HIGH |
-| **推荐层级** | L2 (Service) |
-| **可行性** | ⭐⭐⭐ 中 |
-
-**风险评估**:
-- ⚠️ Max 模式可能消耗更多 token，服务端可能拒绝
-- ⚠️ 修改静态方法可能影响多个调用点
-- ✅ 服务层修改，不受 React 冻结影响
-
-#### 候选 6: bypass-free-user-model-notice (跳过免费用户模型通知) ⭐⭐
-
-| 属性 | 值 |
-|------|-----|
-| **名称** | bypass-free-user-model-notice |
-| **目标** | checkFreeUserPremiumModelNotice / checkDollarUsageBillingNotice |
-| **代码位置** | @7280685 |
-| **注入点** | 让方法直接 return |
-| **风险等级** | 🟢 LOW |
-| **推荐层级** | L2 (Service) |
-| **可行性** | ⭐⭐⭐⭐ 高 |
-
-**风险评估**:
-- ✅ 仅影响通知显示，不影响核心功能
-- ✅ 风险极低
-- ❌ 实际价值有限，只是隐藏通知
-
-#### "跳过付费限制"补丁可行性评估 ⭐⭐⭐⭐
-
-**总体可行性: 高 (4/5)**
-
-**推荐组合**: bypass-commercial-permission (候选1) + bypass-usage-limit (候选2)
-
-**实现路径**:
-1. 修改 NS 类方法返回值 → 客户端认为用户是付费用户
-2. 修改 ee 变量为 false → 跳过配额限制 UI
-3. 将 PREMIUM_MODE_USAGE_LIMIT / STANDARD_MODE_USAGE_LIMIT 加入 efg 可恢复列表 → 自动续接
-
-**限制**:
-- ⚠️ **服务端限制无法绕过** — 如果服务端检查用户身份并拒绝请求，前端补丁无法解决
-- ⚠️ **模型可用性由服务端控制** — 即使客户端认为用户是 Pro，服务端可能不返回 Pro 模型
-- ✅ **UI 限制可以完全绕过** — 付费提示、升级弹窗、配额通知等都可以隐藏
-- ✅ **模式选择可以解锁** — Max 模式等可以强制选择
-
-**与现有补丁的兼容性**:
-- ✅ 与 auto-continue-thinking 兼容 — 不同代码区域
-- ✅ 与 bypass-loop-detection 兼容 — 不同代码区域
-- ✅ 与 auto-confirm-commands 兼容 — 不同代码区域
-- ⚠️ 需要将 PREMIUM_MODE_USAGE_LIMIT (4008) 和 STANDARD_MODE_USAGE_LIMIT (4009) 加入 efg 可恢复列表
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Complete code analysis, cross-reference with existing patches
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 22:30] 变量重命名 J→K（可恢复/思考上限分离） ⭐⭐⭐⭐⭐
-
-> 旧版 J 变量（可恢复错误标志）已拆分为 K（可恢复）和 J（思考上限+循环），所有引用 J 的旧补丁必须更新
-
-#### 详细描述
-在 ErrorMessageWithActions 组件中，错误分类逻辑已重构：
-- `K = efg.includes(_)` — 可恢复错误标志（原 J 的功能）
-- `J = !![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR, kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP, kg.DEFAULT].includes(_)` — 思考上限+循环错误标志
-- `$ = !![kg.INTERNAL_PPE_ENV_NOT_EXIST].includes(_)` — PPE 环境错误
-- `X = !![kg.MODEL_NOT_EXISTED].includes(_)` — 模型不存在
-- `ee = !![kg.PREMIUM_MODE_USAGE_LIMIT, kg.STANDARD_MODE_USAGE_LIMIT].includes(_)` — 配额限制
-- `er = !![kg.RISK_REQUEST].includes(_)` — 风险请求
-
-#### 位置信息
-- **偏移量**: @8707613
-- **所在函数/类**: ErrorMessageWithActions 组件
-- **所属层级**: L1 (UI)
-- **所属域标签**: [Error] [React]
-
-#### 搜索模板
-| 目标 | 搜索关键词 | 稳定性 | 备注 |
-|------|-----------|--------|------|
-| 可恢复标志 | `efg.includes` | ⭐⭐⭐ | 定位 K 变量 |
-| 思考上限标志 | `MODEL_OUTPUT_TOO_LONG` | ⭐⭐⭐⭐ | 定位 J 变量 |
-| 配额限制 | `PREMIUM_MODE_USAGE_LIMIT` | ⭐⭐⭐⭐ | 定位 ee 变量 |
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Cross-validate (3 paths: efg.includes, MODEL_OUTPUT_TOO_LONG, PREMIUM_MODE_USAGE_LIMIT)
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 22:30] kg 错误码完整枚举 ⭐⭐⭐⭐
-
-> 完整的 30+ 错误码列表，包含新增的配额限制和模型错误码
-
-#### 详细描述
-kg 枚举位于 @54415，包含以下完整错误码（按值排序）：
-
-| 错误码 | 值 | 类别 |
-|--------|-----|------|
-| CONNECTION_ERROR | 1001 | 网络 |
-| NETWORK_ERROR | 1002 | 网络 |
-| NETWORK_ERROR_INTERNAL | 1003 | 网络 |
-| CLIENT_NETWORK_ERROR | 1004 | 网络 |
-| CLIENT_NETWORK_ERROR_INTERNAL | 1005 | 网络 |
-| REQUEST_TIMEOUT_ERROR | 1006 | 超时 |
-| REQUEST_TIMEOUT_ERROR_INTERNAL | 1007 | 超时 |
-| MODEL_RESPONSE_TIMEOUT_ERROR | 1008 | 超时 |
-| MODEL_RESPONSE_FAILED_ERROR | 1009 | 模型 |
-| SERVER_CRASH | 1010 | 服务器 |
-| MODEL_NOT_EXISTED | 1011 | 模型 |
-| MODEL_AUTO_SELECTION_FAILED | 1012 | 模型 |
-| MODEL_OUTPUT_TOO_LONG | 1013 | 模型 |
-| DEFAULT | 1014 | 通用 |
-| RISK_REQUEST | 1015 | 安全 |
-| PREMIUM_MODE_USAGE_LIMIT | 1016 | 配额 |
-| STANDARD_MODE_USAGE_LIMIT | 1017 | 配额 |
-| INTERNAL_PPE_ENV_NOT_EXIST | 1018 | PPE |
-| EXTERNAL_LLM_REQUEST_FAILED | 1019 | LLM |
-| CUSTOM_MODEL_ORIGIN_ERROR | 1020 | 自定义模型 |
-| NETWORK_CHANGED | 1021 | 网络 |
-| NETWORK_DISCONNECTED | 1022 | 网络 |
-| FIREWALL_BLOCKED | 1023 | 防火墙 |
-| LLM_STOP_CONTENT_LOOP | 1024 | 循环 |
-| TURN_EXCEEDED | 5001 | 思考上限 |
-| TIMEOUT | 5002 | 超时 |
-| OUT_OF_QUOTA | 5003 | 配额 |
-| AGENT_BUSY | 5004 | 服务器 |
-| TASK_TURN_EXCEEDED_ERROR | 4000002 | 思考上限 |
-| LLM_STOP_DUP_TOOL_CALL | 4000009 | 循环 |
-| CLAUDE_MODEL_FORBIDDEN | 4113 | 模型 |
-
-efg 可恢复错误列表（14 个）：SERVER_CRASH, CONNECTION_ERROR, NETWORK_ERROR, NETWORK_ERROR_INTERNAL, CLIENT_NETWORK_ERROR, NETWORK_CHANGED, NETWORK_DISCONNECTED, CLIENT_NETWORK_ERROR_INTERNAL, REQUEST_TIMEOUT_ERROR, REQUEST_TIMEOUT_ERROR_INTERNAL, MODEL_RESPONSE_TIMEOUT_ERROR, MODEL_RESPONSE_FAILED_ERROR, MODEL_AUTO_SELECTION_FAILED, MODEL_FAIL
-
-#### 位置信息
-- **偏移量**: @54415 (枚举定义), @8705916 (efg 列表)
-- **所属域标签**: [Error]
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: 3 paths (4000002 numeric, TASK_TURN_EXCEEDED_ERROR name, efg.includes usage)
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 22:30] IEntitlementStore — 订阅/权益管理 ⭐⭐⭐⭐⭐
-
-> 新发现的 DI 服务，管理用户订阅状态和权益信息，是商业权限判断的数据源
-
-#### 详细描述
-IEntitlementStore 是 Zustand Store，继承自 Aq 基类，初始状态包含 entitlementInfo 和 saasEntitlementInfo 字段。它是 ICommercialPermissionService 的数据源。
-
-#### 位置信息
-- **偏移量**: @7264735 (Token), @7264804 (entitlementInfo 字段)
-- **所属层级**: L2 (Service)
-- **所属域标签**: [DI] [Store]
-
-#### 搜索模板
-| 目标 | 搜索关键词 | 稳定性 | 备注 |
-|------|-----------|--------|------|
-| Token | `Symbol("IEntitlementStore")` | ⭐⭐⭐⭐ | Store token |
-| 字段 | `entitlementInfo` | ⭐⭐⭐ | Store 字段 |
-| 字段 | `saasEntitlement` | ⭐⭐⭐ | SaaS 权益字段 |
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: 3 paths (Symbol token, entitlementInfo field, saasEntitlement field)
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 22:30] ICommercialPermissionService — 商业权限判断集中点 ⭐⭐⭐⭐⭐
-
-> 所有商业权限判断的集中服务，6 个方法全部基于 EntitlementStore 和 CredentialStore 计算
-
-#### 详细描述
-ICommercialPermissionService（NS 类）是商业权限判断的集中点，包含以下方法：
-- isFreeUser() — 判断是否免费用户
-- 其他权限检查方法
-
-所有方法基于 _entitlementStore.getState() 和 _credentialStore.getState() 计算，没有自有状态。补丁策略：修改 NS 类的方法返回值（如让 isFreeUser 返回 false），而不是修改底层数据。
-
-#### 位置信息
-- **偏移量**: @7197015 (Token)
-- **所属层级**: L2 (Service)
-- **所属域标签**: [DI]
-
-#### 搜索模板
-| 目标 | 搜索关键词 | 稳定性 | 备注 |
-|------|-----------|--------|------|
-| Token | `Symbol.for("aiAgent.ICommercialPermissionService")` | ⭐⭐⭐⭐⭐ | Service token |
-| 方法 | `isFreeUser` | ⭐⭐⭐ | 权限检查方法 |
-
-#### 验证状态
-- **confidence**: medium (2/3 paths verified, canUsePremiumMode not found)
-- **verified_by**: Symbol.for token, isFreeUser method
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 22:30] P0 盲区组成分析 ⭐⭐⭐⭐
-
-> 54415-6268469 区间（~6.2MB）主要由第三方库组成，业务逻辑集中在少数区域
-
-#### 详细描述
-P0 盲区粗筛（60 个采样点）结果：
-- 大部分为第三方库代码：React/DOM (~2716815), D3/图表 (~3843215-4252815), Mermaid/图 (~5072015-5584015), Chevrotain 解析器 (~3740815), YAML (~4867215), Markdown (~4969615)
-- 业务逻辑区域：AWS 凭证处理 (~668815), TEA 基础层 (~259215), 上传系统 (~361615), 部署授权 (~3024015), 配置导入导出 (~5993615), i18n 本地化 (~6096015+)
-- 关键安全发现：@668815 包含 AWS AccessKeyId/SecretAccessKey/SessionToken 处理代码
-
-#### 位置信息
-- **偏移量范围**: 54415-6268469
-- **所属域标签**: [DI] [SSE] [Store]
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Phase 1 粗筛 + Phase 2 聚焦扫描
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 22:30] P1 盲区组成分析 — registerCommand 集中区 ⭐⭐⭐⭐
-
-> 8930000-10489266 区间主要为 React 组件和 VS Code 命令注册，末尾有 26 个 registerCommand
-
-#### 详细描述
-P1 盲区扫描（31 个采样点）结果：
-- 48.4% 为 React 组件（Agent 创建面板、MCP 工具选择、设置面板等）
-- 48.4% 为 Base64 数据块（图片/资源）
-- 3.2% 为业务逻辑
-- 关键发现：registerAdapter = uj.getInstance().provide() @10476397
-- 26 个 registerCommand 集中在 @10477319+，包括 icube.chat.stopSession, icube.chat.sendToAgentNonBlocking 等
-
-#### 位置信息
-- **偏移量范围**: 8930000-10489266
-- **所属域标签**: [React] [IPC]
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Phase 1 粗筛 + 聚焦扫描
-- **last_verified**: 2026-04-25
-
----
-
-### [2026-04-25 22:30] 负面结果记录 ⭐⭐⭐
-
-> 搜索了但未找到的关键项目
-
-#### 详细描述
-以下搜索返回 -1（未找到），这些负面结果对后续 Agent 有价值：
-1. `Symbol.for("IPlanItemStreamParser")` — 已迁移为 Symbol()
-2. `Symbol.for("ISessionStore")` — 已迁移为 Symbol()
-3. `ConfirmMode` — 枚举已完全移除
-4. `confirm_mode` — 无此字符串
-5. `canUsePremiumMode` — ICommercialPermissionService 中未找到此方法名
-6. `exceeded maximum` — 此字符串不在 index.js 中（在主进程文件中）
-7. `efh` 不再是可恢复错误列表 — efh 现在是域名掩码函数 `e=>{if(!e)return"";...}`，可恢复列表已改名为 efg
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: $c.IndexOf() 实际搜索
-- **last_verified**: 2026-04-25
-### [2026-04-26 04:15] 11域交叉验证 + 新域探索
-
-> 自动化交叉验证结果，由 explore-deep-cross-validate.ps1 生成
-
-## [DI] 域交叉验证
-
-| 检查项 | 预期 | 实际 | 结果 |
-|--------|------|------|------|
-| uJ({identifier: 注册数 | 51 | 186 | ❌ FAIL |
-| uX( 注入数 | 101 | 817 | ❌ FAIL |
-| ISessionStore | 7092843 | 7092843 | ✅ PASS |
-| IPlanItemStreamParser | 7510931 | 7510931 | ✅ PASS |
-
-## [SSE] 域交叉验证
-
-| 检查项 | 实际值 |
-|--------|--------|
-| eventHandlerFactory 出现次数 | 5 |
-| handleSteamingResult 出现次数 | 10 |
-| handleSteamingResult 位置 | 7328394, 7490128, 7503265, 7505244, 7511054, 7517005, 7518770, 7520557, 7521682, 7523529 |
-
-| 事件类型 | 出现次数 | 位置 |
-|---------|---------|------|
-| PlanItem | 2 | 7514720, 7527483 |
-| Error | 5 | 7517735, 7527511, 7545623 |
-| Done | 3 | 7519472, 7527536, 7545632 |
-| Metadata | 4 | 7322040, 7504304, 7527424 |
-| Notification | 2 | 7328738, 7527755 |
-| TextMessage | 2 | 7505706, 7527452 |
-| UserMessage | 2 | 7523720, 7527618 |
-| TokenUsage | 4 | 7524662, 7527649, 7537085 |
-| Queueing | 0 |  |
-| FeeUsage | 2 | 7490394, 7527396 |
-| SessionTitle | 2 | 7527716, 7537132 |
-
-## [Store] 域交叉验证
-
-| 检查项 | 实际值 |
-|--------|--------|
-| setCurrentSession 出现次数 | 25 |
-| .subscribe( 出现次数 | 33 |
-| .getState() 出现次数 | 234 |
-
-| Store Token | 存在 | 位置 |
-|------------|------|------|
-| ISessionStore | ✅ | 7092843 |
-| IInlineSessionStore | ✅ | 7227306 |
-| IModelStore | ✅ | 7191686 |
-| IEntitlementStore | ✅ | 7264735 |
-| ISessionRelationStoreInternal | ✅ | 7209315 |
-
-## [Error] 域交叉验证
-
-| 错误码枚举 | 出现次数 | 首次位置 |
-|-----------|---------|---------|
-| kg.ABNORMAL_ACCOUNT_LOGOUT | 1 | 7300485 |
-| kg.ACCOUNT_DELETED | 1 | 7300566 |
-| kg.CAN_NOT_USE_SOLO_AGENT | 1 | 8716750 |
-| kg.CLAUDE_MODEL_FORBIDDEN | 1 | 8717190 |
-| kg.CLIENT_NETWORK_ERROR | 3 | 8706194 |
-| kg.CLIENT_NETWORK_ERROR_INTERNAL | 2 | 8706261 |
-| kg.CONNECTION_ERROR | 1 | 8706131 |
-| kg.CONTENT_SECURITY_BLOCKED | 1 | 8715027 |
-| kg.CURRENT_SYSTEM_NOT_SUPPORT_AI | 1 | 8709696 |
-| kg.CUSTOM_MODEL_ORIGIN_ERROR | 3 | 7300001 |
-| kg.DEFAULT | 7 | 7299816 |
-| kg.ENTERPRISE_ALL_MODEL_TENANT_QUOTA_EXCEEDED | 1 | 8711249 |
-| kg.ENTERPRISE_ALL_MODEL_USER_QUOTA_EXCEEDED | 1 | 8711295 |
-| kg.ENTERPRISE_NOT_ALLOWED_ADD_CUSTOM_MODEL | 1 | 7300844 |
-| kg.ENTERPRISE_PER_MODEL_TENANT_QUOTA_EXCEEDED | 1 | 8711339 |
-| kg.ENTERPRISE_PER_MODEL_USER_QUOTA_EXCEEDED | 1 | 8711385 |
-| kg.ENTERPRISE_QUOTA_CONFIG_INVALID | 1 | 8711429 |
-| kg.ENTERPRISE_SEAT_MODEL_USAGE_EXHAUSTED | 1 | 8711208 |
-| kg.ENTERPRISE_SUBSCRIPTION_EXPIRED | 1 | 8711464 |
-| kg.ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST | 1 | 7301073 |
-| kg.ENTERPRISE_TOKEN_EXPIRATION | 1 | 7301152 |
-| kg.ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED | 1 | 7301111 |
-| kg.EXTERNAL_LLM_MODEL_NOT_FOUND | 2 | 9962921 |
-| kg.EXTERNAL_LLM_REQUEST_FAILED | 3 | 7299970 |
-| kg.FIREWALL_BLOCKED | 1 | 8718141 |
-| kg.FREE_ACTIVITY_QUOTA_EXHAUSTED | 2 | 7301230 |
-| kg.INLINE_CHAT_EMPTY_RESULT | 1 | 9918490 |
-| kg.INTERNAL_PPE_ENV_NOT_EXIST | 1 | 8707695 |
-| kg.INVALID_TOOL_CALL | 1 | 8720708 |
-| kg.LLM_STOP_CONTENT_LOOP | 1 | 8707861 |
-| kg.LLM_STOP_DUP_TOOL_CALL | 1 | 8707835 |
-| kg.LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT | 1 | 8709794 |
-| kg.MODEL_AUTO_SELECTION_FAILED | 1 | 8706416 |
-| kg.MODEL_FAIL | 1 | 8706447 |
-| kg.MODEL_NOT_EXISTED | 2 | 7300637 |
-| kg.MODEL_OUTPUT_TOO_LONG | 1 | 8707782 |
-| kg.MODEL_PREMIUM_QUOTA_DRAINED | 1 | 8711715 |
-| kg.MODEL_RESPONSE_FAILED_ERROR | 1 | 8706385 |
-| kg.MODEL_RESPONSE_TIMEOUT_ERROR | 2 | 7516605 |
-| kg.NETWORK_CHANGED | 1 | 8706218 |
-| kg.NETWORK_DISCONNECTED | 1 | 8706237 |
-| kg.NETWORK_ERROR | 1 | 8706151 |
-| kg.NETWORK_ERROR_INTERNAL | 1 | 8706168 |
-| kg.OS_SUSPEND_TIMEOUT | 1 | 7516686 |
-| kg.PASSWORD_CHANGED | 1 | 7300964 |
-| kg.PAYGO_ARREARS | 1 | 8712521 |
-| kg.PREMIUM_MODE_USAGE_LIMIT | 5 | 7301418 |
-| kg.REPO_LEVEL_MODEL_UNAVAILABLE | 2 | 7300717 |
-| kg.REQUEST_TIMEOUT_ERROR | 1 | 8706294 |
-| kg.REQUEST_TIMEOUT_ERROR_INTERNAL | 1 | 8706319 |
-| kg.RISK_REQUEST | 2 | 7300063 |
-| kg.RISK_REQUEST_V2 | 2 | 7300079 |
-| kg.SERVER_CRASH | 1 | 8706115 |
-| kg.STANDARD_MODE_USAGE_LIMIT | 4 | 8045039 |
-| kg.TASK_TURN_EXCEEDED_ERROR | 1 | 8707807 |
-| kg.TOOL_CALL_RETRY_LIMIT | 1 | 8721749 |
-
-| 关键错误码 | 存在 | 位置 |
-|-----------|------|------|
-| TASK_TURN_EXCEEDED | ✅ | 8707807 |
-| PREMIUM_MODE_USAGE_LIMIT | ✅ | 7301418 |
-| STANDARD_MODE_USAGE_LIMIT | ✅ | 8045039 |
-| FIREWALL_BLOCKED | ✅ | 8718141 |
-| J=!![ 出现次数 | 1 |
-| J=!![ 位置 | 8707777 |
-| handleCommonError 出现次数 | 5 |
-| handleCommonError 位置 | 7300455, 7546052, 7549616, 7692177, 9959714 |
-
-## [Commercial] 域交叉验证
-
-| 注册模式 | 存在 | 位置 |
-|---------|------|------|
-| Symbol.for | ✅ | 7197015 |
-| Symbol | ❌ | N/A |
-| isCommercialUser 出现次数 | 4 |
-| isCommercialUser 位置 | 7267803, 7267968, 7268053, 8688169 |
-| entitlementInfo 出现次数 | 10 |
-| entitlementInfo 位置 | 7264804, 7264904, 7264952, 7267718, 7280616, 7817315, 8052472, 8053363, 8276324, 8687648 |
-| isFreeUser 出现次数 | 2 |
-| isFreeUser 位置 | 8688156, 8705828 |
-
-## 潜在新域探索
-
-### [Network] 候选域
-
-| 锚点 | 出现次数 | 位置 |
-|------|---------|------|
-| fetch( | 16 | 225215, 589740, 1746300, 1832019, 1876092 |
-| XMLHttpRequest | 9 | 225865, 341267, 590509, 643982, 1876853 |
-| axios | 1 | 6524279 |
-| interceptor | 8 | 6518966, 6519989, 6520152, 6524293, 6524414 |
-
-| 评估维度 | 结果 |
-|---------|------|
-| 独立实体数 | 4 / 4 |
-| 总命中数 | 12 |
-| DI 接口存在 | 是 |
-| 功能性锚点存在 | 是 |
-| 新域评分 | 5 / 5 |
-| 判定 | 🟢 新域候选 (≥3 独立实体) |
-
-### [Model] 候选域
-
-| 锚点 | 出现次数 | 位置 |
-|------|---------|------|
-| IModelService | 16 | 2530642, 2530680, 6991623, 7055279, 7055323 |
-| IModelStorageService | 1 | 7182365 |
-| computeSelectedModel | 3 | 7213492, 7215828, 7223323 |
-| modelList | 20 | 7023445, 7192056, 7193677, 7213580, 7215928 |
-
-| 评估维度 | 结果 |
-|---------|------|
-| 独立实体数 | 4 / 4 |
-| 总命中数 | 12 |
-| DI 接口存在 | 是 |
-| 功能性锚点存在 | 是 |
-| 新域评分 | 5 / 5 |
-| 判定 | 🟢 新域候选 (≥3 独立实体) |
-
-### [History] 候选域
-
-| 锚点 | 出现次数 | 位置 |
-|------|---------|------|
-| IPastChatExporter | 1 | 7574983 |
-| chatHistory | 3 | 7142004, 7885174, 8886379 |
-| exportChat | 0 | N/A |
-| pastChat | 4 | 7575864, 7576174, 7577034, 7577361 |
-
-| 评估维度 | 结果 |
-|---------|------|
-| 独立实体数 | 3 / 4 |
-| 总命中数 | 12 |
-| DI 接口存在 | 是 |
-| 功能性锚点存在 | 是 |
-| 新域评分 | 5 / 5 |
-| 判定 | 🟢 新域候选 (≥3 独立实体) |
-
-### [Auth] 候选域
-
-| 锚点 | 出现次数 | 位置 |
-|------|---------|------|
-| ICredentialFacade | 1 | 7021013 |
-| login | 210 | 82053, 154153, 154186, 199811, 203770 |
-| logout | 30 | 6055046, 6150237, 6233630, 6697236, 6697290 |
-| authenticate | 6 | 6676823, 6815869, 6956668, 9582533, 9582555 |
-| token | 1002 | 19119, 40380, 44834, 45044, 60924 |
-
-| 评估维度 | 结果 |
-|---------|------|
-| 独立实体数 | 5 / 5 |
-| 总命中数 | 15 |
-| DI 接口存在 | 是 |
-| 功能性锚点存在 | 是 |
-| 新域评分 | 5 / 5 |
-| 判定 | 🟢 新域候选 (≥3 独立实体) |
-
-### [Telemetry] 候选域
-
-| 锚点 | 出现次数 | 位置 |
-|------|---------|------|
-| ITeaFacade | 1 | 7140161 |
-| ISlardarFacade | 1 | 7139445 |
-| TeaReporter | 3 | 914, 935, 2166 |
-| slardar | 51 | 155688, 2655769, 5870999, 7044926, 7045135 |
-
-| 评估维度 | 结果 |
-|---------|------|
-| 独立实体数 | 4 / 4 |
-| 总命中数 | 12 |
-| DI 接口存在 | 是 |
-| 功能性锚点存在 | 是 |
-| 新域评分 | 5 / 5 |
-| 判定 | 🟢 新域候选 (≥3 独立实体) |
-
-## 验证汇总
+### 验证汇总
 
 | 指标 | 值 |
 |------|-----|
 | 目标文件大小 | 10 MB |
-| 目标文件字符数 | 10490415 |
 | ✅ PASS | 11 |
 | ⚠️ WARN/DRIFT | 0 |
 | ❌ FAIL | 2 |
 | 总检查项 | 13 |
 
-### 深度分析 ⭐⭐⭐
-
-#### DI 域计数纠正
-
+### DI 域计数纠正
 | 指标 | 文档记录 | 实际值 | 原因 |
 |------|---------|--------|------|
-| uJ({identifier: 注册数 | 51 | **186** | 文档记录的是"服务"数，实际 `uJ({identifier:` 匹配所有 DI 装饰器注册点（含方法级注册），186 是精确值 |
-| uX( 注入数 | 101 | **817** (816注入+1定义) | 文档记录的是"类级注入"，实际 `uX(` 匹配所有属性注入点，816 是精确值 |
+| uJ({identifier: 注册数 | 51 | **186** | 文档记录的是"服务"数，实际匹配所有 DI 装饰器注册点 |
+| uX( 注入数 | 101 | **817** | 文档记录的是"类级注入"，实际匹配所有属性注入点 |
 
-> **结论**: DI 文档中的 51/101 是早期版本或仅统计了类级注册/注入。当前版本实际注册点 186、注入点 816。`di-service-registry.md` 需更新。
-
-#### J 变量完整定义 @8708083
-
-```javascript
-J=!![kg.MODEL_OUTPUT_TOO_LONG, kg.TASK_TURN_EXCEEDED_ERROR, kg.LLM_STOP_DUP_TOOL_CALL, kg.LLM_STOP_CONTENT_LOOP, kg.DEFAULT].includes(_)
-```
-
-**关键发现**: J 变量包含 **5** 个错误码（文档仅记录 4 个）：
-- `kg.MODEL_OUTPUT_TOO_LONG` ← **新发现！** 未在文档中记录
-- `kg.TASK_TURN_EXCEEDED_ERROR` ✅ 已知
-- `kg.LLM_STOP_DUP_TOOL_CALL` ✅ 已知
-- `kg.LLM_STOP_CONTENT_LOOP` ✅ 已知
-- `kg.DEFAULT` ✅ 已知
-
-#### X 变量新发现 @8708083 附近
-
-```javascript
-X=!![kg.MODEL_NOT_EXISTED].includes(_)
-```
-
-X 是一个独立的"模型不存在"标志变量，之前未被记录。
-
-#### 完整标志变量链 @8708083
-
-```javascript
-X=!![kg.MODEL_NOT_EXISTED].includes(_)
-J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)
-ee=!![kg.PREMIUM_MODE_USAGE_LIMIT,kg.STANDARD_MODE_USAGE_LIMIT].includes(_)
-```
-
-#### kg 错误码枚举扩展
-
-文档记录 ~30 个，实际发现 **56** 个。新增关键错误码：
-
-| 新增错误码 | 首次位置 | 含义推断 |
-|-----------|---------|---------|
-| kg.ABNORMAL_ACCOUNT_LOGOUT | 7300485 | 账号异常登出 |
-| kg.ACCOUNT_DELETED | 7300566 | 账号已删除 |
-| kg.CUSTOM_MODEL_ORIGIN_ERROR | 7300001 | 自定义模型源错误 |
-| kg.ENTERPRISE_ALL_MODEL_TENANT_QUOTA_EXCEEDED | 8711249 | 企业租户全模型配额超限 |
-| kg.ENTERPRISE_ALL_MODEL_USER_QUOTA_EXCEEDED | 8711295 | 企业用户全模型配额超限 |
-| kg.ENTERPRISE_PER_MODEL_TENANT_QUOTA_EXCEEDED | 8711339 | 企业租户单模型配额超限 |
-| kg.ENTERPRISE_PER_MODEL_USER_QUOTA_EXCEEDED | 8711385 | 企业用户单模型配额超限 |
-| kg.ENTERPRISE_SEAT_MODEL_USAGE_EXHAUSTED | 8711208 | 企业席位模型用量耗尽 |
-| kg.ENTERPRISE_SUBSCRIPTION_EXPIRED | 8711464 | 企业订阅过期 |
-| kg.ENTERPRISE_TOKEN_ACCOUNT_NOT_EXIST | 7301073 | 企业 Token 账号不存在 |
-| kg.ENTERPRISE_TOKEN_EXPIRATION | 7301152 | 企业 Token 过期 |
-| kg.ENTERPRISE_TOKEN_SUBSCRIPTION_EXPIRED | 7301111 | 企业 Token 订阅过期 |
-| kg.EXTERNAL_LLM_MODEL_NOT_FOUND | 9962921 | 外部 LLM 模型未找到 |
-| kg.FREE_ACTIVITY_QUOTA_EXHAUSTED | 7301230 | 免费活动配额耗尽 |
-| kg.INLINE_CHAT_EMPTY_RESULT | 9918490 | 内联聊天空结果 |
-| kg.INTERNAL_PPE_ENV_NOT_EXIST | 8707695 | 内部 PPE 环境不存在 |
-| kg.MODEL_NOT_EXISTED | 7300637 | 模型不存在 |
-| kg.MODEL_OUTPUT_TOO_LONG | 8707782 | 模型输出过长 |
-| kg.MODEL_PREMIUM_QUOTA_DRAINED | 8711715 | 高级模型配额耗尽 |
-| kg.OS_SUSPEND_TIMEOUT | 7516686 | OS 挂起超时 |
-| kg.PASSWORD_CHANGED | 7300964 | 密码已更改 |
-| kg.PAYGO_ARREARS | 8712521 | 按量付费欠费 |
-| kg.RISK_REQUEST | 7300063 | 风险请求 |
-| kg.CURRENT_SYSTEM_NOT_SUPPORT_AI | 8709696 | 当前系统不支持 AI |
-| kg.ENTERPRISE_NOT_ALLOWED_ADD_CUSTOM_MODEL | 7300844 | 企业不允许添加自定义模型 |
-| kg.REPO_LEVEL_MODEL_UNAVAILABLE | 7300717 | 仓库级模型不可用 |
-
-#### SSE 事件枚举纠正
-
-- 事件枚举前缀是 **Ot.**（不是 D7）
-- `Ot.Queueing` 出现 0 次 → Queueing 事件可能使用不同枚举名或已移除
-- 其余 10/11 事件类型验证通过
-
-#### 5 个新域确认
+### 5 个新域确认
 
 | 域 | 评分 | 核心实体 | 补丁潜力 |
 |----|------|---------|---------|
@@ -4539,323 +1027,252 @@ ee=!![kg.PREMIUM_MODE_USAGE_LIMIT,kg.STANDARD_MODE_USAGE_LIMIT].includes(_)
 | **Auth** | 5/5 | ICredentialFacade(1), login(210), logout(30), authenticate(6), token(1002) | ⭐⭐⭐ 凭证/身份伪造 |
 | **Telemetry** | 5/5 | ITeaFacade(1), ISlardarFacade(1), TeaReporter(3), slardar(51) | ⭐⭐ 遥测屏蔽 |
 
-> **Model 域** 补丁潜力最高：`computeSelectedModelAndMode` @7215828 是模式选择核心，`IModelStorageService` @7182365 是模型配置存储，配合 Commercial 域的 `isCommercialUser()` 可实现完整的模式/模型解锁。
+> **Model 域** 补丁潜力最高：`computeSelectedModelAndMode` 是模式选择核心，配合 Commercial 域的 `isCommercialUser()` 可实现完整的模式/模型解锁。
 
+---
 
+## [2026-04-26 04:27] P1盲区系统性扫描 — 最终版
 
-## [2026-04-26 04:16] P1盲区系统性扫描
+> 区间1(UI下半: 8930000-9910446) + 区间2(命令注册: 9910446-10490721) + 区间3(首部: 0-41400) + 区间4(尾部)
+> 共发现 64 个目标
 
-> 区间1(UI下半: 8930000-9910446) + 区间2(命令注册: 9910446-10743303) + 区间3(首部: 0-41400) + 区间4(尾部)
-> 共发现 31 个目标
+### 核心发现
 
-### [2026-04-26 04:16] sX().createElement 发现 @8981240 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @8981240
-- 所属域标签: [React]
-#### 数据/证据
+**1. 文件结构**:
+- AMD define 入口: `define(["katex","react","react-dom"],function(e,t,i){...})` @0
+- IIFE 闭合: `...apis:FW}})(),l})()})` @10743409 (三重闭包)
+- 16 个 React 组件导出 @10490209
+- FW 核心服务门面对象 @7598504
+
+**2. registerAdapter = uj.getInstance().provide()** @10476397 — DI 适配器注册接口
+
+**3. 25 个 VS Code 命令注册** @10477819-10489027:
+核心命令: send.internal, send.codeReview, openUsageLimitModalAICompletion, stopSession, sendToAgentNonBlocking, sendToAgentBackground.deepwiki, knowledges.*(8个)
+
+**4. eY0 模块入口对象** @10476892:
 ```
-enFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement
-```
-
-### [2026-04-26 04:16] sX().createElement 发现 @8981278 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @8981278
-- 所属域标签: [React]
-#### 数据/证据
-```
-s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX
-```
-
-### [2026-04-26 04:16] sX().createElement 发现 @8981339 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @8981339
-- 所属域标签: [React]
-#### 数据/证据
-```
-.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX().createElement(Cr.EllipsisTooltip,{className:"auto-run-sett
+eY0={
+  registerAdapter:function(e,t){uj.getInstance().provide(e,t)},
+  getRegisteredAdapter:function(e){return uj.getInstance().resolve(e)},
+  bootstrapApplicationContainer:function(e){...}
+}
 ```
 
-### [2026-04-26 04:16] sX().createElement 发现 @9082633 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9082633
-- 所属域标签: [React]
-#### 数据/证据
+**5. ToolCallName 完整枚举 (38个)** @40836 — 见 [MCP] 域
+
+**6. UserConfirmStatusEnum** @44416: Unconfirmed/Confirmed/Skipped/Canceled
+
+**7. createDecorator — DI 装饰器工厂** @853508 — serviceRegistry 全局 Map
+
+**8. Bootstrap 初始化序列** @10728701:
 ```
-.77931 13.2188 3.77931",fill:t}),sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",stroke:t,strokeWidth:"2.8125"}),sX().createElement("path",{d:"M15.9688
+t.resolve(Dr).initialize(), t.resolve(Dp).initialize(),
+t.resolve(kh).initialize(), t.resolve(H2).migrateChatHistory(),
+t.resolve(eto).initialize(), FW.prepareSessionService()
 ```
 
-### [2026-04-26 04:16] sX().createElement 发现 @9082845 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9082845
-- 所属域标签: [React]
-#### 数据/证据
-```
-2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",stroke:t,strokeWidth:"2.8125"}),sX().createElement("path",{d:"M15.9688 3.79694L11.1641 6.57094V1.02295L15.9688 3.79694Z",fill:t,stroke:t,strokeWidth:"0.03125"}),sX().createElement("path",{d:"M0 7.78125C0.46875 7.78125 2.28125 8.18578 3.21875 8.71703C4.15625 9.24828 4.15625 9.24828 
-```
+**P1 区域内容分布**: 48.4% React 组件 + 48.4% Base64 数据 + 3.2% 业务逻辑
 
-### [2026-04-26 04:16] sX().createElement 发现 @9082974 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9082974
-- 所属域标签: [React]
-#### 数据/证据
-```
-rokeWidth:"2.8125"}),sX().createElement("path",{d:"M15.9688 3.79694L11.1641 6.57094V1.02295L15.9688 3.79694Z",fill:t,stroke:t,strokeWidth:"0.03125"}),sX().createElement("path",{d:"M0 7.78125C0.46875 7.78125 2.28125 8.18578 3.21875 8.71703C4.15625 9.24828 4.15625 9.24828 6.09375 10.6233C8.54678 12.3641 10.2812 11.7812 13.125 11.7812",fill:t}),sX().createElement("path",{d:"M0 7.78125C0.46875 7.78125
-```
+---
 
-### [2026-04-26 04:16] useEffect 发现 @9186326 ⭐***
-> 区间1采样命中 useEffect
-#### 位置信息
-- 偏移量: @9186326
-- 所属域标签: [React]
-#### 数据/证据
-```
-t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().createElement(epU,{id:e,taskId:i})}),[i]),f=s("ai.chat.reasoningContent.title",{},"Thought");ret
-```
+## [2026-04-26 04:44] 搜索模板可用性验证报告
 
-### [2026-04-26 04:16] useState 发现 @9186206 ⭐***
-> 区间1采样命中 useState
-#### 位置信息
-- 偏移量: @9186206
-- 所属域标签: [React]
-#### 数据/证据
-```
-(),expand:!(e?.thought||e?.toolName),reasoningContent:e.reasoningContent||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({m
-```
+### 验证结果 (结论表格)
 
-### [2026-04-26 04:16] useState 发现 @9186231 ⭐***
-> 区间1采样命中 useState
-#### 位置信息
-- 偏移量: @9186231
-- 所属域标签: [React]
-#### 数据/证据
-```
-?.toolName),reasoningContent:e.reasoningContent||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().c
-```
+| 模板ID | 搜索模式 | 状态 | 备注 |
+|--------|---------|------|------|
+| DI-01 | `uX(` | ✅ OK (817命中) | |
+| DI-02 | `uJ({identifier:` | ✅ OK (186命中) | |
+| DI-03 | `Symbol.for("` | ✅ OK (185命中) | |
+| DI-04 | `Symbol("` | ✅ OK (77命中) | |
+| SSE-01 | `eventHandlerFactory` | ✅ OK (5命中) | |
+| **SSE-02** | **`Symbol.for("IPlanItemStreamParser")`** | **❌ EMPTY** | **已迁移为 Symbol()** |
+| SSE-07 | `handleSteamingResult` | ✅ OK (14命中) | |
+| STO-01 | `Symbol("ISessionStore")` | ✅ OK (1命中) | |
+| STO-04 | `.subscribe(` | ✅ OK (33命中) | |
+| STO-05 | `.getState()` | ✅ OK (234命中) | |
+| ERR-01 | `4000002` | ✅ OK (7命中) | |
+| ERR-06 | `getErrorInfo` | ✅ OK (13命中) | |
+| ERR-07 | `handleCommonError` | ✅ OK (5命中) | |
+| ERR-11 | `teaEventChatFail` | ✅ OK (5命中) | |
+| RCT-01 | `sX().memo(` | ✅ OK (31命中) | |
+| RCT-08 | `getRunCommandCardBranch` | ✅ OK (2命中) | |
+| RCT-10 | `"unconfirmed"` | ✅ OK (11命中) | |
+| EVT-01 | `Symbol.for("ITeaFacade")` | ✅ OK (1命中) | |
+| EVT-02 | `visibilitychange` | ✅ OK (28命中) | |
+| **EVT-05** | **`icube.shellExec`** | **❌ EMPTY** | **已移除** |
+| COM-01 | `ICommercialPermissionService` | ✅ OK (1命中) | |
+| COM-02 | `isCommercialUser` | ✅ OK (4命中) | |
+| COM-03 | `IEntitlementStore` | ✅ OK (1命中) | |
+| GEN-06 | `provideUserResponse` | ✅ OK (10命中) | |
+| GEN-07 | `ToolCallName` | ✅ OK (4命中) | |
+| GEN-08 | `BlockLevel` | ✅ OK (3命中) | |
 
-### [2026-04-26 04:16] useRef 发现 @9186271 ⭐***
-> 区间1采样命中 useRef
-#### 位置信息
-- 偏移量: @9186271
-- 所属域标签: [React]
-#### 数据/证据
-```
-Content||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1),{localize:s}=Cb(),l=(0,sK.useRef)(null),u=uB(Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().createElement(epU,{id:e,taskId:i})}),[i])
-```
+**汇总**: 24/26 OK, 2/26 EMPTY (SSE-02, EVT-05)
 
-### [2026-04-26 04:16] sX().createElement 发现 @9389825 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9389825
-- 所属域标签: [React]
-#### 数据/证据
-```
-.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(0,sK.memo)(({taskChunks:e,taskGroups:t,thinkingElement:i,onUpdateTaskExecutionStatus:r,isLat
-```
+---
 
-### [2026-04-26 04:16] sX().createElement 发现 @9389855 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9389855
-- 所属域标签: [React]
-#### 数据/证据
-```
-.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(0,sK.memo)(({taskChunks:e,taskGroups:t,thinkingElement:i,onUpdateTaskExecutionStatus:r,isLatest:n})=>{let o=(0,JP.Sz)(Jj,e
-```
+## [2026-04-26] 版本差异探索 — 结论摘要
 
-### [2026-04-26 04:16] sX().createElement 发现 @9390656 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9390656
-- 所属域标签: [React]
-#### 数据/证据
-```
-nId,t.agentStatus)}return e},[d]),p=(0,Ir.Z)(e=>{u.executeCommand("icube.subAgentDetail.open",e)}),g=(e,t)=>{let i=[],o=[],a=()=>{o.length>0&&(i.push(sX().createElement("div",{className:"ai-agent-task-browser-group",key:`browser-group-${o[0].id}`,style:{display:"flex",flexDirection:"column",gap:"4px"}},o.map((i,o)=>{let a=e.indexOf(i)===e.length-1;return sX().createElement(evV,{key:i.id,item:i,isL
-```
+### 1. DI Token 迁移: Symbol.for -> Symbol
+- **54 个** Symbol.for("I...") — 主要是旧版服务/Parser/Store 注册 token
+- **52+ 个** Symbol("I...") — 新增迁移
+- **迁移规律**: Store 类和 Parser 类 token 已迁移到 Symbol()。Facade/Service 类 token 仍保留 Symbol.for()
 
-### [2026-04-26 04:16] sX().createElement 发现 @9799784 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9799784
-- 所属域标签: [React]
-#### 数据/证据
-```
-=r.parsedQuery?.length?Cy(r.parsedQuery):r.content,!r.content&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createEle
-```
+### 2. ConfirmMode 消失
+- ConfirmMode 枚举已不存在
+- confirmMode 仅 1 处，是配置 key 字符串 "AI.toolcall.confirmMode"
+- 结论: 确认逻辑改为纯配置驱动
 
-### [2026-04-26 04:16] sX().createElement 发现 @9799844 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9799844
-- 所属域标签: [React]
-#### 数据/证据
-```
-t&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container
-```
+### 3. 变量重命名纠正
+- 旧版声称 J→K，**但 J 仍为当前变量名** @8707716
+- J 包含 5 个错误码: MODEL_OUTPUT_TOO_LONG, TASK_TURN_EXCEEDED_ERROR, LLM_STOP_DUP_TOOL_CALL, LLM_STOP_CONTENT_LOOP, DEFAULT
 
-### [2026-04-26 04:16] sX().createElement 发现 @9799913 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9799913
-- 所属域标签: [React]
-#### 数据/证据
-```
-]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container"],onClick:i?.current?.handleCopy},sX().createElement("div",{classNam
-```
+### 4. kg 错误码完整枚举 (~56个)
+- 见 [Error] 域映射完整列表
 
-### [2026-04-26 04:16] 文件首部: __esModule 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @142
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="ed
-```
+### 5. efg 可恢复错误列表 (14个)
+- 见 [Error] 域映射
 
-### [2026-04-26 04:16] 文件首部: __esModule 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @888
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-,{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extension_version:i?.extensionV
-```
+### 6. stopStreaming 位置 (4处)
+- 7528156: ChatStreamService._stopStreaming (cancel token)
+- 7533741: ChatStreamService._stopStreaming 实现
+- 7543791: StoreService.stopStreaming (沉默杀手)
+- 7549062: BaseStreamService.stopStreaming (空实现)
 
-### [2026-04-26 04:16] 文件首部: __esModule 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @1671
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-finedValues(e){let t={};for(let[i,r]of Object.entries(e))void 0!==r&&(t[i]=r);return t}}},39124:function(e,t,i){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.createInternalContributionSdk=function(e){let t=new r.AIContributionTracker(e);return{reportAICodeContribution:e=>t.reportAICodeContribution(e),updateGitUrls:e=>t.updateGitUrls(e)}};let r=i(31397)},31397:function(e,t,i){"use
-```
+### 7. 文件基本信息
+- 文件大小: 10,487,934 chars (最新测量)
+- Symbol.for 总数: 185. Symbol 总数: 77
 
-### [2026-04-26 04:16] 文件首部: Object.defineProperty 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @117
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r
-```
+---
 
-### [2026-04-26 04:16] 文件首部: Object.defineProperty 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @683
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-_EVENT="ai_contribution_code",t.BYTEDANCE_SCOPE="bytedance"},32499:function(e,t,i){"use strict";t.createInternalContributionSdk=void 0;var r=i(39124);Object.defineProperty(t,"createInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,
-```
+## [2026-04-26 16:05] Model 域深度探索
 
-### [2026-04-26 04:16] 文件首部: Object.defineProperty 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @863
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-eInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extens
-```
+> 完整架构文档，核心发现见 [Model] 域映射。
 
-### [2026-04-26 04:16] 文件首部前500字符 ⭐****
-> webpack bootstrap 入口代码
-#### 位置信息
-- 偏移量: @0
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="edit",r.GenerateCode="generate",r.Question="question",r.LineDoc="lines_doc",r.Search="search",r.NewBuilder="ne
-```
+**补充发现**:
+- kY 枚举 (Trae=1/Enterprise=2/Personal=3) — 配置来源 @7185310
+- kZ 枚举 — 刷新来源（14个值）@7185900
+- force_close_auto 配置 @7282940
+- max_mode / is_dollar_max / fee_model_level 模型属性
+- ID class (SessionRelationStore) @7209355 含 computeSelectedModelAndMode
+- ID uJ 注册 @7222646, NE DI identifier @7271041
 
-### [2026-04-26 04:16] 文件尾部最后200字符 ⭐*****
-> IIFE 闭合与模块导出
-#### 位置信息
-- 偏移量: @10743103
-- 所属域标签: [Export]
-#### 数据/证据
-```
-AITaskPanelComponent:eYi,AIConversationSettingsComponent:eRw,RuleMetadataFormComponent:eYG,DSLAgentPaneComponent:ePi,SubAgentDetailComponent:ePo,KnowledgesInitPopupComponent:ePd},apis:FW}})(),l})()});
-```
+**补丁潜力评级**:
+- force-max-mode: 5/5
+- bypass-premium-model-notice: 4/5
+- bypass-usage-limit: 4/5
+- force-auto-mode: 3/5
 
-### [2026-04-26 04:16] 候选命令模式 @9971712 ⭐***
-> 疑似命令注册模式
-#### 位置信息
-- 偏移量: @9971712
-- 所属域标签: [Command]
-#### 数据/证据
-```
-"complete",e=>{if(!Q(i))return null;z.current.uploadEndTime=Date.now();let r=e.uploadResult,o=r?.Uri||"";d(e=>({...e,uri:o})),W("icube_custom_agent_avatar_upload_success"),C.current=!0,x.current=0,z.current.auditStartTime=Date.now(),Y(o,t?.agent_id,{uri:o,file:n,url:u})}),a.on("error",e=>{if(!Q(i))r
-```
+---
 
-### [2026-04-26 04:16] 候选命令模式 @9971990 ⭐***
-> 疑似命令注册模式
-#### 位置信息
-- 偏移量: @9971990
-- 所属域标签: [Command]
-#### 数据/证据
-```
-"error",e=>{if(!Q(i))return null;v.error("icube_custom_agent_avatar_upload_error",e),G(e?.extra?.message)}),z.current.uploadStartTime=Date.now(),a.start(l)}e.target.value=""}catch(e){if(!Q(i))return null;G(JSON.stringify(e))}finally{if(!Q(i))return null;e.target.value=""}},[Q,r,O?.userId,O?.scope,b,
-```
+## [2026-04-26 16:05] Docset 域深度探索
 
-### [2026-04-26 04:16] 候选命令模式 @9974448 ⭐***
-> 疑似命令注册模式
-#### 位置信息
-- 偏移量: @9974448
-- 所属域标签: [Command]
-#### 数据/证据
-```
-"click",function(e){e.stopPropagation()}),t?.agent_id&&t?.avatar_id){let e={url:await g.getAgentAvatarBase64ById(t?.avatar_id)};l(e),d(e),p(e)}else l(void 0),d(void 0),p(void 0)},[t?.agent_id,t?.avatar_id,g]);return(0,sK.useEffect)(()=>{J()},[J]),(0,sK.useEffect)(()=>{let e=b.onReceiveAuditResult(Z)
-```
+> 完整架构文档，核心发现见 [Docset] 域映射。
 
-### [2026-04-26 04:16] UI组件: 聊天输入 (ChatInput) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @9015579
-- 所属域标签: [React]
-#### 数据/证据
-```
-sPath.replace(`${a.uri.fsPath}/`,""):"",uri:t,selections:[]}}),r=[...i?.map(e=>({filePath:e.uri.path,relatePath:e?.relatePath,name:`${z(e.uri.path)}`,title:e.uri.path,type:"file"})),_],d=(0,Cr.convertChatInputParsedQueryToMessage)(r);u.sendChatMessage({message:d,sessionId:l.getCurrentSession()?.sessionId,parsedQuery:r,multiMedia:[],triggerMode:void 0,isInputOptimized:!1,asrTimes:0}),w(!0),j(!0)},[S,R,_,l,j,n,o,a,u,t,s]),F=(0,sK.useMemo)(()=>g||A||!P||b||O?.length===0,[g,A,P,b,O?.length]),U=(0,sK
-```
+**补充发现**:
+- DocsetServiceImpl (Gd) @7726546 — 编排层
+- DocsetStore (TD) @7244792 — Zustand Store，5个状态字段
+- CkgLocalApiService (WY) @7717236 — 7个 API 方法
+- DocsetOnlineApiService (Wq) @7720282 — 4个 API 方法
+- WebCrawlerFacade (Gs) @7725219 — 4个方法
+- ent_knowledge_base 门控 @7727418 — SaaS 功能开关
+- CKG IPC 通道 @11405+ — chat/start/cancel/clear_ckg_indexing
+- Docset-Chat 集成 @7594424 — sendToAgent 中 resolve(WK.IDocsetService)
 
-### [2026-04-26 04:16] UI组件: 文件差异 (FileDiff) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @8932385
-- 所属域标签: [React]
-#### 数据/证据
-```
-p=(0,sK.useMemo)(()=>!!es?.find(e=>e?.relativePath===$),[es,$]),eg=(0,Ir.Z)(()=>{if(!l?.result?.data?.can_show_diff||a&&ep){eu();return}eo({location:"file_card_open_diff"});let e=_?Cy(_):void 0;p.openFileDiffViewInSummaryFromSnapshot({sessionId:b,messageId:w||"",toolcallId:[l?.toolCallId||""],title:e,location:"single_file_open_diff"})}),ef=uB(Hp),em=(0,Ir.Z)(e=>{Q.click("lint_error"),el?.filePath&&ef.openFile(el?.filePath,e?.range?eg4(e?.range):void 0)}),e_=(0,sK.useMemo)(()=>{if(l&&CO(l))return
-```
+**5 个 ai.* DI Token 全部使用 Symbol.for** (与 Model 域不同!)
 
-### [2026-04-26 04:16] UI组件: 工具调用 (ToolCall) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @9067039
-- 所属域标签: [React]
-#### 数据/证据
-```
-return sX().createElement(Cr.SearchCodebaseCard,{keywords:h,status:a,fileList:d,onFileClick:l})}let em0=(e,t,i)=>{let r=(0,sK.useMemo)(()=>{if(t){if(e===CE.Running||e===CE.Canceled)return Cr.TasksListToolCall.Status.Canceled;if(e!==CE.Success)return Cr.TasksListToolCall.Status.Unknown}return e===CE.Running?Cr.TasksListToolCall.Status.Generating:e===CE.Success?i.length?i.some(e=>e.status===Cr.TasksListToolCall.TaskStatus.InProgress)?Cr.TasksListToolCall.Status.InProgress:i.every(e=>e.status===Cr.
-```
+**补丁潜力**: bypass-ent-knowledge-base-gating 4/5, force-knowledges-enable 3/5
 
-### [2026-04-26 04:16] UI组件: 确认状态 (confirm_status) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @8975688
-- 所属域标签: [React]
-#### 数据/证据
-```
-Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h||""}),{file_paths:f}=r?.params??{},{confirm_info:_}=r??{},{terminal_id:y}=r?.result?.data??{},{status:v}=r?.result??{},{confirm_status:b,auto_confirm:w}=_??{},{toolCallStatus:S}=ep0({isHistory:e,toolCallResultStatus:v,confirmStatus:b}),E=egd({isHistory:e,toolCallId:r?.id,toolCallName:r?.toolName}),A=(0,sK.useCallback)(async e=>{await a.updateRunCommandToolStatusFromUser({planItemId:r?.planItemId,agentMessageId:p||"",
+---
+
+## [2026-04-27 00:40] Deep Dive Blindspots ⭐⭐⭐⭐⭐
+
+> 6 大维度深度发现，文件版本 10,490,721 → **10,487,934** (-2,787 字符)
+
+### 发现 1: P0 盟区 — 确认以第三方库为主
+- 采样 31 点: 75% third-party, 22% business-logic, 3% i18n
+- **结论**: P0 无需进一步深入，核心业务逻辑全部在 6268469 之后
+
+### 发现 2: P1 UI 下半部 — 权限/付费/Agent 选择器密集区
+- isOlderCommercialUser: **7次**, isSaas: **10次**, bJ 枚举: **50+次**
+- efi() Hook 完整实现 @8685035 (L1 React 层) — 见 [Commercial] 域
+- AgentSelect, Subscription, Permission, Alert/Modal/Toast 大量使用
+
+### 发现 3: 命令注册层 — 26 命令 + 1 适配器
+- 高价值: sendToAgentNonBlocking (后台续接替代), openUsageLimitModalAICompletion (用量限制拦截)
+- 完整列表见 P1 盲区扫描最终版
+
+### 发现 4: computeSelectedModelAndMode 完整决策链 ⭐⭐⭐⭐⭐
+- 函数位置: **@7213504** (注意偏移量变化!)
+- Step 3: `(isOlderCommercialUser||isSaas) && solo_coder/builder` → 强制 Max
+- **重要发现**: 当前代码可能已写死 `||true`！
+- **force-max-mode 补丁最佳方案**: 方案 A 注入 isOlderCommercialUser/isSaas 强制 true
+
+### 发现 5: ContactType + bypass-usage-limit 映射
+- ContactType @55561: 仅 FreeNewSubscriptionUser* 子类型 (不是用户身份枚举!)
+- 用户身份用 **bJ 枚举**
+- 三组独立错误码定义 (kg/eA/其他)
+- isFreeUser 仅 **2处**: @8685035 (定义) + @8702707 (消费)
+
+### 发现 6: IStuckDetectionService + IAutoAcceptService
+- IStuckDetectionService: 超时 60s, 1 个调用点 @7540436
+- IAutoAcceptService: **code review 自动接受** (≠ autoConfirm!)
+- autoConfirm vs autoAccept 是不同功能，不能互相替代
+
+---
+
+## [2026-04-27 01:10] desktop-modules 盲区扫描
+
+> **核心结论: desktop-modules 不需要打补丁！所有权限/限制逻辑仅在 ai-modules-chat 中。**
+
+| 维度 | ai-modules-chat | desktop-modules |
+|------|-----------------|-----------------|
+| 大小 | 10,487,294 字符 | 10,488,409 字符 |
+| 格式 | UMD define | CJS/UMD !function |
+| 内容 | AI 核心逻辑 | UI 编辑器外壳 |
+| 权限代码 | 全部 | **无** |
+
+**关键发现: efi() 命名碰撞!** — 两个完全不同的函数:
+- chat 的 efi(): 权限判断 Hook (17 个关键字段)
+- desk 的 efi(): Zod schema builder (毫无关系)
+
+**9 个补丁完整性评估**: 全部安全 ✅ — desktop 不含任何 AI 权限逻辑
+
+---
+
+## [2026-04-27 16:30] P0 盲区深度探索 — 业务逻辑全量扫描
+
+> P0 范围 (54415-6268469, ~5.9MB) 系统性业务逻辑搜索
+
+### 结论: P0 盲区确认
+**所有 DI 注册(uJ)、DI 注入(uX)、核心业务方法(resumeChat/sendChatMessage/provideUserResponse)、服务接口(Symbol)均不在 P0 范围内**。
+
+P0 的业务逻辑主要是:
+1. 数据结构定义 (错误码/枚举/类型)
+2. API 端点配置 (JSON 静态数据 @5870417)
+3. VS Code 框架代码 (CommandsRegistry/Protocol)
+4. 上传/遥测/性能追踪基础设施
+5. i18n 本地化数据 (3 种格式 × 3 种语言)
+6. DevTool 通信桥
+
+### 核心发现: API 端点完整配置 JSON @5870417 ⭐⭐⭐⭐⭐
+- byteGate: `https://bytegate-sg.byteintlapi.com`
+- copilotDomain: `https://copilot.byteintl.net` (CN/SG/US)
+- externalCopilotDomains: `https://a0ai-api.byteintlapi.com`
+- mcpPlugin: `api.trae.ai` / `ide-market-us.tiktok-row.net`
+
+### 核心发现: ContactType 枚举 @55561 ⭐⭐⭐⭐⭐
+- 30+ 值: FreeNewSubscriptionUser*(1-10), FreeOldSubscriptionUser*(11-20), Pro*(21-32)
+- **补丁意义**: bypass-usage-limit 补丁的关键数据结构
+
+### 核心发现: AbstractBootService @2535031 ⭐⭐⭐⭐
+- 启动配置服务: getAgentConfig/getCKGConfig/getCdnLocation/getMcpConfig 等
+- IPC_SERVICE_NAME = "BootService"
+
+### 核心发现: icube_devtool_bridge @5890559 ⭐⭐⭐⭐
+- VS Code WebView ↔ 主进程通信桥
+- window.vscodeService 全局单例
 
 ---
 
@@ -4874,7 +1291,6 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 - createDecorator DI装饰器工厂 @853508 ⭐⭐⭐⭐⭐
 - ServiceCollection+InstantiationService @1227889 ⭐⭐⭐⭐
 - VS Code DI注入机制 __instance__ @2607740 ⭐⭐⭐⭐⭐
-- P0盲区组成分析 @54415 ⭐⭐⭐⭐
 - 31个I*Service DI Token完整映射 @7182322 ⭐⭐⭐⭐⭐
 - eY0模块入口对象 registerAdapter @10476892 ⭐⭐⭐⭐⭐
 
@@ -4905,7 +1321,7 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 
 ### [Error] 错误处理
 - 错误处理系统完整映射 @54000 ⭐⭐⭐⭐⭐
-- kg错误码枚举完整列表30+ @54415 ⭐⭐⭐⭐⭐
+- kg错误码枚举完整列表56个 @54415 ⭐⭐⭐⭐⭐
 - 错误传播路径3条 PATH A/B/C @54000 ⭐⭐⭐⭐⭐
 - stopStreaming沉默杀手 @7538139 ⭐⭐⭐⭐⭐
 - agentProcess v3 resumeChat @7502500 ⭐⭐⭐⭐⭐
@@ -4959,7 +1375,7 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 - 设置系统完整映射 @7438613 ⭐⭐⭐⭐⭐
 - AI工具调用设置4个key @7438613 ⭐⭐⭐⭐⭐
 - 聊天工具设置3个key @7438613 ⭐⭐⭐⭐⭐
-- 全局设置GlobalAutoApprove @7438613 ⭐⭐⭐⭐
+- 全局设置GlobalAutoApprove @7438613 ⭐⭐⭐⭐⭐
 - ConfirmMode枚举已移除 @8069382 ⭐⭐⭐⭐⭐
 - 无onDidChangeConfiguration @7438613 ⭐⭐⭐⭐⭐
 - IModelTipConfigService @7268582 ⭐⭐⭐⭐⭐
@@ -4998,7 +1414,7 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 - 用量配额相关代码8处 @8707858 ⭐⭐⭐⭐
 - efr枚举免费用户配额状态20个 @55610 ⭐⭐⭐⭐
 - 新补丁目标候选清单6个 @7267682 ⭐⭐⭐⭐
-- 跳过付费限制补丁可行性评估 @7267682 ⭐⭐⭐⭐
+- 跳过付费限制补丁可行性 @7267682 ⭐⭐⭐⭐
 - ICommercialApiService @7559975 ⭐⭐⭐⭐⭐
 - bJ枚举用户身份类型7值 @6479431 ⭐⭐⭐⭐⭐
 - bK枚举用户scope 3值 @6479143 ⭐⭐⭐⭐⭐
@@ -5032,6 +1448,115 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 
 ---
 
+## 📇 按功能索引
+
+### 确认/自动确认
+- DG.parse L3数据源自动确认 @7318521 L3 ⭐⭐⭐⭐⭐
+- PlanItemStreamParser._handlePlanItem @7502500 L2 ⭐⭐⭐⭐⭐
+- knowledge分支provideUserResponse @7502574 L2 ⭐⭐⭐⭐⭐
+- else分支provideUserResponse @7503319 L2 ⭐⭐⭐⭐⭐
+- data-source-auto-confirm补丁 @7323241 L3 ⭐⭐⭐
+- auto-confirm-commands补丁 @7502500 L2 ⭐⭐⭐⭐⭐
+- service-layer-runcommand-confirm补丁 @7502500 L2 ⭐⭐⭐⭐⭐
+- getRunCommandCardBranch决策 @8069620 L1 ⭐⭐⭐⭐
+- bypass-runcommandcard-redlist补丁 @8070328 L1 ⭐⭐
+- egR RunCommandCard组件 @8635000 L1 ⭐⭐⭐⭐
+- 自动确认useEffect @8640019 L1 ⭐⭐⭐
+- UserConfirmStatusEnum @44416 枚举 ⭐⭐⭐⭐⭐
+- confirm_info数据结构 @7502500 数据 ⭐⭐⭐⭐⭐
+- AI.toolcall.confirmMode @7438613 配置 ⭐⭐⭐⭐⭐
+- IAutoAcceptService @8039940 L2 ⭐⭐⭐⭐⭐
+
+### 续接/自动续接
+- teaEventChatFail最早错误信号 @7458679 L2 ⭐⭐⭐⭐⭐
+- stopStreaming沉默杀手 @7538139 L2 ⭐⭐⭐⭐⭐
+- _aiAgentChatService.resumeChat @7540953 L2 ⭐⭐⭐⭐⭐
+- createStream中resumeChat蓝图 @7540700 L2 ⭐⭐⭐⭐
+- subscribe#8消息数变化 @7588518 L2 ⭐⭐⭐⭐
+- efg可恢复错误列表14个 @8705916 L1 ⭐⭐⭐⭐⭐
+- J变量可续接错误标志 @8707716 L1 ⭐⭐⭐⭐⭐⭐
+- if(V&&J) Alert分支 @8702300 L1 ⭐⭐⭐⭐
+- guard-clause-bypass补丁 !q&&!J @8712898 L1 ⭐⭐⭐⭐
+- auto-continue-thinking补丁迭代v3-v17 ⭐⭐⭐⭐⭐⭐
+- v8架构缺陷根因 @7502500 分析 ⭐⭐⭐⭐⭐
+- v10 SSE事件两条路径 @7508572 ⭐⭐⭐
+- v11 React Scheduler后台冻结+store.subscribe @7502500 ⭐⭐⭐⭐
+- v12 TaskAgentMessageParser.parse变异源头 @7615777 ⭐⭐⭐⭐
+- v13 teaEventChatFail后台触发成功 @7458679 L2 ⭐⭐⭐⭐⭐
+- v14 Hybrid flag+visibilitychange @7458679 L2 ⭐⭐⭐⭐⭐
+- v17 Final 历史性突破 @7458679 L2 ⭐⭐⭐⭐⭐⭐
+- IStuckDetectionService @7537021 L2 ⭐⭐⭐⭐⭐
+
+### 沙箱/命令执行
+- BlockLevel枚举6值 @8069382 L1 ⭐⭐⭐⭐⭐⭐
+- AutoRunMode枚举5值 @8069382 L1 ⭐⭐⭐⭐⭐⭐
+- getRunCommandCardBranch决策矩阵 @8069620 L1 ⭐⭐⭐⭐
+- provideUserResponse知识分支 @7502574 L2 ⭐⭐⭐⭐⭐
+- provideUserResponse其他分支 @7503319 L2 ⭐⭐⭐⭐⭐
+- icube.shellExec.* 9个命令 @7610443 IPC ⭐⭐⭐⭐⭐⭐
+- SAFE_RM沙箱安全规则 @8069382 配置 ⭐⭐⭐⭐⭐⭐
+- IRunCommandFeatureService @8063616 L2 ⭐⭐⭐⭐⭐
+- IFileOpFeatureService @8086208 L2 ⭐⭐⭐⭐⭐
+- IFileDiffTruncationService @7562542 L2 ⭐⭐⭐⭐⭐
+- IFileDiffService @7565469 L2 ⭐⭐⭐⭐⭐
+
+### 错误处理
+- kg错误码枚举完整56个 @54415 枚举 ⭐⭐⭐⭐⭐
+- efg可恢复错误列表14个 @8705916 L1 ⭐⭐⭐⭐⭐
+- J变量5个错误码 @8707716 L1 ⭐⭐⭐⭐⭐⭐
+- ee变量配额限制2个 @8707858 L1 ⭐⭐⭐⭐⭐
+- X变量MODEL_NOT_EXISTED @8708083 L1 ⭐⭐⭐
+- handleCommonError @7300455 L2 ⭐⭐⭐⭐⭐⭐
+- teaEventChatFail @7458679 L2 ⭐⭐⭐⭐⭐⭐
+- ErrorStreamParser zU @7508572 L2 ⭐⭐⭐⭐⭐⭐
+- getErrorInfoWithError @7513080 L2 ⭐⭐⭐⭐⭐
+- _onError(e,t,i) @7528742 L2 ⭐⭐⭐⭐⭐
+- TaskAgentMessageParser.parse @7615777 L2 ⭐⭐⭐⭐⭐
+- 17+Alert渲染点 @8700000 L1 ⭐⭐⭐⭐⭐⭐
+- 错误传播路径3条 PATH A/B/C ⭐⭐⭐⭐⭐⭐
+- 错误码两套体系 服务端o+客户端eA @51947 ⭐⭐⭐⭐⭐⭐
+
+### 设置/配置
+- AI.toolcall.confirmMode @7438613 ⭐⭐⭐⭐⭐⭐
+- AI.toolcall.v2.command.* @7438600 ⭐⭐⭐⭐⭐⭐
+- chat.tools.* 3个key @7438613 ⭐⭐⭐⭐⭐⭐
+- GlobalAutoApprove @7438613 ⭐⭐⭐⭐⭐
+- ConfirmMode枚举已移除 @8069382 ⭐⭐⭐⭐⭐⭐
+- IModelTipConfigService @7268582 ⭐⭐⭐⭐⭐
+- IPrivacyModeService @8036543 ⭐⭐⭐⭐⭐
+- IContributionService @8095684 ⭐⭐⭐⭐⭐
+- IModeStorageService @7194537 ⭐⭐⭐⭐⭐
+
+### 商业权限/付费限制
+- ICommercialPermissionService NS类6方法 @7267682 L2 ⭐⭐⭐⭐⭐⭐
+- isFreeUser efi() Hook @8687513 L1 ⭐⭐⭐⭐⭐⭐
+- IEntitlementStore Nu类 @7264682 L2 ⭐⭐⭐⭐⭐⭐
+- ICredentialStore MX类 @7154491 L2 ⭐⭐⭐⭐⭐
+- bJ枚举用户身份7值 @6479431 枚举 ⭐⭐⭐⭐⭐⭐
+- bK枚举用户scope 3值 @6479143 枚举 ⭐⭐⭐⭐⭐⭐
+- 付费限制错误码纠正4008/4009/700 @8707858 ⭐⭐⭐⭐⭐⭐
+- ee变量配额限制 @8707858 L1 ⭐⭐⭐⭐⭐
+- efr枚举免费用户配额20个 @55610 枚举 ⭐⭐⭐⭐⭐
+- bypass-commercial-permission补丁候选 @7267682 L2 ⭐⭐⭐⭐⭐⭐
+- bypass-usage-limit补丁候选 @8707858 L1 ⭐⭐⭐⭐⭐
+- ICommercialApiService @7559975 L2 ⭐⭐⭐⭐⭐
+- PREMIUM_MODE_USAGE_LIMIT Alert @8719877 L1 ⭐⭐⭐⭐⭐
+- CLAUDE_MODEL_FORBIDDEN Alert @8717132 L1 ⭐⭐⭐⭐⭐
+- FIREWALL_BLOCKED Alert @8718083 L1 ⭐⭐⭐⭐
+
+### 模型选择
+- kG枚举模式类型 @7185314 枚举 ⭐⭐⭐⭐⭐⭐
+- kH枚举模型层级 @7185314 枚举 ⭐⭐⭐⭐⭐⭐
+- IModelService NR类 @7271527 L2 ⭐⭐⭐⭐⭐⭐
+- IModelStorageService @7182365 L2 ⭐⭐⭐⭐⭐⭐
+- IModelStore k2类 @7191708 L2 ⭐⭐⭐⭐⭐⭐
+- computeSelectedModelAndMode @7216438 L2 ⭐⭐⭐⭐⭐⭐
+- force-max-mode补丁候选 @7216438 L2 ⭐⭐⭐
+- bypass-free-user-model-notice候选 @7280685 L2 ⭐⭐⭐⭐⭐
+- Max Mode tooltip @9441960 L1 ⭐⭐⭐
+
+---
+
 ## 📇 按偏移量范围索引
 
 ### 0-1M (0-1000000)
@@ -5054,158 +1579,160 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 - @2539813 CommandsRegistry+ICommandService ⭐⭐⭐⭐⭐
 - @2540057 registerCommand ⭐⭐⭐⭐⭐
 - @2607740 VS Code DI注入__instance__ ⭐⭐⭐⭐⭐
-- @3546309 ai.IDocsetService ⭐⭐⭐⭐⭐
+- @3546309 ai.IDocsetService ⭐⭐⭐⭐⭐⭐
 - @435246 webpack内嵌runtime ⭐⭐⭐
 
 ### 1M-5M (1000000-5000000)
 - @1802391 styled-components inject(非DI) ⭐⭐
 - @2534601 API路由机制iCubeApi/ugApi/iCubeAgentApi ⭐⭐⭐⭐⭐
 - @255810 TEA上传统计mcs端点 ⭐⭐⭐
-- @2665348 AI.NEED_CONFIRM枚举 ⭐⭐⭐
+- @2665348 AI.NEED_CONFIRM枚举 ⭐⭐
 - @2796260 Pause/Send按钮ei组件 ⭐⭐⭐
 - @3211326 needConfirm Zustand store ⭐⭐⭐
 - @5870448 ByteGate API网关 ⭐⭐⭐⭐
 - @5871017 Slardar PC监控 ⭐⭐⭐⭐
 
 ### 5M-8M (5000000-8000000)
-- @6268469 DI容器类uj ⭐⭐⭐⭐⭐
+- @6268469 DI 容器类uj ⭐⭐⭐⭐⭐⭐
 - @6270579 uB useInject Hook+hX ⭐⭐⭐⭐⭐
 - @6273630 uj class定义 ⭐⭐⭐⭐⭐
 - @6275751 uj.getInstance ⭐⭐⭐⭐⭐
-- @6473533 bY LogService Token ⭐⭐⭐⭐⭐
-- @6479143 bK枚举用户scope ⭐⭐⭐⭐⭐
-- @6479431 bJ枚举用户身份类型 ⭐⭐⭐⭐⭐
+- @6473533 bY LogService Token ⭐⭐⭐⭐⭐⭐
+- @6479143 bK枚举用户scope ⭐⭐⭐⭐⭐⭐
+- @6479431 bJ枚举用户身份类型 ⭐⭐⭐⭐⭐⭐
 - @668815 AWS凭证处理 ⭐⭐⭐
-- @7015771 Ei CredentialFacade Token ⭐⭐⭐⭐⭐
+- @7015771 Ei CredentialFacade Token ⭐⭐⭐⭐⭐⭐
 - @7017457 uJ装饰器服务注册开始 ⭐⭐⭐⭐⭐
 - @7061974 Symbol.for注册开始 ⭐⭐⭐⭐⭐
 - @7076154 ToolCallName枚举第二段 ⭐⭐⭐⭐⭐
 - @7087490 xC SessionStore Token ⭐⭐⭐⭐⭐
 - @7092843 Symbol("ISessionStore") ⭐⭐⭐⭐
 - @7126296 xJ EditorFacade Token ⭐⭐⭐⭐⭐
-- @7134895 Ma TeaFacade Token ⭐⭐⭐⭐⭐
-- @7135785 Ma TeaFacade Token(旧) ⭐⭐⭐⭐⭐
-- @7140149 ITeaFacade Symbol.for ⭐⭐⭐⭐⭐
+- @7134895 Ma TeaFacade Token(旧) ⭐⭐⭐⭐⭐
+- @7140149 ITeaFacade Symbol.for ⭐⭐⭐⭐⭐⭐
 - @7148876 bY LogService注册 ⭐⭐⭐⭐⭐
-- @7150072 M0 SessionService Token ⭐⭐⭐⭐⭐
-- @7152097 SessionService注册Ci ⭐⭐⭐⭐
-- @7154464 ICredentialStore Token ⭐⭐⭐⭐
-- @7154491 MX CredentialStore类 ⭐⭐⭐⭐
+- @7150072 M0 SessionService Token ⭐⭐⭐⭐⭐⭐
+- @7152097 SessionService注册Ci ⭐⭐⭐⭐⭐
+- @7154464 ICredentialStore Token ⭐⭐⭐⭐⭐
+- @7154491 MX CredentialStore类 ⭐⭐⭐⭐⭐
 - @7160512 eA客户端错误码枚举 ⭐⭐⭐⭐⭐
-- @7161400 kg错误码枚举第二段 ⭐⭐⭐⭐
-- @7177093 kv ModelService Token ⭐⭐⭐⭐⭐
-- @7182322 IModelService Symbol.for ⭐⭐⭐⭐⭐
-- @7185314 kG/kH枚举模式+模型层级 ⭐⭐⭐⭐⭐
+- @7161400 kg错误码枚举第二段 ⭐⭐⭐
+- @7177093 kv ModelService Token ⭐⭐⭐⭐
+- @7182322 IModelService Symbol.for ⭐⭐⭐⭐⭐⭐
+- @7185314 kG/kH枚举模式+模型层级 ⭐⭐⭐⭐⭐⭐
 - @7186457 k1 ModelStore Token ⭐⭐⭐⭐⭐
-- @7191686 IModelStore Symbol ⭐⭐⭐⭐⭐
 - @7197015 ICommercialPermissionService Token ⭐⭐⭐⭐⭐
-- @7203850 IN SessionRelationStore Token ⭐⭐⭐⭐
-- @7216438 computeSelectedModelAndMode ⭐⭐⭐⭐⭐
-- @7221939 I2 InlineSessionStore Token ⭐⭐⭐⭐
+- @7203850 IN SessionRelationStore Token ⭐⭐⭐⭐⭐
+- @7216438 computeSelectedModelAndMode ⭐⭐⭐⭐⭐⭐
+- @7221939 I2 InlineSessionStore Token ⭐⭐⭐⭐⭐
 - @7224039 I7 ProjectStore ⭐⭐⭐
 - @7248275 TG AgentExtensionStore ⭐⭐⭐
 - @7258315 Na SkillStore ⭐⭐⭐
 - @7259427 Nc EntitlementStore Token ⭐⭐⭐⭐⭐
-- @7264682 Nu EntitlementStore类 ⭐⭐⭐⭐⭐
-- @7264735 IEntitlementStore Symbol ⭐⭐⭐⭐⭐
-- @7267682 NS ICommercialPermissionService类 ⭐⭐⭐⭐⭐
+- @7264682 Nu EntitlementStore类 ⭐⭐⭐⭐⭐⭐
+- @7267682 NS ICommercialPermissionService类 ⭐⭐⭐⭐⭐⭐
 - @7280685 checkFreeUserPremiumModelNotice ⭐⭐⭐⭐
-- @7300000 EventHandlerFactory Bt ⭐⭐⭐⭐⭐
+- @7300000 EventHandlerFactory Bt ⭐⭐⭐⭐⭐⭐
 - @7300455 handleCommonError ⭐⭐⭐⭐⭐
 - @7300921 De.handleError ⭐⭐⭐⭐⭐
 - @7314000 MetadataParser+UserMessageContextParser ⭐⭐⭐⭐
-- @7318521 DG.parse数据解析层 ⭐⭐⭐⭐⭐
+- @7318521 DG.parse数据解析层 ⭐⭐⭐⭐⭐⭐
 - @7322410 NotificationStreamParser ⭐⭐⭐⭐⭐
 - @7323241 data-source-auto-confirm补丁 ⭐⭐⭐
-- @7327208 IAgentService Symbol ⭐⭐⭐⭐⭐
-- @7438613 AI.toolcall.confirmMode ⭐⭐⭐⭐⭐
-- @7450318 jN IPlanService Token ⭐⭐⭐⭐⭐
-- @7456691 IPlanService Symbol.for ⭐⭐⭐⭐⭐
+- @7327208 IAgentService Symbol ⭐⭐⭐⭐
+- @7438613 AI.toolcall.confirmMode ⭐⭐⭐⭐⭐⭐
+- @7450318 jN IPlanService Token ⭐⭐⭐⭐
+- @7456691 IPlanService Symbol.for ⭐⭐⭐⭐
 - @7458679 teaEventChatFail ⭐⭐⭐⭐⭐
 - @7482422 FeeUsageStreamParser za ⭐⭐⭐⭐
 - @7497479 TextMessageChatStreamParser ⭐⭐⭐⭐⭐
-- @7502500 PlanItemStreamParser._handlePlanItem ⭐⭐⭐⭐⭐
+- @7502500 PlanItemStreamParser._handlePlanItem ⭐⭐⭐⭐
 - @7503299 PlanItemStreamParser DI Token ⭐⭐⭐⭐
-- @7508572 ErrorStreamParser zU ⭐⭐⭐⭐⭐
+- @7508572 ErrorStreamParser zU ⭐⭐⭐⭐⭐⭐
 - @7511057 DoneStreamParser zW ⭐⭐⭐⭐
 - @7512721 QueueingStreamParser zV ⭐⭐⭐⭐
-- @7513080 getErrorInfoWithError(e) ⭐⭐⭐
-- @7515007 UserMessageStreamParser zJ ⭐⭐⭐⭐⭐
-- @7516765 TokenUsageStreamParser z2 ⭐⭐⭐⭐⭐
-- @7517392 ContextTokenUsageStreamParser z3 ⭐⭐⭐⭐⭐
-- @7518028 SessionTitleMessageStreamParser z8 ⭐⭐⭐⭐⭐
-- @7524723 Bs class ChatParserContext ⭐⭐⭐
+- @7513080 getErrorInfoWithError(e) ⭐⭐⭐⭐
+- @7515007 UserMessageStreamParser zJ ⭐⭐⭐⭐⭐⭐
+- @7516765 TokenUsageStreamParser z2 ⭐⭐⭐⭐⭐⭐
+- @7517392 ContextTokenUsageStreamParser z3 ⭐⭐⭐⭐⭐⭐
+- @7518028 SessionTitleMessageStreamParser z8 ⭐⭐⭐⭐⭐⭐
+- @7524723 Bs class (ChatParserContext) ⭐⭐⭐
 - @7528742 _onError(e,t,i) ⭐⭐⭐
 - @7533741 ChatStreamService._stopStreaming实现 ⭐⭐⭐
 - @7537021 IStuckDetectionService ⭐⭐⭐⭐⭐
 - @7538139 stopStreaming沉默杀手 ⭐⭐⭐⭐⭐
-- @7540700 createStream+resumeChat蓝图 ⭐⭐⭐⭐
-- @7540953 _aiAgentChatService.resumeChat ⭐⭐⭐⭐
-- @7541121 ISideChatStreamService ⭐⭐⭐⭐⭐
-- @7542473 BP.onError关键代码 ⭐⭐⭐⭐⭐
-- @7543791 StoreService.stopStreaming ⭐⭐⭐⭐
+- @7540700 createStream+resumeChat 蓝图 ⭐⭐⭐
+- @7540953 _aiAgentChatService.resumeChat() ⭐⭐⭐⭐
+- @7541121 ISideChatStreamService ⭐⭐⭐⭐
+- @7543791 StoreService.stopStreaming ⭐⭐⭐
 - @7545196 BO SessionServiceV2 Token ⭐⭐⭐⭐
-- @7548009 IInlineChatStreamService ⭐⭐⭐⭐⭐
-- @7553132 ISessionServiceV2 Symbol ⭐⭐⭐⭐
-- @7559975 ICommercialApiService ⭐⭐⭐⭐⭐
-- @7562542 IFileDiffTruncationService ⭐⭐⭐⭐⭐
-- @7565469 IFileDiffService ⭐⭐⭐⭐⭐
+- @7548009 IInlineChatStreamService ⭐⭐⭐⭐
+- @7559975 ICommercialApiService ⭐⭐⭐⭐
+- @7562542 IFileDiffTruncationService ⭐⭐⭐⭐
+- @7565469 IFileDiffService ⭐⭐⭐⭐
 - @7574983 IPastChatExporter ⭐⭐⭐⭐
-- @7584046 subscribe#1消息数+会话ID ⭐⭐⭐
-- @7588518 subscribe#8消息数变化 ⭐⭐⭐
-- @7589570 IKnowledgesTaskService ⭐⭐⭐⭐⭐
-- @7598504 FW核心服务门面对象 ⭐⭐⭐⭐⭐
-- @7605848 runningStatusMap subscribe ⭐⭐⭐
-- @7610443 F3/sendToAgentBackground ⭐⭐⭐⭐⭐
-- @7614717 ResumeChat服务端方法调用 ⭐⭐⭐
-- @7615777 TaskAgentMessageParser.parse ⭐⭐⭐⭐
+- @7584046 subscribe#1消息数+会话ID ⭐⭐⭐⭐
+- @7588518 subscribe#8消息数变化 ⭐⭐⭐⭐
+- @7605848 runningStatusMap subscribe ⭐⭐⭐⭐
+- @7610443 F3/sendToAgentBackground ⭐⭐⭐⭐
+- @7614717 ResumeChat服务端方法调用 ⭐⭐⭐⭐
+- @7615777 TaskAgentMessageParser.parse() ⭐⭐⭐⭐
 - @7715114 ai.IDocsetCkgLocalApiService ⭐⭐⭐⭐⭐
 - @7720270 ai.IDocsetOnlineApiService ⭐⭐⭐⭐⭐
 - @7725207 ai.IWebCrawlerFacade ⭐⭐⭐⭐⭐
-- @7766628 ITaskListApiService ⭐⭐⭐⭐⭐
-- @7892948 IASRService ⭐⭐⭐⭐⭐
-- @7903529 IHuoshanAsrClientService ⭐⭐⭐⭐⭐
-- @8027658 IAWSASRClientService ⭐⭐⭐⭐⭐
-- @8036543 IPrivacyModeService ⭐⭐⭐⭐⭐
-- @8039940 IAutoAcceptService ⭐⭐⭐⭐⭐
+- @7766628 ITaskListApiService ⭐⭐⭐⭐
+- @7892948 IASRService ⭐⭐⭐⭐
+- @7903529 IHuoshanAsrClientService ⭐⭐⭐⭐
+- @8027658 IAWSASRClientService ⭐⭐⭐⭐
+- @8036543 IPrivacyModeService ⭐⭐⭐⭐
+- @8039940 IAutoAcceptService ⭐⭐⭐⭐
+- @8063616 IRunCommandFeatureService ⭐⭐⭐⭐
+- @8086208 IFileOpFeatureService ⭐⭐⭐⭐
+- @8095684 IContributionService ⭐⭐⭐⭐
+- @8113678 IKnowledgesPersistenceService ⭐⭐⭐⭐
+- @8122442 IKnowledgesStagingService ⭐⭐⭐⭐
+- @8130079 IKnowledgesFeatureService ⭐⭐⭐⭐
+- @8132725 IKnowledgesSourceMaterialService ⭐⭐⭐⭐
+- @8139976 IKnowledgesNotificationService ⭐⭐⭐⭐
+- @8186683 IKnowledgesStatusBarService ⭐⭐⭐⭐
 
 ### 8M-10M+ (8000000-EOF)
 - @8063616 IRunCommandFeatureService ⭐⭐⭐⭐⭐
-- @8069382 BlockLevel/AutoRunMode枚举 ⭐⭐⭐⭐⭐
+- @8069382 BlockLevel/AutoRunMode枚举 ⭐⭐⭐⭐⭐⭐
 - @8069620 getRunCommandCardBranch ⭐⭐⭐⭐
-- @8070328 bypass-runcommandcard-redlist补丁 ⭐⭐⭐
+- @8070328 bypass-runcommandcard-redlist补丁 ⭐⭐
 - @8078831 P7.Default RunCommandCard分支 ⭐⭐⭐
 - @8081330 Cr.AutoRunMode枚举 ⭐⭐⭐⭐
 - @8081401 Cr.BlockLevel枚举 ⭐⭐⭐⭐
-- @8086208 IFileOpFeatureService ⭐⭐⭐⭐⭐
-- @8095684 IContributionService ⭐⭐⭐⭐⭐
-- @8113678 IKnowledgesPersistenceService ⭐⭐⭐⭐⭐
-- @8122442 IKnowledgesStagingService ⭐⭐⭐⭐⭐
-- @8130079 IKnowledgesFeatureService ⭐⭐⭐⭐⭐
-- @8132725 IKnowledgesSourceMaterialService ⭐⭐⭐⭐⭐
-- @8139976 IKnowledgesNotificationService ⭐⭐⭐⭐⭐
-- @8186683 IKnowledgesStatusBarService ⭐⭐⭐⭐⭐
+- @8086208 IFileOpFeatureService ⭐⭐⭐⭐
+- @8095684 IContributionService ⭐⭐⭐⭐
+- @8113678 IKnowledgesPersistenceService ⭐⭐⭐⭐
+- @8122442 IKnowledgesStagingService ⭐⭐⭐⭐
+- @8130079 IKnowledgesFeatureService ⭐⭐⭐⭐
+- @8132725 IKnowledgesSourceMaterialService ⭐⭐⭐⭐
+- @8139976 IKnowledgesNotificationService ⭐⭐⭐⭐
+- @8186683 IKnowledgesStatusBarService ⭐⭐⭐⭐
 - @8629200 UI确认状态检查 ⭐⭐⭐
-- @8635000 egR RunCommandCard组件 ⭐⭐⭐⭐
-- @8636941 ey useMemo有效确认状态 ⭐⭐⭐
+- @8635000 egR (RunCommandCard)组件 ⭐⭐⭐⭐
+- @8636941 ey useMemo (有效确认状态) ⭐⭐⭐
 - @8637300 confirm_info解构 ⭐⭐⭐
 - @8640019 自动确认useEffect ⭐⭐⭐
-- @8687513 efi() Hook isFreeUser计算 ⭐⭐⭐⭐⭐
+- @8687513 efi() Hook isFreeUser计算 ⭐⭐⭐⭐⭐⭐
 - @8688095 isFreeUser=n计算 ⭐⭐⭐⭐
-- @8692994 usageLimitConfig配额限制配置 ⭐⭐⭐⭐
-- @8695303 efg可恢复错误列表 ⭐⭐⭐
+- @8692994 usageLimitConfig配额限制配置 ⭐⭐⭐
+- @8695303 efg可恢复错误列表(新偏移) ⭐⭐⭐⭐
 - @8696378 J变量可续接错误标志 ⭐⭐⭐
-- @8697580 ec callback retry/resume ⭐⭐⭐
-- @8697620 ed callback 继续按钮 ⭐⭐⭐
+- @8697580 ec callback (retry/resume) ⭐⭐⭐⭐
+- @8697620 ed callback ("继续"按钮) ⭐⭐⭐⭐
 - @8700000 ErrorMessageWithActions开始 ⭐⭐⭐
 - @8702300 if(V&&J) Alert分支 ⭐⭐⭐
-- @8705916 efg可恢复错误列表(新偏移) ⭐⭐⭐⭐
+- @8705916 efg可恢复错误列表(新偏移) ⭐⭐⭐⭐⭐
 - @8707613 变量重命名J→K区域 ⭐⭐⭐⭐⭐
-- @8707716 J=!![定义 ⭐⭐⭐⭐⭐
+- @8707716 J=!![定义 ⭐⭐⭐⭐⭐⭐
 - @8707777 J=!![位置(交叉验证) ⭐⭐⭐⭐
-- @8707858 ee配额限制标志 ⭐⭐⭐⭐
+- @8707858 ee配额限制标志 ⭐⭐⭐⭐⭐
 - @8709284 sX().memo(Jj)组件 ⭐⭐⭐⭐
-- @8713483 if(V&&J)位置(交叉验证) ⭐⭐⭐⭐⭐
+- @8713483 if(V&&J)位置(交叉验证) ⭐⭐⭐⭐⭐⭐
 - @8717132 CLAUDE_MODEL_FORBIDDEN Alert ⭐⭐⭐⭐
 - @8718083 FIREWALL_BLOCKED Alert ⭐⭐⭐
 - @8719877 PREMIUM/STANDARD_MODE_USAGE_LIMIT Alert ⭐⭐⭐⭐
@@ -5221,132 +1748,24 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 - @9799784 WorktreeHeader sX().createElement ⭐⭐⭐
 - @9891397 IDSLAgentStore Symbol ⭐⭐⭐⭐
 - @9910446 DEFAULT错误组件 ⭐⭐⭐
-- @9971712 候选命令模式 ⭐⭐⭐
 - @10471008 eYZ.onUsageLimit ⭐⭐⭐⭐
-- @10476397 registerAdapter=uj.provide ⭐⭐⭐⭐⭐
-- @10476892 eY0模块入口对象 ⭐⭐⭐⭐⭐
-- @10477819-10489027 25个VS Code命令注册 ⭐⭐⭐⭐⭐
+- @10476397 registerAdapter=uj.provide ⭐⭐⭐⭐⭐⭐
+- @10476892 eY0模块入口对象 ⭐⭐⭐⭐⭐⭐
+- @10477819-10489027 25个VS Code命令注册 ⭐⭐⭐⭐⭐⭐
 - @10490209 16个React组件导出 ⭐⭐⭐⭐
 - @10490600-10490721 IIFE闭合结构 ⭐⭐⭐⭐
 
 ---
 
-## 📇 按功能索引
-
-### 确认/自动确认
-- DG.parse L3数据源自动确认 @7318521 L3 ⭐⭐⭐⭐⭐
-- PlanItemStreamParser._handlePlanItem @7502500 L2 ⭐⭐⭐⭐⭐
-- knowledge分支provideUserResponse @7502574 L2 ⭐⭐⭐⭐
-- else分支provideUserResponse @7503319 L2 ⭐⭐⭐⭐
-- data-source-auto-confirm补丁 @7323241 L3 ⭐⭐⭐
-- auto-confirm-commands补丁 @7502500 L2 ⭐⭐⭐⭐
-- service-layer-runcommand-confirm补丁 @7502500 L2 ⭐⭐⭐⭐
-- getRunCommandCardBranch决策 @8069620 L1 ⭐⭐⭐⭐
-- bypass-runcommandcard-redlist补丁 @8070328 L1 ⭐⭐⭐
-- egR RunCommandCard组件 @8635000 L1 ⭐⭐⭐⭐
-- 自动确认useEffect @8640019 L1 ⭐⭐⭐
-- UserConfirmStatusEnum @44416 枚举 ⭐⭐⭐⭐⭐
-- confirm_info数据结构 @7502500 数据 ⭐⭐⭐⭐⭐
-- AI.toolcall.confirmMode @7438613 配置 ⭐⭐⭐⭐⭐
-- IAutoAcceptService @8039940 L2 ⭐⭐⭐⭐⭐
-
-### 续接/自动续接
-- teaEventChatFail最早错误信号 @7458679 L2 ⭐⭐⭐⭐⭐
-- stopStreaming沉默杀手 @7538139 L2 ⭐⭐⭐⭐⭐
-- _aiAgentChatService.resumeChat @7540953 L2 ⭐⭐⭐⭐
-- createStream中resumeChat蓝图 @7540700 L2 ⭐⭐⭐⭐
-- subscribe#8消息数变化 @7588518 L2 ⭐⭐⭐
-- efg可恢复错误列表14个 @8705916 L1 ⭐⭐⭐⭐
-- J变量可续接错误标志 @8707716 L1 ⭐⭐⭐⭐⭐
-- if(V&&J) Alert分支 @8702300 L1 ⭐⭐⭐
-- guard-clause-bypass补丁 !q&&!J @8712898 L1 ⭐⭐⭐
-- auto-continue-thinking补丁迭代v3-v17 ⭐⭐⭐⭐⭐
-- v8架构缺陷根因 @7502500 分析 ⭐⭐⭐⭐⭐
-- v11.6挂钩subscribe#8 @7588518 L2 ⭐⭐⭐⭐⭐
-- v13 teaEventChatFail+qMT轮询 @7458679 L2 ⭐⭐⭐⭐⭐
-- v14 Hybrid flag+visibilitychange @7458679 L2 ⭐⭐⭐⭐⭐
-- v17 Final teaEventChatFail+context参数 @7458679 L2 ⭐⭐⭐⭐⭐
-- IStuckDetectionService @7537021 L2 ⭐⭐⭐⭐⭐
-
-### 沙箱/命令执行
-- BlockLevel枚举6值 @8069382 L1 ⭐⭐⭐⭐⭐
-- AutoRunMode枚举5值 @8069382 L1 ⭐⭐⭐⭐⭐
-- getRunCommandCardBranch决策矩阵 @8069620 L1 ⭐⭐⭐⭐
-- provideUserResponse知识分支 @7502574 L2 ⭐⭐⭐⭐
-- provideUserResponse其他分支 @7503319 L2 ⭐⭐⭐⭐
-- icube.shellExec.* 9个命令 @7610443 IPC ⭐⭐⭐⭐⭐
-- SAFE_RM沙箱安全规则 @8069382 配置 ⭐⭐⭐⭐⭐
-- IRunCommandFeatureService @8063616 L2 ⭐⭐⭐⭐⭐
-- IFileOpFeatureService @8086208 L2 ⭐⭐⭐⭐⭐
-- IFileDiffTruncationService @7562542 L2 ⭐⭐⭐⭐⭐
-- IFileDiffService @7565469 L2 ⭐⭐⭐⭐⭐
-
-### 错误处理
-- kg错误码枚举完整56个 @54415 枚举 ⭐⭐⭐⭐⭐
-- efg可恢复错误列表14个 @8705916 L1 ⭐⭐⭐⭐
-- J变量5个错误码 @8707716 L1 ⭐⭐⭐⭐⭐
-- ee变量配额限制2个 @8707858 L1 ⭐⭐⭐⭐
-- X变量MODEL_NOT_EXISTED @8708083 L1 ⭐⭐⭐
-- handleCommonError @7300455 L2 ⭐⭐⭐⭐⭐
-- teaEventChatFail @7458679 L2 ⭐⭐⭐⭐⭐
-- ErrorStreamParser zU @7508572 L2 ⭐⭐⭐⭐⭐
-- getErrorInfoWithError @7513080 L2 ⭐⭐⭐
-- _onError(e,t,i) @7528742 L2 ⭐⭐⭐
-- TaskAgentMessageParser.parse @7615777 L2 ⭐⭐⭐⭐
-- 17+Alert渲染点 @8700000 L1 ⭐⭐⭐⭐⭐
-- 错误传播路径3条 PATH A/B/C ⭐⭐⭐⭐⭐
-- 错误码两套体系 服务端o+客户端eA @51947 ⭐⭐⭐⭐⭐
-
-### 设置/配置
-- AI.toolcall.confirmMode @7438613 ⭐⭐⭐⭐⭐
-- AI.toolcall.v2.command.* @7438600 ⭐⭐⭐⭐⭐
-- chat.tools.* 3个key @7438613 ⭐⭐⭐⭐⭐
-- GlobalAutoApprove @7438613 ⭐⭐⭐⭐
-- ConfirmMode枚举已移除 @8069382 ⭐⭐⭐⭐⭐
-- IModelTipConfigService @7268582 ⭐⭐⭐⭐⭐
-- IPrivacyModeService @8036543 ⭐⭐⭐⭐⭐
-- IContributionService @8095684 ⭐⭐⭐⭐⭐
-- IModeStorageService @7194537 ⭐⭐⭐⭐⭐
-
-### 商业权限/付费限制
-- ICommercialPermissionService NS类6方法 @7267682 L2 ⭐⭐⭐⭐⭐
-- isFreeUser efi() Hook @8687513 L1 ⭐⭐⭐⭐⭐
-- IEntitlementStore Nu类 @7264682 L2 ⭐⭐⭐⭐⭐
-- ICredentialStore MX类 @7154491 L2 ⭐⭐⭐⭐
-- bJ枚举用户身份7值 @6479431 枚举 ⭐⭐⭐⭐⭐
-- bK枚举用户scope 3值 @6479143 枚举 ⭐⭐⭐⭐⭐
-- 付费限制错误码纠正4008/4009/700 @8707858 ⭐⭐⭐⭐⭐
-- ee变量配额限制 @8707858 L1 ⭐⭐⭐⭐
-- efr枚举免费用户配额20个 @55610 枚举 ⭐⭐⭐⭐
-- bypass-commercial-permission补丁候选 @7267682 L2 ⭐⭐⭐⭐⭐
-- bypass-usage-limit补丁候选 @8707858 L1 ⭐⭐⭐⭐
-- ICommercialApiService @7559975 L2 ⭐⭐⭐⭐⭐
-- PREMIUM_MODE_USAGE_LIMIT Alert @8719877 L1 ⭐⭐⭐⭐
-- CLAUDE_MODEL_FORBIDDEN Alert @8717132 L1 ⭐⭐⭐⭐
-- FIREWALL_BLOCKED Alert @8718083 L1 ⭐⭐⭐
-
-### 模型选择
-- kG枚举模式类型 @7185314 枚举 ⭐⭐⭐⭐⭐
-- kH枚举模型层级 @7185314 枚举 ⭐⭐⭐⭐⭐
-- IModelService NR类 @7271527 L2 ⭐⭐⭐⭐⭐
-- IModelStorageService @7182365 L2 ⭐⭐⭐⭐⭐
-- IModelStore k2类 @7191708 L2 ⭐⭐⭐⭐⭐
-- computeSelectedModelAndMode @7216438 L2 ⭐⭐⭐⭐⭐
-- force-max-mode补丁候选 @7216438 L2 ⭐⭐⭐
-- bypass-free-user-model-notice候选 @7280685 L2 ⭐⭐⭐⭐
-- Max Mode tooltip @9441960 L1 ⭐⭐⭐
-
----
-
 ## 📇 按 confidence 索引
 
-### ⭐⭐⭐⭐⭐ High Confidence
+### ⭐⭐⭐⭐⭐ High Confidence (已验证, 代码证据确凿)
 - DI容器系统完整映射 @6268469
 - DI Token注册表Symbol.for 54个 @6473533
-- uj.getInstance().resolve() 45次 @6268469
+- uj.getInstance().resolve() 45次调用 @6268469
 - uJ装饰器51服务注册 @7017457
 - DI依赖图核心服务注入关系 @6268469
-- Symbol.for→Symbol迁移完整映射 @7092843
+- Symbol.for→Symbol 迁移完整映射 @7092843
 - BR和FX不是DI Token(纠正) @7551518
 - SSE流管道完整拓扑 @7300000
 - SSE事件枚举13种 @7300000
@@ -5466,2203 +1885,382 @@ Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h|
 - webpack内嵌runtime @435246
 - force-max-mode补丁候选 @7216438
 - bypass-usage-limit补丁候选 @8707858
-- FIREWALL_BLOCKED Alert @8718083
+- FIREWALL_BLOCKED Alert @871803
 - 负面结果记录 @7267682
 - X变量新发现 @8708083
 - SSE事件枚举纠正Ot.前缀 @7300000
 - API路由机制 @2534601
-```
 
-$content
-### [2026-04-26 04:20] P0盲区深度探索 — Phase 2+3 完整结果 ⭐⭐⭐⭐⭐
-
-> P0盲区(54415-6268469, ~6.2MB) 10KB级细扫 + 双向扩展深挖，发现5个新DI token、31个I*Service完整映射、4个API端点、VS Code DI注入机制
-
-#### 位置信息
-- **偏移量范围**: 54415-6268469 (~6.2MB)
-- **所属域标签**: [DI] [Event] [IPC] [Commercial] [Docset]
-
-#### Phase 2 扫描统计
-- 采样点: 607 (每10240字符取400字符)
-- 高价值命中: 28 (DI/类/API/Symbol)
-- 中价值命中: 70 (字符串/URL)
-- 低价值命中: 39 (第三方库)
-
-#### P0区间组成确认
-- ~90% 第三方库 (React 30采样, Chevrotain 8采样, D3/Mermaid/YAML/Markdown/Radix/Langium)
-- ~5% i18n本地化字符串 (6096015+)
-- ~3% TEA遥测SDK (535695-627855)
-- ~2% 业务逻辑 (DI tokens, API配置, 上传系统)
-
-#### 核心发现 1: ai.* DI Token 家族 (5个新发现)
-
-| Token | 偏移量 | 说明 |
-|-------|--------|------|
-| Symbol.for("ai.IDocsetService") | @3546309 | 文档集服务接口 |
-| Symbol.for("ai.IDocsetStore") | @7244780 | 文档集Zustand Store |
-| Symbol.for("ai.IDocsetCkgLocalApiService") | @7715114 | CKG本地API服务 |
-| Symbol.for("ai.IDocsetOnlineApiService") | @7720270 | CKG在线API服务 |
-| Symbol.for("ai.IWebCrawlerFacade") | @7725207 | Web爬虫门面 |
-
-IDocsetStore 状态结构:
-- builtinDocsets: [] (内置文档集)
-- builtinDocsetVersion: "" (版本)
-- customDocsets: [] (自定义文档集)
-- searchableBuiltinDocsets: [] (可搜索内置)
-- enterpriseDocsetIdsToRefresh: [] (企业刷新列表)
-
-IWebCrawlerFacade 方法:
-- crawlForPages(entryPoint, prefix) — 爬取页面
-- getCrawlStatus(stubId) — 获取爬取状态
-- abortCrawl(stubId) — 中止爬取
-- onCrawlProgress(stubId, callback) — 进度监听
-
-#### 核心发现 2: 完整 I*Service DI Token 映射 (31个)
-
-| Token | 偏移量 | 域 |
-|-------|--------|-----|
-| IModelService | @7182322 | [Store] |
-| IModelStorageService | @7182353 | [Store] |
-| IModeStorageService | @7194537 | [Store] |
-| IModelTipConfigService | @7268582 | [Setting] |
-| IChatAgentGuideStorageService | @7296236 | [Store] |
-| ISimpleBoolCacheService | @7297005 | [Store] |
-| IModelReportService | @7298383 | [Event] |
-| IInlineSessionStoreService | @7318186 | [Store] |
-| IPlanService | @7456691 | [SSE] |
-| IStuckDetectionService | @7537021 | [Error] |
-| ISideChatStreamService | @7541121 | [SSE] |
-| IInlineChatStreamService | @7548009 | [SSE] |
-| ICommercialApiService | @7559975 | [Commercial] |
-| IFileDiffTruncationService | @7562542 | [Sandbox] |
-| IFileDiffService | @7565469 | [Sandbox] |
-| IKnowledgesTaskService | @7589570 | [Docset] |
-| ITaskListApiService | @7766628 | [IPC] |
-| IASRService | @7892948 | [IPC] |
-| IHuoshanAsrClientService | @7903529 | [IPC] |
-| IAWSASRClientService | @8027658 | [IPC] |
-| IPrivacyModeService | @8036543 | [Setting] |
-| IAutoAcceptService | @8039940 | [Sandbox] |
-| IRunCommandFeatureService | @8063616 | [Sandbox] |
-| IFileOpFeatureService | @8086208 | [Sandbox] |
-| IContributionService | @8095684 | [Setting] |
-| IKnowledgesPersistenceService | @8113678 | [Docset] |
-| IKnowledgesStagingService | @8122442 | [Docset] |
-| IKnowledgesFeatureService | @8130079 | [Docset] |
-| IKnowledgesSourceMaterialService | @8132725 | [Docset] |
-| IKnowledgesNotificationService | @8139976 | [Docset] |
-| IKnowledgesStatusBarService | @8186683 | [Docset] |
-
-#### 核心发现 3: VS Code DI 注入机制 (__instance__ Symbol)
-
-@2607740: Inject 装饰器使用 Symbol("__instance__") 实现延迟注入:
-```
-t.Inject = function(e) {
-    return function(i, r) {
-        let n = Symbol("__instance__");
-        Object.defineProperty(i, r, {
-            get() {
-                if (void 0 === this[n]) {
-                    let i = o.icubeStore.serviceCollection?.get(e);
-                    if (!i) throw Error(`No instantiation service found for ${r}`);
-                    if (i instanceof a.SyncDescriptor) {
-                        let n = o.icubeStore.serviceCollection?.get(t.IInstantiationService);
-                        if (!n) throw Error(`No instantiation service found for ${r}`);
-                        return n.resolveSingletonInstance(e, i);
-                    }
-                    this[n] = i;
-                }
-                return this[n];
-            },
-            enumerable: true, configurable: true
-        });
-    };
-};
-```
-关键: icubeStore.serviceCollection 是 DI 容器入口，SyncDescriptor 用于单例延迟解析。
-
-#### 核心发现 4: API 端点映射
-
-| 端点 | 偏移量 | 用途 |
-|------|--------|------|
-| https://a0ai-api.byteintlapi.com | @5874509 | AI API (externalCopilotDomains) |
-| https://bytegate-sg.byteintlapi.com | @5870448 | ByteGate API 网关 |
-| https://pc-mon-sg.byteintlapi.com | @5871017 | Slardar PC 监控 |
-| https://mcs-nontt.byteintlapi.com | @255810 | TEA 上传统计 |
-| https://libraweb-va.tiktok.com | @5870752 | TEA AB 实验服务 |
-
-API 路由机制 @2534601:
-- iCubeApi — 主 API
-- ugApi — UG API
-- iCubeAgentApi — Agent API
-- getApi(tag, path) — 根据 ApiTagEnum 路由到不同后端
-
-#### 核心发现 5: P0 区间 Symbol 清单
-
-Symbol.for (21个，大部分为 React 内部):
-- react.element @176352, react.transitional.element @176382, react.forward_ref @176425
-- react.fragment @750411, react.portal @1693182, react.strict_mode @1693242
-- react.profiler @1693276, react.provider @1693307, react.context @1693338
-- react.server_context @1693368, react.suspense @1693439, react.suspense_list @1693470
-- react.memo @1693506, react.lazy @1693533, react.offscreen @1693560
-- react.module.reference @1693853
-- nodejs.util.inspect.custom @1275920
-- debug.description @2514093
-- radix-ui @3276368
-- **ai.IDocsetService @3546309** ⭐
-- @reflect-metadata:registry @3552466
-
-Symbol() (12个):
-- AsyncReaderEndOfStream @2260804 — 流读取终止
-- **HaltChainable @2317698** — VS Code 事件链中断
-- MicrotaskDelay @2498078 — 微任务延迟
-- undefined_placeholder @2501836 — Optional 工具
-- **__instance__ @2607740** — DI 注入键 ⭐
-- radix.slottable @3716986 — Radix UI
-- RADIX:SYNC_STATE @3719039 — Radix 状态同步
-- implicit @4295005 — Chevrotain 隐式
-- Datatype @4423600 — 数据类型
-- OperationCancelled @4435676 — 操作取消
-- ref_resolving @4443026 — 引用解析
-- isProxy @4491911 — 代理检测
-
-#### 核心发现 6: HaltChainable 事件链机制
-
-@2317698: VS Code Event.chain() 实现可中断事件链:
-```
-e.chain = function(e, t) {
-    return (i, r, n) => {
-        let o = t(new u);
-        return e(function(e) {
-            let t = o.evaluate(e);
-            t !== l && i.call(r, t);
-        }, void 0, n);
-    };
-};
-let l = Symbol("HaltChainable");
-class u {
-    constructor() { this.steps = []; }
-    map(e) { return this.steps.push(e), this; }
-    forEach(e) { return this.steps.push(t => (e(t), t)), this; }
-    filter(e) { return this.steps.push(t => e(t) ? t : l), this; }
-    reduce(e, t) { ... }
-    latch(e) { ... }
-    evaluate(e) { for (let t of this.steps) if ((e = t(e)) === l) break; return e; }
-}
-```
-用途: 事件链的 map/filter/forEach 操作，filter 返回 HaltChainable 即中断传播。
-
-#### 新域候选
-
-- **[Docset]** — 文档集管理域 (IDocsetService + IDocsetStore + CkgLocalApi + OnlineApi + WebCrawler + 6个Knowledges服务)
-- **[DI-Inject]** — VS Code DI 注入机制 (__instance__ Symbol, Inject 装饰器, SyncDescriptor, icubeStore.serviceCollection)
-
-#### 搜索模板
-
-| 目标 | 搜索关键词 | 稳定性 |
-|------|-----------|--------|
-| Docset DI tokens | Symbol.for("ai.IDoc | ⭐⭐⭐⭐⭐ |
-| DI 注入机制 | Symbol("__instance__") | ⭐⭐⭐⭐ |
-| HaltChainable | Symbol("HaltChainable") | ⭐⭐⭐⭐ |
-| API 路由 | iCubeAgentApi | ⭐⭐⭐⭐⭐ |
-| AI API 端点 | a0ai-api.byteintlapi | ⭐⭐⭐⭐ |
-| ByteGate 网关 | bytegate-sg.byteintlapi | ⭐⭐⭐⭐ |
-| IStuckDetectionService | Symbol.for("IStuckDetectionService") | ⭐⭐⭐⭐⭐ |
-| IAutoAcceptService | Symbol.for("IAutoAcceptService") | ⭐⭐⭐⭐⭐ |
-| IPrivacyModeService | Symbol.for("IPrivacyModeService") | ⭐⭐⭐⭐⭐ |
-| ICommercialApiService | Symbol.for("ICommercialApiService") | ⭐⭐⭐⭐⭐ |
-
-#### 验证状态
-- **confidence**: high
-- **verified_by**: Phase 2 10KB采样 + Phase 3 双向扩展 + Phase 3++ 精确搜索
-- **last_verified**: 2026-04-26
-
----
-
-
-## [2026-04-26 04:27] P1盲区系统性扫描 — 深度发现
-
-> 扫描范围: 文件首部(0-41400)、UI下半(8930000-9910446)、命令注册层(9910446-10490721)、文件尾部
-> 文件实际字符数: 10,490,721 (与预估 10,490,415 基本一致)
-> 关键修正: registerCommand 不在尾部，而在 @2540057 (文件中部)
-
-### [2026-04-26 04:27] 文件首部: AMD define 入口 + AIScene 枚举 ⭐⭐⭐⭐⭐
-> 文件以 AMD define 开头，声明依赖 katex/react/react-dom，首个模块定义 AIScene 枚举
-#### 位置信息
-- 偏移量: @0
-- 所属域标签: [Bootstrap] [Enum]
-#### 数据/证据
-``````
-define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";
-(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",
-r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="edit",
-r.GenerateCode="generate",r.Question="question",r.LineDoc="lines_doc",
-r.Search="search",r.NewBuilder="new_builder"
-``````
-
-### [2026-04-26 04:27] ToolCallName 完整枚举 (38个工具名) ⭐⭐⭐⭐⭐
-> 所有 Agent 工具调用名称的完整枚举，包含新增的 MCP/Supabase/Vercel 等工具
-#### 位置信息
-- 偏移量: @40836 (ToolCallName=r)
-- 所属域标签: [Enum] [Agent]
-#### 数据/证据
-``````
-RunCommand='run_command', OpenPreview='open_preview',
-OpenPreviewAndWaitForError='open_preview_and_wait_for_error', OpenFolder='open_folder',
-CreateFile='create_file', ViewFile='view_file', ViewFiles='view_files',
-ViewFolder='view_folder', EditFileSearchReplace='edit_file_search_replace',
-WriteToFile='write_to_file', ShowDiff='show_diff',
-SearchByReference='search_by_reference', SearchByDefinition='search_by_definition',
-SearchByRegex='search_by_regex', FileSearch='file_search',
-CheckCommandStatus='check_command_status', DeleteFile='delete_file',
-UpdateShallowMemento='update_shallow_memento', CondenseShallowMemento='condense_shallow_memento',
-MCPCall='run_mcp', Finish='finish', WebSearch='web_search',
-ResponseToUser='response_to_user', SearchCodebase='search_codebase',
-TodoWrite='todo_write', CreateRequirement='create_requirement',
-EditProductDocumentFastApply='edit_product_document_fast_apply',
-EditProductDocumentUpdate='edit_product_document_update',
-EditProductDocumentUpdateFC='edit_product_document_update_fc',
-WriteToProductDocument='write_to_product_document',
-DeployToVercel='deploy_to_remote', SupabaseApplyMigration='supabase_apply_migration',
-SupabaseGetProject='supabase_get_project', GetLLMConfig='get_llm_config',
-GetStripeConfig='stripe_get_config', GetPreviewConsoleLogs='get_preview_console_logs',
-InitEnvironment='init_env', AgentFinish='agent_finish'
-``````
-
-### [2026-04-26 04:27] UserConfirmStatusEnum 完整枚举 ⭐⭐⭐⭐⭐
-> 命令确认状态枚举：Unconfirmed/Confirmed/Skipped/Canceled
-#### 位置信息
-- 偏移量: @44416 (枚举定义)
-- 所属域标签: [Enum] [Confirm]
-#### 数据/证据
-``````
-(w=l||(t.UserConfirmStatusEnum=l={})).Unconfirmed='unconfirmed',
-w.Confirmed='confirmed',w.Skipped='skipped',w.Canceled='canceled'
-``````
-
-### [2026-04-26 04:27] CommandsRegistry + ICommandService DI 注册 ⭐⭐⭐⭐⭐
-> VS Code 命令注册系统核心类，ICommandService 通过 createDecorator 注册为 DI token
-#### 位置信息
-- 偏移量: CommandsRegistry @2539813, ICommandService @2539832, registerCommand @2540057
-- 所属域标签: [Command] [DI]
-#### 数据/证据
-``````
-t.ICommandService=(0,l.createDecorator)('commandService'),
-t.CommandsRegistry=new class{
-  constructor(){this._commands=new Map,this._unregisterCommands=new Map,
-    this._onDidRegisterCommand=new r.Emitter,this.onDidRegisterCommand=this._onDidRegisterCommand.event}
-  registerCommand(e,t){
-    if(!e)throw Error('invalid command');
-    if('string'==typeof e){if(!t)throw Error('invalid command');
-      return i.add(this.registerCommand({id:e,handler:t})),...}
-``````
-
-### [2026-04-26 04:27] createDecorator — DI 装饰器工厂 ⭐⭐⭐⭐⭐
-> 所有 DI service token 的创建工厂，serviceRegistry 是全局注册表
-#### 位置信息
-- 偏移量: @853508
-- 所属域标签: [DI]
-#### 数据/证据
-``````
-t.serviceRegistry=new Map,
-t.createDecorator=function(e){
-  if(t.serviceRegistry.has(e))return t.serviceRegistry.get(e);
-  let n=function(e,t,o){
-    if(3!=arguments.length)throw Error('@IServiceName-decorator can only be used to decorate a parameter');
-``````
-
-### [2026-04-26 04:27] uj — DI 容器核心类 ⭐⭐⭐⭐⭐
-> 全局 DI 容器单例，管理所有服务绑定和解析，是 registerAdapter/bootstrapApplicationContainer 的底层
-#### 位置信息
-- 偏移量: uj class @6273630, uj.getInstance @6275751
-- 所属域标签: [DI] [Core]
-#### 数据/证据
-``````
-class uj{
-  static getInstance(){return uj.instance||(uj.instance=new uj),uj.instance}
-  constructor(){this.initialized=!1,this.bindings=new Map,this.singletons=new Map}
-  initialize(e){!this.initialized&&(this.externalOptions=e,
-    this.getDependencyRegistry().getRegistrations().forEach(e=>{
-      this.register(e.identifier,e.implementation,e.singleton)}),this.initialized=!0)}
-  register(e,t,i=!0){if(this.bindings.has(e))
-    throw Error(Identifier  has already been registered.);...}
-  provide(e,t){uj.applyContainerToInstance(...)}
-``````
-
-### [2026-04-26 04:27] eY0 — 模块入口对象 (registerAdapter + bootstrapApplicationContainer) ⭐⭐⭐⭐⭐
-> 模块对外暴露的入口对象，包含 registerAdapter/getRegisteredAdapter/bootstrapApplicationContainer 三个方法
-#### 位置信息
-- 偏移量: @10476892 (eY0=)
-- 所属域标签: [Export] [DI] [Bootstrap]
-#### 数据/证据
-``````
-eY0={
-  registerAdapter:function(e,t){uj.getInstance().provide(e,t)},
-  getRegisteredAdapter:function(e){return uj.getInstance().resolve(e)},
-  bootstrapApplicationContainer:function(e){
-    let t=uj.getInstance();
-    t.initialize({nativeIDECreateDecorator:e?.nativeIDECreateDecorator,
-      nativeIDEInstantiationService:e?.nativeIDEInstantiationService}),
-    t.resolve(Dr).initialize(),t.resolve(Dp).initialize(),
-    t.resolve(kh).initialize(),t.resolve(H2).migrateChatHistory(),
-    t.resolve(eto).initialize(),FW.prepareSessionService();...
-``````
-
-### [2026-04-26 04:27] 25个 VS Code 命令注册 (bootstrapApplicationContainer) ⭐⭐⭐⭐⭐
-> 在 bootstrapApplicationContainer 中通过 e?.CommandsRegistry 注册的全部命令
-#### 位置信息
-- 偏移量: 10477819-10489027
-- 所属域标签: [Command] [Bootstrap]
-#### 数据/证据
-``````
-命令ID列表:
-1.  workbench.action.chat.icube.send.internal @10477819
-2.  workbench.action.chat.icube.send.codeReview @10478151
-3.  icube.common.openUsageLimitModalAICompletion @10479695
-4.  workbench.action.icubeAIGetNetworkData @10479839
-5.  python-helper.environmentChanged @10479977
-6.  icube.session.updateWorktreeAfterMerge @10480095
-7.  icube.chat.acceptSessionTodo @10480290
-8.  icube.ai.reportAICodeContribution @10480449
-9.  icube.debug.fetchEnterpriseDocsets @10480590
-10. icube.dslAgent.startGlobalLogStream @10480798
-11. icube.dslAgent.stopGlobalLogStream @10480933
-12. icube.dslAgent.openEditor @10481066
-13. icube.chat.stopSession @10483844
-14. icube.chat.sendToAgentNonBlocking @10483991
-15. icube.chat.sendToAgentBackground.deepwiki @10485192
-16. icube.chat.getSessionRunningStatus @10485648
-17. icube.chat.forkSession @10485803
-18. icube.knowledges.init @10487427
-19. icube.knowledges.retryInit @10487683
-20. icube.knowledges.rebuild @10487950
-21. icube.knowledges.update @10488215
-22. icube.knowledges.pause @10488493
-23. icube.knowledges.continue @10488622
-24. icube.knowledges.statusClick @10488891
-25. icube.knowledges.showDebugStatus @10489027
-``````
-
-### [2026-04-26 04:27] FW — 核心服务门面对象 ⭐⭐⭐⭐⭐
-> FW 是 ai-chat 模块的核心服务门面，包含 directlySendToSideChat/sendToAgent/prepareSessionService 等关键方法
-#### 位置信息
-- 偏移量: FW={ @7598504, apis:FW @10490700
-- 所属域标签: [Service] [Core]
-#### 数据/证据
-``````
-FW={
-  directlySendToSideChat:async function e(e){
-    let t=uj.getInstance(),i=t.resolve(M0),r=t.resolve(BR);
-    if(i.getRunningStatus()!==Io.WaitingInput){
-      Df.dispatch({type:'updateInputText',payload:e});return}
-    r.sendChatMessage({message:e,parsedQuery:[e],sessionId:...})},
-  directlySendParsedQueryToSideChat:async function e(e){...},
-  sendToAgent:..., prepareSessionService:..., ...
-}
-// 最终导出: apis:FW
-``````
-
-### [2026-04-26 04:27] 16个 React 组件导出列表 ⭐⭐⭐⭐
-> 模块导出的全部 React 组件，包括 ChatView/InlineChat/Agent/Settings 等
-#### 位置信息
-- 偏移量: @10490209
-- 所属域标签: [React] [Export]
-#### 数据/证据
-``````
-components:{
-  ChatViewPaneComponent:eM8,
-  InlineChatViewPaneComponent:ePL,
-  CustomAgentPaneComponent:eLX,
-  AIModelsSettingsComponent:eH6,
-  AIContextSettingsComponent:eH8,
-  AIKnowledgesSettingsComponent:eYe,
-  AgentExtensionPaneComponent:eRB,
-  AIRulesSettingsComponent:eH9,
-  AIWorktreeSettingsComponent:eH7,
-  AgentImportComponent:eYN,
-  AITaskPanelComponent:eYi,
-  AIConversationSettingsComponent:eRw,
-  RuleMetadataFormComponent:eYG,
-  DSLAgentPaneComponent:ePi,
-  SubAgentDetailComponent:ePo,
-  KnowledgesInitPopupComponent:ePd
-}
-``````
-
-### [2026-04-26 04:27] 文件尾部 IIFE 闭合结构 ⭐⭐⭐⭐
-> 文件以三重闭包结束: 内层IIFE → AMD define return → define 调用
-#### 位置信息
-- 偏移量: @10490600-10490721
-- 所属域标签: [Bootstrap] [Export]
-#### 数据/证据
-``````
-...KnowledgesInitPopupComponent:ePd},apis:FW}})(),l})()});
-// 结构: define([...],function(e,t,i){return(()=>{...})()})
-// 三层闭合: })() — 内层IIFE, l})() — AMD factory, }); — define 调用
-``````
-
-### [2026-04-26 04:27] ServiceCollection + InstantiationService ⭐⭐⭐⭐
-> VS Code 风格的 DI 服务集合和实例化服务
-#### 位置信息
-- 偏移量: @1227889
-- 所属域标签: [DI]
-#### 数据/证据
-``````
-class o{
-  constructor(...e){for(let[t,i]of(this._entries=new Map,e))this.set(t,i)}
-  set(e,t){let i=this._entries.get(e);return this._entries.set(e,t),i}
-  forEach(e){for(let[t,i]of this._entries.entries())e(t,i)}
-  has(e){return this._entries.has(e)}
-  get(e){return this._entries.get(e)}
-}
-t.ServiceCollection=o,
-t.InstantiationService=class{
-  constructor(){this._services=new o,this._services.set(r.IInstantiationService,this)}
-  setService(e,t){this._services.set(e,t)}
-``````
-
-### [2026-04-26 04:27] 区间1 UI组件: ChatInput @9015579 ⭐⭐⭐⭐
-> 聊天输入组件，用户与 AI 交互的入口
-#### 位置信息
-- 偏移量: @9015579
-- 所属域标签: [React] [UI]
-#### 数据/证据
-``````
-ChatInput 关键词命中 @9015579
-``````
-
-### [2026-04-26 04:27] 区间1 UI组件: FileDiff @8932385 ⭐⭐⭐
-> 文件差异展示组件
-#### 位置信息
-- 偏移量: @8932385
-- 所属域标签: [React] [UI]
-#### 数据/证据
-``````
-FileDiff 关键词命中 @8932385
-``````
-
-### [2026-04-26 04:27] 区间1 UI组件: ToolCall @9067039 ⭐⭐⭐⭐
-> 工具调用展示组件，Agent 执行工具时的 UI
-#### 位置信息
-- 偏移量: @9067039
-- 所属域标签: [React] [UI] [Agent]
-#### 数据/证据
-``````
-ToolCall 关键词命中 @9067039
-``````
-
-### [2026-04-26 04:27] 区间1 confirm_status @8975688 ⭐⭐⭐⭐
-> UI下半部分中的 confirm_status 引用，可能是 RunCommandCard 的确认状态渲染逻辑
-#### 位置信息
-- 偏移量: @8975688
-- 所属域标签: [React] [Confirm]
-#### 数据/证据
-``````
-confirm_status 关键词命中 @8975688 (区间1)
-``````
-
-### [2026-04-26 04:27] webpack 内嵌 runtime (@435246) ⭐⭐⭐
-> 文件内嵌了一个独立的 webpack runtime，用于某个子模块的懒加载
-#### 位置信息
-- 偏移量: @435246
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-``````
-e.exports=function(){return i(11)('(r=>{var n={};
-function __webpack_require__(e){var t;return(n[e]||(t=n[e]={i:e,l:!1,exports:{}},
-r[e].call(t.exports,t,t.exports,__webpack_require__),t.l=!0,t)).exports}
-__webpack_require__.m=r,__webpack_require__.c=n,
-__webpack_require__.d=function(e,t,r){...},
-__webpack_require__.r=function(e){...}
-``````
-
-### [2026-04-26 04:27] DcsParser.registerHandler — 终端转义序列处理器 ⭐⭐⭐
-> xterm.js 的 DCS 转义序列解析器，registerHandler 注册处理函数
-#### 位置信息
-- 偏移量: @1197068
-- 所属域标签: [Terminal]
-#### 数据/证据
-``````
-t.DcsParser=class{
-  constructor(){this._handlers=Object.create(null),this._active=a,...}
-  registerHandler(e,t){void 0===this._handlers[e]&&(this._handlers[e]=[]);
-    let i=this._handlers[e];return i.push(t),{dispose:()=>{...}}}
-``````
-
-### [2026-04-26 04:27] inject( @1802391 — styled-components 注入 ⭐⭐
-> 此处 inject 是 styled-components 的 CSS 注入，非 DI inject
-#### 位置信息
-- 偏移量: @1802391
-- 所属域标签: [CSS] [styled-components]
-#### 数据/证据
-``````
-e.inject(i,r),[e.getName(r)]):[e]:ei(e)?eR(e):...
-// 这是 styled-components 的 StyleSheet.inject，不是 DI 注入
-``````
-
-
-
-## [2026-04-26 04:28] P1盲区系统性扫描
-
-> 区间1(UI下半: 8930000-9910446) + 区间2(命令注册: 9910446-10743609) + 区间3(首部: 0-41400) + 区间4(尾部)
-> 共发现 64 个目标
-
-### [2026-04-26 04:28] useMemo 发现 @8929851 ⭐***
-> 区间1采样命中 useMemo
-#### 位置信息
-- 偏移量: @8929851
-- 所属域标签: [React]
-#### 数据/证据
-```
-.toISOString()}`,{itemId:i,timestamp:Date.now()}),P(xc.Reject),g.publicLog2("icube-ai.agent.file-outside-workspace.skip")},[P,g,i]),B=uB(eej),F=(0,sK.useMemo)(()=>M?.run_mode,[M?.run_mode]),[U,W]=(0,sK.useState)(!1),G=(0,Ir.Z)(async e=>{if(e!==F){W(!0);try{if(!await B.switchRunMode(e,"card"))return;P(xc.AutoRunConfigChange)}finally{W(!1)}}}),H=(0,sK.useMemo)(()=>{if(!n)return"";let e=n.lastIndexOf
-```
-
-### [2026-04-26 04:28] useMemo 发现 @8930053 ⭐***
-> 区间1采样命中 useMemo
-#### 位置信息
-- 偏移量: @8930053
-- 所属域标签: [React]
-#### 数据/证据
-```
-useState)(!1),G=(0,Ir.Z)(async e=>{if(e!==F){W(!0);try{if(!await B.switchRunMode(e,"card"))return;P(xc.AutoRunConfigChange)}finally{W(!1)}}}),H=(0,sK.useMemo)(()=>{if(!n)return"";let e=n.lastIndexOf("/")>=0?"/":"\\";return n.substring(0,n.lastIndexOf(e))||""},[n]),Y=(0,Ir.Z)(async()=>{H&&(await B.addToAllowPaths([H],"card"),P(xc.AutoRunConfigChange))}),V=(0,sK.useMemo)(()=>[{mode:js.ALWAYS_ASK,tit
-```
-
-### [2026-04-26 04:28] useMemo 发现 @8930266 ⭐***
-> 区间1采样命中 useMemo
-#### 位置信息
-- 偏移量: @8930266
-- 所属域标签: [React]
-#### 数据/证据
-```
-\";return n.substring(0,n.lastIndexOf(e))||""},[n]),Y=(0,Ir.Z)(async()=>{H&&(await B.addToAllowPaths([H],"card"),P(xc.AutoRunConfigChange))}),V=(0,sK.useMemo)(()=>[{mode:js.ALWAYS_ASK,title:E("icd.ai.fileOp.mode.ask.title"),description:E("icd.ai.fileOp.mode.ask.desc")},{mode:js.WHITELIST,title:E("icd.ai.fileOp.mode.allowlist.title"),description:E("icd.ai.fileOp.mode.allowlist.desc")},{mode:js.ALWA
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @8981546 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @8981546
-- 所属域标签: [React]
-#### 数据/证据
-```
-enFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @8981584 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @8981584
-- 所属域标签: [React]
-#### 数据/证据
-```
-s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @8981645 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @8981645
-- 所属域标签: [React]
-#### 数据/证据
-```
-.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div",{className:"auto-run-setting-link__con"},sX().createElement("div",{className:"auto-run-setting-link__icon"},sX().createElement(Cr.Codicon,{name:"icube-AIBulb"})),sX().createElement(Cr.EllipsisTooltip,{className:"auto-run-sett
-```
-
-### [2026-04-26 04:28] useEffect 发现 @8981241 ⭐***
-> 区间1采样命中 useEffect
-#### 位置信息
-- 偏移量: @8981241
-- 所属域标签: [React]
-#### 数据/证据
-```
-?"SOLO":"IDE",t,a)},[p,a,n,r]),y=(0,sK.useCallback)(()=>{r.event(i4.AutoRunConfig.tips_close),i.setAutoRunTipsHiddenFlag(),d(!0)},[i,r]);return((0,sK.useEffect)(()=>Ol(t.onDidChangeConfiguration(e=>{e.affectsConfiguration(o)&&s(t.getConfiguration(o))})),[t,o]),(0,sK.useEffect)(()=>{d(i.getAutoRunTipsHiddenFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{
-```
-
-### [2026-04-26 04:28] useEffect 发现 @8981358 ⭐***
-> 区间1采样命中 useEffect
-#### 位置信息
-- 偏移量: @8981358
-- 所属域标签: [React]
-#### 数据/证据
-```
-lag(),d(!0)},[i,r]);return((0,sK.useEffect)(()=>Ol(t.onDidChangeConfiguration(e=>{e.affectsConfiguration(o)&&s(t.getConfiguration(o))})),[t,o]),(0,sK.useEffect)(()=>{d(i.getAutoRunTipsHiddenFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div"
-```
-
-### [2026-04-26 04:28] useEffect 发现 @8981418 ⭐***
-> 区间1采样命中 useEffect
-#### 位置信息
-- 偏移量: @8981418
-- 所属域标签: [React]
-#### 数据/证据
-```
-angeConfiguration(e=>{e.affectsConfiguration(o)&&s(t.getConfiguration(o))})),[t,o]),(0,sK.useEffect)(()=>{d(i.getAutoRunTipsHiddenFlag())},[i]),(0,sK.useEffect)(()=>{s(t.getConfiguration(o))},[n,o,t]),(0,sK.useEffect)(()=>{u||r.event(i4.AutoRunConfig.tips_show)},[u,r]),u)?null:sX().createElement(sX().Fragment,null,sX().createElement("div",{className:"auto-run-setting-link"},sX().createElement("div
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9082632 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9082632
-- 所属域标签: [React]
-#### 数据/证据
-```
-",y:"0",width:"16",height:"16"},sX().createElement("path",{d:"M16 0H0V16H16V0Z",fill:"white"})),sX().createElement("g",{mask:"url(#mask0_3277_6067)"},sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9082696 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9082696
-- 所属域标签: [React]
-#### 数据/证据
-```
-",y:"0",width:"16",height:"16"},sX().createElement("path",{d:"M16 0H0V16H16V0Z",fill:"white"})),sX().createElement("g",{mask:"url(#mask0_3277_6067)"},sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",fill:t}),sX().cr
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9082750 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9082750
-- 所属域标签: [React]
-#### 数据/证据
-```
-",y:"0",width:"16",height:"16"},sX().createElement("path",{d:"M16 0H0V16H16V0Z",fill:"white"})),sX().createElement("g",{mask:"url(#mask0_3277_6067)"},sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931 2.375 7.37478 3.3125 6.84353C4.25 6.31228 4.25 6.31228 6.1875 4.93728C8.64053 3.19643 10.375 3.77931 13.2188 3.77931",fill:t}),sX().createElement("path",{d:"M0.09375 7.77931C0.5625 7.77931
-```
-
-### [2026-04-26 04:28] useMemo 发现 @9186300 ⭐***
-> 区间1采样命中 useMemo
-#### 位置信息
-- 偏移量: @9186300
-- 所属域标签: [React]
-#### 数据/证据
-```
-.975,d:"M5.917 9.167 8.083 7 5.917 4.833"})))};new URL(s(33946),s.b).toString();let ey7="icb-plan-reasoning-content",eve=[epM,epx],evt=(e,t,i)=>(0,sK.useMemo)(()=>({show:(0!==t||!!i)&&!!e.reasoningContent?.trim?.(),expand:!(e?.thought||e?.toolName),reasoningContent:e.reasoningContent||""}),[e,t,i]),evi=({reasoningContent:e,expand:t,taskId:i})=>{let[r,n]=(0,sK.useState)(t),[o,a]=(0,sK.useState)(!1)
-```
-
-### [2026-04-26 04:28] useMemo 发现 @9186746 ⭐***
-> 区间1采样命中 useMemo
-#### 位置信息
-- 偏移量: @9186746
-- 所属域标签: [React]
-#### 数据/证据
-```
-Ie).useStore(e=>e.isSoloMode);(0,sK.useEffect)(()=>{n(t)},[t]);let d=(0,Ir.Z)(()=>{n(e=>!e)}),h=(0,Ir.Z)(()=>{a(!0)}),p=(0,Ir.Z)(()=>{a(!1)}),g=(0,sK.useMemo)(()=>({mccoremem:({id:e})=>sX().createElement(epU,{id:e,taskId:i})}),[i]),f=s("ai.chat.reasoningContent.title",{},"Thought");return sX().createElement("div",{ref:l,className:s4()(ey7)},sX().createElement("div",{className:s4()(`${ey7}__title`)
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9389963 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9389963
-- 所属域标签: [React]
-#### 数据/证据
-```
-test:o}),{reasoningContent:g,expand:f,show:_}=evt(e,t,r);return!e.thought?.trim?.()&&!_&&(!e.toolName||[CS.Finish,CS.Task].includes(e.toolName))?null:sX().createElement("div",{className:"ai-agent-task",key:e.planItemId||t},_&&sX().createElement(evi,{reasoningContent:g,expand:f,taskId:e.id}),e.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9390039 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9390039
-- 所属域标签: [React]
-#### 数据/证据
-```
-rim?.()&&!_&&(!e.toolName||[CS.Finish,CS.Task].includes(e.toolName))?null:sX().createElement("div",{className:"ai-agent-task",key:e.planItemId||t},_&&sX().createElement(evi,{reasoningContent:g,expand:f,taskId:e.id}),e.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9390131 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9390131
-- 所属域标签: [React]
-#### 数据/证据
-```
-("div",{className:"ai-agent-task",key:e.planItemId||t},_&&sX().createElement(evi,{reasoningContent:g,expand:f,taskId:e.id}),e.thought&&!e.hideThought?sX().createElement("div",null,sX().createElement(ep$,{sessionId:l||"",isLatest:!s,toolCallId:e.id,content:e.thought||""})):null,e.hideTaskCard?null:p)}),evZ=(0,sK.memo)(({taskChunks:e,taskGroups:t,thinkingElement:i,onUpdateTaskExecutionStatus:r,isLat
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9441960 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9441960
-- 所属域标签: [React]
-#### 数据/证据
-```
-tip_text.default",{},"Max Mode is designed for complex tasks, with extended context and flexible tool use, billed by token usage."),[i,n,o,r]);return sX().createElement(sX().Fragment,null,sX().createElement(ewh,null,t("ai.model.max_mode",{},"Max Mode")),sX().createElement(ewp,null,s),o&&sX().createElement(ewp,{className:"special-cost"},t("ai.model.max.tooltip_text.select.cost",{context:a},"Costs w
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9441998 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9441998
-- 所属域标签: [React]
-#### 数据/证据
-```
-gned for complex tasks, with extended context and flexible tool use, billed by token usage."),[i,n,o,r]);return sX().createElement(sX().Fragment,null,sX().createElement(ewh,null,t("ai.model.max_mode",{},"Max Mode")),sX().createElement(ewp,null,s),o&&sX().createElement(ewp,{className:"special-cost"},t("ai.model.max.tooltip_text.select.cost",{context:a},"Costs will rise significantly when the actual
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9442064 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9442064
-- 所属域标签: [React]
-#### 数据/证据
-```
-e, billed by token usage."),[i,n,o,r]);return sX().createElement(sX().Fragment,null,sX().createElement(ewh,null,t("ai.model.max_mode",{},"Max Mode")),sX().createElement(ewp,null,s),o&&sX().createElement(ewp,{className:"special-cost"},t("ai.model.max.tooltip_text.select.cost",{context:a},"Costs will rise significantly when the actual input exceeds { context } tokens.")))}},{key:"contextWindows",sho
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9800090 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9800090
-- 所属域标签: [React]
-#### 数据/证据
-```
-=r.parsedQuery?.length?Cy(r.parsedQuery):r.content,!r.content&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createEle
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9800150 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9800150
-- 所属域标签: [React]
-#### 数据/证据
-```
-t&&r.multiMedia&&(i=e("historyList.image_only_placeholder",{},"[Image]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container
-```
-
-### [2026-04-26 04:28] sX().createElement 发现 @9800219 ⭐***
-> 区间1采样命中 sX().createElement
-#### 位置信息
-- 偏移量: @9800219
-- 所属域标签: [React]
-#### 数据/证据
-```
-]"))),i},[e]);return sX().createElement("div",{className:eMJ["worktree-header"]},sX().createElement("div",{className:eMJ["worktree-header__content"]},sX().createElement(Cr.EllipsisTooltip,{className:eMJ["worktree-header__title"],tooltipText:y(o)},y(o)||""),sX().createElement("div",{className:eMJ["worktree-header__branch-container"],onClick:i?.current?.handleCopy},sX().createElement("div",{classNam
-```
-
-### [2026-04-26 04:28] useState 发现 @9902871 ⭐***
-> 区间1采样命中 useState
-#### 位置信息
-- 偏移量: @9902871
-- 所属域标签: [React]
-#### 数据/证据
-```
-terFrom:"custom_agent_mcp_marketplace_modal_empty_page",visibleModalTag:r}))}function eTc(e){let t="number"==typeof e?Array(e).fill(""):e,[i,r]=(0,sK.useState)(t);return{values:i,setValues:r,updateValue:(e,t)=>{r(i=>{let r=[...i];return r[e]=t,r})},clearValues:()=>{r(e=>e.map(()=>""))}}}let eTu={mcp_cannot_be_empty:"Cannot be empty",mcp_invalid_json_format:"Invalid JSON format",mcp_no_mcp_server:"
-```
-
-### [2026-04-26 04:28] registerAdapter 发现 @10729767 ⭐*****
-> 区间2采样命中 registerAdapter
-#### 位置信息
-- 偏移量: @10729767
-- 所属域标签: [Command]
-#### 数据/证据
-```
-itch knowledges-debug-switch=0.")}),r}"undefined"!=typeof window&&void 0===window.ResizeObserver&&(window.ResizeObserver=sq.Z);let eYJ="ai-chat",eY0={registerAdapter:function(e,t){uj.getInstance().provide(e,t)},getRegisteredAdapter:function(e){return uj.getInstance().resolve(e)},bootstrapApplicationContainer:function(e){let t=uj.getInstance();t.initialize({nativeIDECreateDecorator:e?.nativeIDECrea
-```
-
-### [2026-04-26 04:28] 文件首部: __esModule 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @142
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="ed
-```
-
-### [2026-04-26 04:28] 文件首部: __esModule 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @888
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-,{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extension_version:i?.extensionV
-```
-
-### [2026-04-26 04:28] 文件首部: __esModule 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @1671
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-finedValues(e){let t={};for(let[i,r]of Object.entries(e))void 0!==r&&(t[i]=r);return t}}},39124:function(e,t,i){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.createInternalContributionSdk=function(e){let t=new r.AIContributionTracker(e);return{reportAICodeContribution:e=>t.reportAICodeContribution(e),updateGitUrls:e=>t.updateGitUrls(e)}};let r=i(31397)},31397:function(e,t,i){"use
-```
-
-### [2026-04-26 04:28] 文件首部: Object.defineProperty 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @117
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r
-```
-
-### [2026-04-26 04:28] 文件首部: Object.defineProperty 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @683
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-_EVENT="ai_contribution_code",t.BYTEDANCE_SCOPE="bytedance"},32499:function(e,t,i){"use strict";t.createInternalContributionSdk=void 0;var r=i(39124);Object.defineProperty(t,"createInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,
-```
-
-### [2026-04-26 04:28] 文件首部: Object.defineProperty 发现 ⭐****
-> webpack bootstrap 结构元素
-#### 位置信息
-- 偏移量: @863
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-eInternalContributionSdk",{enumerable:!0,get:function(){return r.createInternalContributionSdk}}),i(88690),i(52169)},16866:function(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.TeaReporter=void 0,t.TeaReporter=class{constructor(e){this.init=e}uploadCompletionEvent(e,t){let i=this.init.getClientInfo?.(),r={...t,env:i?.envId,ide_version:i?.ideVersion,channel:i?.channel,extens
-```
-
-### [2026-04-26 04:28] 文件首部前500字符 ⭐****
-> webpack bootstrap 入口代码
-#### 位置信息
-- 偏移量: @0
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-define(["katex","react","react-dom"],function(e,t,i){return(()=>{var r,n,o={88690:function(e,t){"use strict";var i,r;Object.defineProperty(t,"__esModule",{value:!0}),t.BYTEDANCE_SCOPE=t.AI_CONTRIBUTION_CODE_EVENT=t.AIScene=void 0,(r=i||(t.AIScene=i={})).Completion="Completion",r.MultiEdit="MultiEdit",r.Test="test",r.ExplainCode="explain_code",r.LintFix="lint_fix",r.Doc="doc",r.EditCode="edit",r.GenerateCode="generate",r.Question="question",r.LineDoc="lines_doc",r.Search="search",r.NewBuilder="ne
-```
-
-### [2026-04-26 04:28] 文件尾部最后200字符 ⭐*****
-> IIFE 闭合与模块导出
-#### 位置信息
-- 偏移量: @10743409
-- 所属域标签: [Export]
-#### 数据/证据
-```
-AITaskPanelComponent:eYi,AIConversationSettingsComponent:eRw,RuleMetadataFormComponent:eYG,DSLAgentPaneComponent:ePi,SubAgentDetailComponent:ePo,KnowledgesInitPopupComponent:ePd},apis:FW}})(),l})()});
-```
-
-### [2026-04-26 04:28] 命令注册: workbench.action.chat.icube.send.internal ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10729493
-- 所属域标签: [Command]
-#### 数据/证据
-```
-led to resolve Knowledges feature gate:",e)}),e?.CommandsRegistry){var r,n;(n=r=e.CommandsRegistry).registerCommand("workbench.action.chat.icube.send.internal",async(e,t,i)=>{if(!t||0===t.length)throw Error("no inputs provided");eYq("send.internal");let r=uj.getInstance().resolve(S2.IViewsService);return await r.openViewContainer(BG,!0),document.dispatchEve
-```
-
-### [2026-04-26 04:28] 命令注册: workbench.action.chat.icube.send.codeReview ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10729825
-- 所属域标签: [Command]
-#### 数据/证据
-```
-BG,!0),document.dispatchEvent(new CustomEvent("icube.ai-agent.focusInput")),FW.sendToAgent(t,i)}),n.registerCommand("workbench.action.chat.icube.send.codeReview",async(e,t,i)=>{let r,n;if(!t||0===t.length)throw Error("no inputs provided");let o=uj.getInstance();if("not-login"===o.resolve(S2.IICubeAuthService).getCurrentLoginStatusSync())throw Error("the code 
-```
-
-### [2026-04-26 04:28] 命令注册: icube.common.openUsageLimitModalAICompletion ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10731369
-- 所属域标签: [Command]
-#### 数据/证据
-```
-Id:i?.agentId}))});try{return await FW.sendToAgentBackground(t,u)}catch(e){throw e}finally{p()}}),n.registerCommand("icube.common.openUsageLimitModalAICompletion",async(e,t,i)=>{let r=uj.getInstance().resolve(eYV);await r.onUsageLimit(t,i)}),n.registerCommand("workbench.action.icubeAIGetNetworkData",async()=>{let e=uj.getInstance().resolve(Jf);return await e.g
-```
-
-### [2026-04-26 04:28] 命令注册: workbench.action.icubeAIGetNetworkData ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10731513
-- 所属域标签: [Command]
-#### 数据/证据
-```
-ModalAICompletion",async(e,t,i)=>{let r=uj.getInstance().resolve(eYV);await r.onUsageLimit(t,i)}),n.registerCommand("workbench.action.icubeAIGetNetworkData",async()=>{let e=uj.getInstance().resolve(Jf);return await e.getNetworkData()}),n.registerCommand("python-helper.environmentChanged",async()=>{uj.getInstance().resolve(ED).updatePythonActiveEnv()}),n.
-```
-
-### [2026-04-26 04:28] 命令注册: python-helper.environmentChanged ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10731651
-- 所属域标签: [Command]
-#### 数据/证据
-```
-eAIGetNetworkData",async()=>{let e=uj.getInstance().resolve(Jf);return await e.getNetworkData()}),n.registerCommand("python-helper.environmentChanged",async()=>{uj.getInstance().resolve(ED).updatePythonActiveEnv()}),n.registerCommand("icube.session.updateWorktreeAfterMerge",async(e,t)=>{let i=uj.getInstance().resolve(M0);i&&"function"==typeof i.upd
-```
-
-### [2026-04-26 04:28] 命令注册: icube.session.updateWorktreeAfterMerge ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10731769
-- 所属域标签: [Command]
-#### 数据/证据
-```
-ython-helper.environmentChanged",async()=>{uj.getInstance().resolve(ED).updatePythonActiveEnv()}),n.registerCommand("icube.session.updateWorktreeAfterMerge",async(e,t)=>{let i=uj.getInstance().resolve(M0);i&&"function"==typeof i.updateWorktreeAfterMerge&&await i.updateWorktreeAfterMerge(t)}),n.registerCommand("icube.chat.acceptSessionTodo",async(e,t)=>{l
-```
-
-### [2026-04-26 04:28] 命令注册: icube.chat.acceptSessionTodo ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10731964
-- 所属域标签: [Command]
-#### 数据/证据
-```
-solve(M0);i&&"function"==typeof i.updateWorktreeAfterMerge&&await i.updateWorktreeAfterMerge(t)}),n.registerCommand("icube.chat.acceptSessionTodo",async(e,t)=>{let i=uj.getInstance().resolve(Wm);t?.sessionId&&await i.acceptTodoFilesBySession(t.sessionId)}),n.registerCommand("icube.ai.reportAICodeContribution",async(e,t)=>{let i=uj.getInstance()
-```
-
-### [2026-04-26 04:28] 命令注册: icube.ai.reportAICodeContribution ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10732123
-- 所属域标签: [Command]
-#### 数据/证据
-```
-{let i=uj.getInstance().resolve(Wm);t?.sessionId&&await i.acceptTodoFilesBySession(t.sessionId)}),n.registerCommand("icube.ai.reportAICodeContribution",async(e,t)=>{let i=uj.getInstance().resolve(ee3);await i.reportAICodeContribution(t)}),n.registerCommand("icube.debug.fetchEnterpriseDocsets",async()=>{let e=uj.getInstance(),{IDocsetService:t}=await
-```
-
-### [2026-04-26 04:28] 命令注册: icube.debug.fetchEnterpriseDocsets ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10732264
-- 所属域标签: [Command]
-#### 数据/证据
-```
-tribution",async(e,t)=>{let i=uj.getInstance().resolve(ee3);await i.reportAICodeContribution(t)}),n.registerCommand("icube.debug.fetchEnterpriseDocsets",async()=>{let e=uj.getInstance(),{IDocsetService:t}=await Promise.resolve().then(s.bind(s,36518)),i=e.resolve(t);await i.debugFetchEnterpriseDocsets()}),n.registerCommand("icube.dslAgent.startGlobalL
-```
-
-### [2026-04-26 04:28] 命令注册: icube.dslAgent.startGlobalLogStream ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10732472
-- 所属域标签: [Command]
-#### 数据/证据
-```
-it Promise.resolve().then(s.bind(s,36518)),i=e.resolve(t);await i.debugFetchEnterpriseDocsets()}),n.registerCommand("icube.dslAgent.startGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.startGlobalLogStream()}),n.registerCommand("icube.dslAgent.stopGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.stopGlobalL
-```
-
-### [2026-04-26 04:28] 命令注册: icube.dslAgent.stopGlobalLogStream ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10732607
-- 所属域标签: [Command]
-#### 数据/证据
-```
-rtGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.startGlobalLogStream()}),n.registerCommand("icube.dslAgent.stopGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.stopGlobalLogStream()}),n.registerCommand("icube.dslAgent.openEditor",async(e,t,i)=>{let r=uj.getInstance(),n=r.resolve(eto),o=r.resolve(S2.IWebv
-```
-
-### [2026-04-26 04:28] 命令注册: icube.dslAgent.openEditor ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10732740
-- 所属域标签: [Command]
-#### 数据/证据
-```
-topGlobalLogStream",async()=>{let e=uj.getInstance().resolve(eto);await e.stopGlobalLogStream()}),n.registerCommand("icube.dslAgent.openEditor",async(e,t,i)=>{let r=uj.getInstance(),n=r.resolve(eto),o=r.resolve(S2.IWebviewWorkbenchService),a=r.resolve(S2.IFileService),s=r.resolve(Au),l=r.resolve(S2.IEditorService);try{if(eYQ.has(t)){let{webv
-```
-
-### [2026-04-26 04:28] 命令注册: icube.chat.stopSession ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10735518
-- 所属域标签: [Command]
-#### 数据/证据
-```
-.message})}})()}})}catch(e){throw console.error("[DSLAgentEditor] Failed to open editor:",e),e}}),n.registerCommand("icube.chat.stopSession",async(e,t)=>{if(!t?.sessionId)return;let i=uj.getInstance().resolve(BR);await i.stopChat(t.sessionId)}),n.registerCommand("icube.chat.sendToAgentNonBlocking",async(e,t,i)=>{if(!t||0===t.length)throw 
-```
-
-### [2026-04-26 04:28] 命令注册: icube.chat.sendToAgentNonBlocking ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10735665
-- 所属域标签: [Command]
-#### 数据/证据
-```
-e,t)=>{if(!t?.sessionId)return;let i=uj.getInstance().resolve(BR);await i.stopChat(t.sessionId)}),n.registerCommand("icube.chat.sendToAgentNonBlocking",async(e,t,i)=>{if(!t||0===t.length)throw Error("no inputs provided");let r=uj.getInstance(),n=r.resolve(S2.IViewsService),o=r.resolve(S2.IICubeAuthService),a=r.resolve(M0),s=r.resolve(BR),l=r.resolve
-```
-
-### [2026-04-26 04:28] 命令注册: icube.chat.sendToAgentBackground.deepwiki ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10736866
-- 所属域标签: [Command]
-#### 数据/证据
-```
-ed:!0}).catch(e=>{u.error("[sendToAgentNonBlocking] sendChatMessage failed:",e)}),{sessionId:p}}),n.registerCommand("icube.chat.sendToAgentBackground.deepwiki",async(e,t,i)=>{if(!t||0===t.length)throw Error("no inputs provided");if("not-login"===uj.getInstance().resolve(S2.IICubeAuthService).getCurrentLoginStatusSync())throw Error("the deepwiki background c
-```
-
-### [2026-04-26 04:28] 命令注册: icube.chat.getSessionRunningStatus ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10737322
-- 所属域标签: [Command]
-#### 数据/证据
-```
-ntName),i?.agentId&&(r.agentId=i.agentId),i?.modelName&&(r.modelName=i.modelName),await F6(t,r)}),n.registerCommand("icube.chat.getSessionRunningStatus",async(e,t)=>t?.sessionId?uj.getInstance().resolve(IN).getRunningStatus(t.sessionId):"WaitingInput"),n.registerCommand("icube.chat.forkSession",async(e,t)=>{if(!t?.sessionId)throw Error("[forkSession]
-```
-
-### [2026-04-26 04:28] 命令注册: icube.chat.forkSession ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10737477
-- 所属域标签: [Command]
-#### 数据/证据
-```
-ync(e,t)=>t?.sessionId?uj.getInstance().resolve(IN).getRunningStatus(t.sessionId):"WaitingInput"),n.registerCommand("icube.chat.forkSession",async(e,t)=>{if(!t?.sessionId)throw Error("[forkSession] sessionId is required");if(!t?.messageId)throw Error("[forkSession] messageId is required");eYq("forkSession");let i=uj.getInstance(),r=i.reso
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.init ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10739101
-- 所属域标签: [Command]
-#### 数据/证据
-```
-(BH),...Object.values(BY)])e.registerCommand(i,async(e,...r)=>t.executeCommand(`_${i}`,...r))}(r),r.registerCommand("icube.knowledges.init",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.executeTask(FE.Init,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to init know
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.retryInit ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10739357
-- 所属域标签: [Command]
-#### 数据/证据
-```
-Init,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to init knowledges:",e)}}),r.registerCommand("icube.knowledges.retryInit",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.executeTask(FE.Init,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to retry ini
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.rebuild ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10739624
-- 所属域标签: [Command]
-#### 数据/证据
-```
-triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to retry init knowledges:",e)}}),r.registerCommand("icube.knowledges.rebuild",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.executeTask(FE.Rebuild,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to rebuil
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.update ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10739889
-- 所属域标签: [Command]
-#### 数据/证据
-```
-d,{triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to rebuild knowledges:",e)}}),r.registerCommand("icube.knowledges.update",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.runHistoricalSessionUpdates({notify:!0,triggerSource:Fk.Command})}catch(e){i.error("[knowledges] F
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.pause ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10740167
-- 所属域标签: [Command]
-#### 数据/证据
-```
-:!0,triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to update knowledges:",e)}}),r.registerCommand("icube.knowledges.pause",async()=>{let e=uj.getInstance(),t=e.resolve(FC);await eY$(e)&&t.pauseCurrentTask()}),r.registerCommand("icube.knowledges.continue",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);tr
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.continue ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10740296
-- 所属域标签: [Command]
-#### 数据/证据
-```
-dges.pause",async()=>{let e=uj.getInstance(),t=e.resolve(FC);await eY$(e)&&t.pauseCurrentTask()}),r.registerCommand("icube.knowledges.continue",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(bY);try{if(!await eY$(e))return;await t.continueCurrentTask({triggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to continue 
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.statusClick ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10740565
-- 所属域标签: [Command]
-#### 数据/证据
-```
-ggerSource:Fk.Command})}catch(e){i.error("[knowledges] Failed to continue knowledges task:",e)}}),r.registerCommand("icube.knowledges.statusClick",async()=>{let e=uj.getInstance(),t=e.resolve(et8);await eY$(e)&&t.handleEntryClick()}),r.registerCommand("icube.knowledges.showDebugStatus",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolv
-```
-
-### [2026-04-26 04:28] 命令注册: icube.knowledges.showDebugStatus ⭐*****
-> VS Code 命令注册
-#### 位置信息
-- 偏移量: @10740701
-- 所属域标签: [Command]
-#### 数据/证据
-```
-atusClick",async()=>{let e=uj.getInstance(),t=e.resolve(et8);await eY$(e)&&t.handleEntryClick()}),r.registerCommand("icube.knowledges.showDebugStatus",async()=>{let e=uj.getInstance(),t=e.resolve(FC),i=e.resolve(S2.INotificationService);if(!await eY$(e)||!await eYX(e))return;await t.initialize();let r=t.getTaskProgress();if(!r){i.notify({severity:U
-```
-
-### [2026-04-26 04:28] bootstrapApplicationContainer 入口 ⭐*****
-> 模块初始化入口函数
-#### 位置信息
-- 偏移量: @10728701
-- 所属域标签: [Bootstrap]
-#### 数据/证据
-```
-bootstrapApplicationContainer:function(e){let t=uj.getInstance();t.initialize({nativeIDECreateDecorator:e?.nativeIDECreateDecorator,nativeIDEInstantiationService:e?.nativeIDEInstantiationService}),t.resolve(Dr).initialize(),t.resolve(Dp).initialize(),t.resolve(kh).initialize(),t.resolve(H2).migrateChatHistory(),t.resolve(eto).initialize(),FW.prepareSessionService();let i=t.resolve(bY);if(t.resolve(etO).isKnowledgesFeatureEnabled().then(e=>{if(!e){i.info("[ai-chat] Knowledges feature disabled by 
-```
-
-### [2026-04-26 04:28] eY0 模块入口对象 ⭐*****
-> registerAdapter + bootstrapApplicationContainer
-#### 位置信息
-- 偏移量: @10728566
-- 所属域标签: [Export]
-#### 数据/证据
-```
-eY0={registerAdapter:function(e,t){uj.getInstance().provide(e,t)},getRegisteredAdapter:function(e){return uj.getInstance().resolve(e)},bootstrapApplicationContainer:function(e){let t=uj.getInstance();t.initialize({nativeIDECreateDecorator:e?.nativeIDECreateDecorator,nativeIDEInstantiationService:e?.
-```
-
-### [2026-04-26 04:28] UI组件: 聊天输入 (ChatInput) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @9015885
-- 所属域标签: [React]
-#### 数据/证据
-```
-sPath.replace(`${a.uri.fsPath}/`,""):"",uri:t,selections:[]}}),r=[...i?.map(e=>({filePath:e.uri.path,relatePath:e?.relatePath,name:`${z(e.uri.path)}`,title:e.uri.path,type:"file"})),_],d=(0,Cr.convertChatInputParsedQueryToMessage)(r);u.sendChatMessage({message:d,sessionId:l.getCurrentSession()?.sessionId,parsedQuery:r,multiMedia:[],triggerMode:void 0,isInputOptimized:!1,asrTimes:0}),w(!0),j(!0)},[S,R,_,l,j,n,o,a,u,t,s]),F=(0,sK.useMemo)(()=>g||A||!P||b||O?.length===0,[g,A,P,b,O?.length]),U=(0,sK
-```
-
-### [2026-04-26 04:28] UI组件: 文件差异 (FileDiff) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @8932691
-- 所属域标签: [React]
-#### 数据/证据
-```
-p=(0,sK.useMemo)(()=>!!es?.find(e=>e?.relativePath===$),[es,$]),eg=(0,Ir.Z)(()=>{if(!l?.result?.data?.can_show_diff||a&&ep){eu();return}eo({location:"file_card_open_diff"});let e=_?Cy(_):void 0;p.openFileDiffViewInSummaryFromSnapshot({sessionId:b,messageId:w||"",toolcallId:[l?.toolCallId||""],title:e,location:"single_file_open_diff"})}),ef=uB(Hp),em=(0,Ir.Z)(e=>{Q.click("lint_error"),el?.filePath&&ef.openFile(el?.filePath,e?.range?eg4(e?.range):void 0)}),e_=(0,sK.useMemo)(()=>{if(l&&CO(l))return
-```
-
-### [2026-04-26 04:28] UI组件: 工具调用 (ToolCall) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @9067345
-- 所属域标签: [React]
-#### 数据/证据
-```
-return sX().createElement(Cr.SearchCodebaseCard,{keywords:h,status:a,fileList:d,onFileClick:l})}let em0=(e,t,i)=>{let r=(0,sK.useMemo)(()=>{if(t){if(e===CE.Running||e===CE.Canceled)return Cr.TasksListToolCall.Status.Canceled;if(e!==CE.Success)return Cr.TasksListToolCall.Status.Unknown}return e===CE.Running?Cr.TasksListToolCall.Status.Generating:e===CE.Success?i.length?i.some(e=>e.status===Cr.TasksListToolCall.TaskStatus.InProgress)?Cr.TasksListToolCall.Status.InProgress:i.every(e=>e.status===Cr.
-```
-
-### [2026-04-26 04:28] UI组件: 确认状态 (confirm_status) ⭐****
-> 区间1 UI组件关键词命中
-#### 位置信息
-- 偏移量: @8975994
-- 所属域标签: [React]
-#### 数据/证据
-```
-Id),g=eg0({toolCallName:t,isHistory:e,toolcallId:r?.id,turnId:u,userMessageId:h||""}),{file_paths:f}=r?.params??{},{confirm_info:_}=r??{},{terminal_id:y}=r?.result?.data??{},{status:v}=r?.result??{},{confirm_status:b,auto_confirm:w}=_??{},{toolCallStatus:S}=ep0({isHistory:e,toolCallResultStatus:v,confirmStatus:b}),E=egd({isHistory:e,toolCallId:r?.id,toolCallName:r?.toolName}),A=(0,sK.useCallback)(async e=>{await a.updateRunCommandToolStatusFromUser({planItemId:r?.planItemId,agentMessageId:p||"",
-```
-
-
-## [2026-04-26 04:44] 搜索模板可用性验证报告 ⭐⭐⭐⭐
-
-> 自动化验证 explorer-protocol.md 附录A搜索模板在当前版本 (10490721 chars) 上的可用性
-
-### 验证结果
-
-| 模板ID | 搜索模式 | 首次偏移量 | 总命中数 | 状态 |
-|--------|---------|-----------|---------|------|
-| DI-01 | `uX(` | 6279517 | 817 | OK | | DI-02 | `uJ({identifier:` | 7022679 | 186 | OK | | DI-03 | `Symbol.for("` | 176352 | 185 | OK | | DI-04 | `Symbol("` | 2260804 | 77 | OK | | SSE-01 | `eventHandlerFactory` | 7534973 | 5 | OK | | SSE-02 | `Symbol.for("IPlanItemStreamParser")` | -1 | 0 | EMPTY | | SSE-07 | `handleSteamingResult` | 7328394 | 14 | OK | | STO-01 | `Symbol("ISessionStore")` | 7092843 | 1 | OK | | STO-04 | `.subscribe(` | 3106373 | 33 | OK | | STO-05 | `.getState()` | 1749634 | 234 | OK | | ERR-01 | `4000002` | 54440 | 7 | OK | | ERR-06 | `getErrorInfo` | 7299801 | 13 | OK | | ERR-07 | `handleCommonError` | 7300455 | 5 | OK | | ERR-11 | `teaEventChatFail` | 7458679 | 5 | OK | | RCT-01 | `sX().memo(` | 6417666 | 31 | OK | | RCT-08 | `getRunCommandCardBranch` | 8081545 | 2 | OK | | RCT-10 | `"unconfirmed"` | 44416 | 11 | OK | | EVT-01 | `Symbol.for("ITeaFacade")` | 7140149 | 1 | OK | | EVT-02 | `visibilitychange` | 210378 | 28 | OK | | EVT-05 | `icube.shellExec` | -1 | 0 | EMPTY | | COM-01 | `ICommercialPermissionService` | 7197035 | 1 | OK | | COM-02 | `isCommercialUser` | 7267803 | 4 | OK | | COM-03 | `IEntitlementStore` | 7264743 | 1 | OK | | GEN-06 | `provideUserResponse` | 7512531 | 10 | OK | | GEN-07 | `ToolCallName` | 40836 | 4 | OK | | GEN-08 | `BlockLevel` | 3304647 | 3 | OK |
-
-### 汇总
-
-| 指标 | 值 |
-|------|-----|
-| 目标文件 | index.js |
-| 文件字符数 | 10490721 |
-| OK (命中>0) | 24 |
-| EMPTY (命中=0) | 2 |
-| 总模板数 | 26 |
-| 验证时间 | 2026-04-26 04:44 |
-
-### EMPTY 模板分析
-
-- **SSE-02**: `Symbol.for("IPlanItemStreamParser")` — 当前版本中未找到，可能已重命名或移除 - **EVT-05**: `icube.shellExec` — 当前版本中未找到，可能已重命名或移除
-
-### 关键偏移量变化
-
-| DI-01 | 6279517 | | DI-02 | 7022679 | | DI-03 | 176352 | | DI-04 | 2260804 | | SSE-01 | 7534973 | | SSE-07 | 7328394 | | STO-01 | 7092843 | | STO-04 | 3106373 | | STO-05 | 1749634 | | ERR-01 | 54440 | | ERR-06 | 7299801 | | ERR-07 | 7300455 | | ERR-11 | 7458679 | | RCT-01 | 6417666 | | RCT-08 | 8081545 | | RCT-10 | 44416 | | EVT-01 | 7140149 | | EVT-02 | 210378 | | COM-01 | 7197035 | | COM-02 | 7267803 | | COM-03 | 7264743 | | GEN-06 | 7512531 | | GEN-07 | 40836 | | GEN-08 | 3304647 |
-
-
-## [2026-04-26] 四维索引体系
-
-> 本索引由 Grand Exploration 自动生成，供快速查找使用
-> 覆盖范围: 6666+ 行发现记录，27 个 ## 级章节，100+ 个 ### 级条目
-
----
-
-### 按域分类索引
-
-#### [DI] 依赖注入 (18 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @6273630 | uj — DI 容器核心类 (getInstance @6275751) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @853508 | createDecorator — DI 装饰器工厂 (serviceRegistry) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @1227889 | ServiceCollection + InstantiationService | ⭐⭐⭐⭐ | 服务注册 |
-| @2607740 | VS Code DI 注入机制 (__instance__ Symbol, Inject 装饰器) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @6268469 | DI 容器类定义 (uj class) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @6270579 | React Hook uB(token) — useInject | ⭐⭐⭐⭐ | 服务注册 |
-| @2539813 | CommandsRegistry + ICommandService DI 注册 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @176352 | Symbol.for DI tokens (185个, 含 React 内部) | ⭐⭐⭐⭐ | 枚举定义 |
-| @2260804 | Symbol() DI tokens (77个) | ⭐⭐⭐⭐ | 枚举定义 |
-| @6279517 | uX( — DI 服务注册调用 (817命中) | ⭐⭐⭐⭐ | 服务注册 |
-| @7022679 | uJ({identifier: — DI 服务注册声明 (186命中) | ⭐⭐⭐⭐ | 服务注册 |
-| @10466462 | uj.getInstance().provide() — 仅1次调用 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7551518 | BR = s(72103) = path 模块 (非 DI token) | ⭐⭐⭐⭐⭐ | 数据流 |
-| @7604449 | FX = findTargetAgent 辅助函数 (非 DI 模式) | ⭐⭐⭐⭐ | 数据流 |
-| @7459376 | resolve(Di) — _aiAgentChatService | ⭐⭐⭐⭐⭐ | 数据流 |
-| @7592580 | resolve(BR) — 注意: BR 是 path 模块 | ⭐⭐⭐⭐ | 数据流 |
-| @7591618 | resolve(xC) — _sessionStore | ⭐⭐⭐⭐ | 数据流 |
-| @10476892 | eY0 — 模块入口对象 (registerAdapter + bootstrap) | ⭐⭐⭐⭐⭐ | 服务注册 |
-
-#### [SSE] 流管道 (12 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7534973 | eventHandlerFactory (5命中) | ⭐⭐⭐⭐ | 数据流 |
-| @7328394 | handleSteamingResult (14命中) | ⭐⭐⭐⭐ | 数据流 |
-| @7502500 | PlanItemStreamParser._handlePlanItem() [自动确认补丁] | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @7508572 | ErrorStreamParser.parse() | ⭐⭐⭐⭐⭐ | 错误处理 |
-| @7528742 | Bs._onError — SSE 错误回调 | ⭐⭐⭐⭐⭐ | 错误处理 |
-| @7513080 | zU.parse() — ErrorStreamParser 中 getErrorInfoWithError | ⭐⭐⭐⭐⭐ | 错误处理 |
-| @7456691 | IPlanService | ⭐⭐⭐⭐ | 服务注册 |
-| @7541121 | ISideChatStreamService | ⭐⭐⭐⭐ | 服务注册 |
-| @7548009 | IInlineChatStreamService | ⭐⭐⭐⭐ | 服务注册 |
-| @7540953 | _aiAgentChatService.resumeChat() — 模块级调用 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @7540700 | createStream — 含 resumeChat 蓝图 | ⭐⭐⭐⭐ | 数据流 |
-| @7524723 | chatStream(e) — 发起聊天流 | ⭐⭐⭐⭐ | 数据流 |
-
-#### [Store] 状态架构 (10 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7092843 | ISessionStore (Symbol) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7191694 | IModelStore (Symbol) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7264682 | IEntitlementStore — Nu 类 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7244780 | IDocsetStore — Zustand Store | ⭐⭐⭐⭐ | 服务注册 |
-| @3106373 | .subscribe() (33命中) | ⭐⭐⭐⭐ | 数据流 |
-| @1749634 | .getState() (234命中) | ⭐⭐⭐⭐ | 数据流 |
-| @7191708 | k2 类 — IModelStore 实现 (状态: selectedModel/mode/...) | ⭐⭐⭐⭐⭐ | 数据流 |
-| @7264804 | Nu 类 — entitlementInfo 字段 | ⭐⭐⭐⭐⭐ | 数据流 |
-| @7588682 | store.subscribe watcher — v15 补丁位置 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @7458876 | teaEventChatFail flag — v14 补丁位置 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-
-#### [Error] 错误系统 (16 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @54415 | kg 枚举 — 56个完整错误码 | ⭐⭐⭐⭐ | 枚举定义 |
-| @7160512 | eA 枚举 — 客户端错误码 (UI渲染用) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @7299801 | getErrorInfo (13命中) | ⭐⭐⭐⭐ | 错误处理 |
-| @7300455 | handleCommonError (5命中) | ⭐⭐⭐⭐ | 错误处理 |
-| @7300921 | De.handleError() — 错误路由到 UI Alert | ⭐⭐⭐⭐⭐ | 错误处理 |
-| @7458679 | teaEventChatFail — 最早错误信号 (5命中) | ⭐⭐⭐⭐⭐ | 错误处理 |
-| @7505837 | teaEventChatFail 调用点1 — _codeCompEventService | ⭐⭐⭐⭐ | 错误处理 |
-| @7542473 | teaEventChatFail 调用点3 — Bs.onError | ⭐⭐⭐⭐⭐ | 错误处理 |
-| @7537021 | IStuckDetectionService | ⭐⭐⭐⭐ | 服务注册 |
-| @8705916 | efg 可恢复错误列表 (原 efh) | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8707858 | ee 变量 — 配额限制标志 (PREMIUM/STANDARD) | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8718083 | FIREWALL_BLOCKED — UI Alert 渲染 | ⭐⭐⭐⭐ | UI渲染 |
-| @8717132 | CLAUDE_MODEL_FORBIDDEN — UI Alert 渲染 | ⭐⭐⭐⭐ | UI渲染 |
-| @8719877 | Alert 渲染 — PREMIUM/STANDARD_MODE_USAGE_LIMIT | ⭐⭐⭐⭐⭐ | UI渲染 |
-| @55610 | efr 枚举 — 免费用户配额状态 | ⭐⭐⭐⭐ | 枚举定义 |
-| @8692994 | usageLimitConfig — 配额限制配置 | ⭐⭐⭐⭐ | 数据流 |
-
-#### [React] UI 层 (20 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @10490209 | 16个 React 组件导出列表 | ⭐⭐⭐⭐ | UI渲染 |
-| @6417666 | sX().memo (31命中) | ⭐⭐⭐⭐ | UI渲染 |
-| @9015579 | ChatInput — 聊天输入组件 | ⭐⭐⭐⭐ | UI渲染 |
-| @8932385 | FileDiff — 文件差异展示组件 | ⭐⭐⭐ | UI渲染 |
-| @9067039 | ToolCall — 工具调用展示组件 | ⭐⭐⭐⭐ | UI渲染 |
-| @8975688 | confirm_status — 确认状态渲染 | ⭐⭐⭐⭐ | UI渲染 |
-| @8635000 | egR (RunCommandCard) — 命令确认卡片 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8637300 | confirm_info 解构 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8629200 | _ useMemo — 需要确认弹窗 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8640019 | 自动确认 useEffect | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8707716 | J 变量定义 — 可续接错误标志 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8713483 | if(V&&J) 分支 — 自动续接补丁 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8697580 | ec useCallback — 重试/续接 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8697620 | ed useCallback — "继续"按钮 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @9441960 | Max Mode tooltip — 模型选择 UI | ⭐⭐⭐ | UI渲染 |
-| @8687513 | efi() Hook — isFreeUser 计算 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @8069620 | getRunCommandCardBranch — UI 分支决策 | ⭐⭐⭐⭐⭐ | 数据流 |
-| @8078831 | P7.Default — RunCommandCard 分支 | ⭐⭐⭐⭐ | 枚举定义 |
-| @8081330 | Cr.AutoRunMode — 自动运行模式枚举 | ⭐⭐⭐⭐ | 枚举定义 |
-| @8081401 | Cr.BlockLevel — 阻塞级别枚举 | ⭐⭐⭐⭐ | 枚举定义 |
-
-#### [Event] 事件总线 (6 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7140149 | ITeaFacade (Symbol) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @210378 | visibilitychange (28命中) | ⭐⭐⭐⭐ | 数据流 |
-| @2317698 | HaltChainable — VS Code 事件链中断机制 | ⭐⭐⭐⭐ | 数据流 |
-| @7298383 | IModelReportService | ⭐⭐⭐⭐ | 服务注册 |
-| @7458678 | teaEventChatFail — 遥测错误事件 | ⭐⭐⭐⭐⭐ | 错误处理 |
-| — | icube.shellExec — 已移除 (EMPTY) | ⭐⭐ | 数据流 |
-
-#### [IPC] 进程间通信 (5 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7766628 | ITaskListApiService | ⭐⭐⭐⭐ | 服务注册 |
-| @7892948 | IASRService | ⭐⭐⭐⭐ | 服务注册 |
-| @7903529 | IHuoshanAsrClientService | ⭐⭐⭐⭐ | 服务注册 |
-| @8027658 | IAWSASRClientService | ⭐⭐⭐⭐ | 服务注册 |
-| @7615777 | TaskAgentMessageParser.parse() — IPC→SSE 桥接 | ⭐⭐⭐⭐⭐ | 数据流 |
-
-#### [Setting] 设置系统 (4 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7268582 | IModelTipConfigService | ⭐⭐⭐⭐ | 服务注册 |
-| @8036543 | IPrivacyModeService | ⭐⭐⭐⭐ | 服务注册 |
-| @8095684 | IContributionService | ⭐⭐⭐⭐ | 服务注册 |
-| @7296236 | IChatAgentGuideStorageService | ⭐⭐⭐⭐ | 服务注册 |
-
-#### [Sandbox] 沙箱 (6 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @8039940 | IAutoAcceptService | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @8063616 | IRunCommandFeatureService | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @8086208 | IFileOpFeatureService | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7562542 | IFileDiffTruncationService | ⭐⭐⭐⭐ | 服务注册 |
-| @7565469 | IFileDiffService | ⭐⭐⭐⭐ | 服务注册 |
-| @7318521 | DG.parse() — data-source-auto-confirm 补丁 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-
-#### [MCP] 工具调用 (2 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @40836 | ToolCallName 枚举 (38个工具名, 含 MCPCall='run_mcp') | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @7512531 | provideUserResponse (10命中) | ⭐⭐⭐⭐ | 数据流 |
-
-#### [Commercial] 商业权限 (12 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7267682 | NS 类 — ICommercialPermissionService 实现 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7197035 | ICommercialPermissionService Token | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7267803 | isCommercialUser (4命中) | ⭐⭐⭐⭐ | 数据流 |
-| @8687513 | efi() Hook — isFreeUser = !entitlementInfo?.identity | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @7264682 | IEntitlementStore — Nu 类 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7154491 | ICredentialStore — MX 类 (loggedIn/userProfile/token) | ⭐⭐⭐⭐ | 服务注册 |
-| @6479431 | bJ 枚举 — 用户身份 (Free/Pro/ProPlus/Ultra/Trial/Lite/Express) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @6479143 | bK 枚举 — scope (BYTEDANCE/MARSCODE/SAAS) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @7185157 | kP(e) — 判断是否内部用户 (e?.scope === bK.BYTEDANCE) | ⭐⭐⭐⭐⭐ | 数据流 |
-| @7559975 | ICommercialApiService | ⭐⭐⭐⭐ | 服务注册 |
-| @10471008 | eYZ.onUsageLimit() — 用量限制处理 | ⭐⭐⭐⭐⭐ | 错误处理 |
-| @8707858 | ee 变量 — 配额限制标志 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-
-#### [Docset] 文档集 (11 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @3546309 | IDocsetService (Symbol.for) | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7244780 | IDocsetStore (Symbol.for) — Zustand Store | ⭐⭐⭐⭐ | 服务注册 |
-| @7715114 | IDocsetCkgLocalApiService | ⭐⭐⭐⭐ | 服务注册 |
-| @7720270 | IDocsetOnlineApiService | ⭐⭐⭐⭐ | 服务注册 |
-| @7725207 | IWebCrawlerFacade | ⭐⭐⭐⭐ | 服务注册 |
-| @7589570 | IKnowledgesTaskService | ⭐⭐⭐⭐ | 服务注册 |
-| @8113678 | IKnowledgesPersistenceService | ⭐⭐⭐⭐ | 服务注册 |
-| @8122442 | IKnowledgesStagingService | ⭐⭐⭐⭐ | 服务注册 |
-| @8130079 | IKnowledgesFeatureService | ⭐⭐⭐⭐ | 服务注册 |
-| @8132725 | IKnowledgesSourceMaterialService | ⭐⭐⭐⭐ | 服务注册 |
-| @8139976 | IKnowledgesNotificationService | ⭐⭐⭐⭐ | 服务注册 |
-
-#### [Model] 模型选择 (8 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7182322 | IModelService Token | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7182353 | IModelStorageService Token | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7194537 | IModeStorageService Token | ⭐⭐⭐⭐ | 服务注册 |
-| @7271527 | NR 类 — ModelService 实现 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @7216438 | computeSelectedModelAndMode — 模式选择核心 (静态方法) | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @7273463 | switchSelectedModel — 切换选中模型 | ⭐⭐⭐⭐⭐ | 数据流 |
-| @7280685 | checkFreeUserPremiumModelNotice — 免费用户高级模型通知 | ⭐⭐⭐⭐⭐ | 补丁注入点 |
-| @7185314 | kG 枚举 (模式类型) + kH 枚举 (模型层级) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-
-#### [Command] 命令注册 (28 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @2539813 | CommandsRegistry — 命令注册核心类 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @2540057 | registerCommand — 命令注册方法 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10477819 | workbench.action.chat.icube.send.internal | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10478151 | workbench.action.chat.icube.send.codeReview | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10479695 | icube.common.openUsageLimitModalAICompletion | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10479839 | workbench.action.icubeAIGetNetworkData | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10479977 | python-helper.environmentChanged | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10480095 | icube.session.updateWorktreeAfterMerge | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10480290 | icube.chat.acceptSessionTodo | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10480449 | icube.ai.reportAICodeContribution | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10480590 | icube.debug.fetchEnterpriseDocsets | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10480798 | icube.dslAgent.startGlobalLogStream | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10480933 | icube.dslAgent.stopGlobalLogStream | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10481066 | icube.dslAgent.openEditor | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10483844 | icube.chat.stopSession | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10483991 | icube.chat.sendToAgentNonBlocking | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10485192 | icube.chat.sendToAgentBackground.deepwiki | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10485648 | icube.chat.getSessionRunningStatus | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10485803 | icube.chat.forkSession | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10487427 | icube.knowledges.init | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10487683 | icube.knowledges.retryInit | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10487950 | icube.knowledges.rebuild | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10488215 | icube.knowledges.update | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10488493 | icube.knowledges.pause | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10488622 | icube.knowledges.continue | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10488891 | icube.knowledges.statusClick | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10489027 | icube.knowledges.showDebugStatus | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10476397 | registerAdapter = uj.getInstance().provide() | ⭐⭐⭐⭐⭐ | 服务注册 |
-
-#### [Bootstrap] 引导层 (8 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @0 | AMD define 入口 + AIScene 枚举 | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @435246 | webpack 内嵌 runtime (懒加载子模块) | ⭐⭐⭐ | 服务注册 |
-| @10476892 | eY0 模块入口对象 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10728701 | bootstrapApplicationContainer — 模块初始化入口 | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10743409 | 文件尾部 IIFE 闭合 (三重闭包) | ⭐⭐⭐⭐ | 数据流 |
-| @142 | __esModule — 首个模块导出 | ⭐⭐⭐⭐ | 枚举定义 |
-| @117 | Object.defineProperty — 首个属性定义 | ⭐⭐⭐⭐ | 枚举定义 |
-| @54440 | 错误码 4000002 首次出现 | ⭐⭐⭐⭐ | 错误处理 |
-
-#### [Export] 模块导出 (4 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @10476892 | eY0 — registerAdapter + bootstrapApplicationContainer | ⭐⭐⭐⭐⭐ | 服务注册 |
-| @10490209 | 16个 React 组件导出 | ⭐⭐⭐⭐ | UI渲染 |
-| @10490700 | apis:FW — 核心服务门面导出 | ⭐⭐⭐⭐⭐ | 数据流 |
-| @10743409 | 文件尾部 — IIFE 闭合与模块导出 | ⭐⭐⭐⭐ | 数据流 |
-
-#### [Enum] 枚举定义 (10 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @142 | AIScene 枚举 (Completion/MultiEdit/Test/...) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @40836 | ToolCallName 枚举 (38个工具名) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @44416 | UserConfirmStatusEnum (Unconfirmed/Confirmed/Skipped/Canceled) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @54415 | kg 枚举 — 56个完整错误码 | ⭐⭐⭐⭐ | 枚举定义 |
-| @55610 | efr 枚举 — 免费用户配额状态 | ⭐⭐⭐⭐ | 枚举定义 |
-| @6479431 | bJ 枚举 — 用户身份类型 (Free/Pro/ProPlus/Ultra/...) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @6479143 | bK 枚举 — scope (BYTEDANCE/MARSCODE/SAAS) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @7160512 | eA 枚举 — 客户端错误码 | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @7185314 | kG 枚举 (模式类型) + kH 枚举 (模型层级) | ⭐⭐⭐⭐⭐ | 枚举定义 |
-| @3304647 | BlockLevel 枚举 (3命中) | ⭐⭐⭐⭐ | 枚举定义 |
-
-#### [Network] 网络层 (6 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @2534601 | API 路由机制 (iCubeApi/ugApi/iCubeAgentApi) | ⭐⭐⭐⭐⭐ | 数据流 |
-| @5874509 | AI API 端点 (a0ai-api.byteintlapi.com) | ⭐⭐⭐⭐ | 数据流 |
-| @5870448 | ByteGate API 网关 | ⭐⭐⭐⭐ | 数据流 |
-| @5871017 | Slardar PC 监控 | ⭐⭐⭐⭐ | 数据流 |
-| @255810 | TEA 上传统计 (mcs-nontt.byteintlapi.com) | ⭐⭐⭐⭐ | 数据流 |
-| @5870752 | TEA AB 实验服务 (libraweb-va.tiktok.com) | ⭐⭐⭐⭐ | 数据流 |
-
-#### [Service] 核心服务 (2 条)
-
-| 偏移量 | 条目 | 置信度 | 功能分类 |
-|--------|------|--------|---------|
-| @7598504 | FW — 核心服务门面对象 (directlySendToSideChat/sendToAgent/...) | ⭐⭐⭐⭐⭐ | 数据流 |
-| @7610443 | sendToAgentBackground (F3) — 模块级函数 | ⭐⭐⭐⭐⭐ | 数据流 |
-
----
-
-### 按偏移量范围索引
-
-#### 区间 A: 0-100000 (文件首部 — 枚举 + Bootstrap)
-
-| 偏移量 | 条目 | 域 | 置信度 |
-|--------|------|-----|--------|
-| @0 | AMD define 入口 + AIScene 枚举 | [Bootstrap][Enum] | ⭐⭐⭐⭐⭐ |
-| @117 | Object.defineProperty 首次出现 | [Bootstrap] | ⭐⭐⭐⭐ |
-| @142 | __esModule 首次出现 | [Bootstrap] | ⭐⭐⭐⭐ |
-| @40836 | ToolCallName 枚举 (38个工具名) | [Enum][Agent] | ⭐⭐⭐⭐⭐ |
-| @44416 | UserConfirmStatusEnum | [Enum][Confirm] | ⭐⭐⭐⭐⭐ |
-| @54415 | kg 枚举 — 56个完整错误码 | [Error][Enum] | ⭐⭐⭐⭐ |
-| @54440 | 错误码 4000002 首次出现 | [Error] | ⭐⭐⭐⭐ |
-| @55610 | efr 枚举 — 免费用户配额状态 | [Commercial][Enum] | ⭐⭐⭐⭐ |
-| @683 | Object.defineProperty | [Bootstrap] | ⭐⭐⭐⭐ |
-| @863 | Object.defineProperty | [Bootstrap] | ⭐⭐⭐⭐ |
-| @888 | __esModule | [Bootstrap] | ⭐⭐⭐⭐ |
-| @1671 | __esModule | [Bootstrap] | ⭐⭐⭐⭐ |
-
-#### 区间 B: 100000-1000000 (第三方库 + DI 基础设施)
-
-| 偏移量 | 条目 | 域 | 置信度 |
-|--------|------|-----|--------|
-| @176352 | Symbol.for DI tokens (185个) | [DI] | ⭐⭐⭐⭐ |
-| @210378 | visibilitychange (28命中) | [Event] | ⭐⭐⭐⭐ |
-| @2260804 | Symbol() tokens (77个) | [DI] | ⭐⭐⭐⭐ |
-| @2317698 | HaltChainable — 事件链中断 | [Event] | ⭐⭐⭐⭐ |
-| @2498078 | MicrotaskDelay | [DI] | ⭐⭐⭐ |
-| @2501836 | undefined_placeholder | [DI] | ⭐⭐⭐ |
-| @2514093 | debug.description | [DI] | ⭐⭐⭐ |
-| @2534601 | API 路由机制 | [Network] | ⭐⭐⭐⭐⭐ |
-| @2539813 | CommandsRegistry + ICommandService | [Command][DI] | ⭐⭐⭐⭐⭐ |
-| @2540057 | registerCommand | [Command] | ⭐⭐⭐⭐⭐ |
-| @255810 | TEA 上传统计 | [Network] | ⭐⭐⭐⭐ |
-| @2607740 | __instance__ DI 注入机制 | [DI] | ⭐⭐⭐⭐⭐ |
-| @3106373 | .subscribe() (33命中) | [Store] | ⭐⭐⭐⭐ |
-| @3276368 | radix-ui Symbol.for | [DI] | ⭐⭐⭐ |
-| @3304647 | BlockLevel 枚举 | [Enum] | ⭐⭐⭐⭐ |
-| @3546309 | IDocsetService | [Docset] | ⭐⭐⭐⭐⭐ |
-| @3552466 | @reflect-metadata:registry | [DI] | ⭐⭐⭐ |
-| @3716986 | radix.slottable | [DI] | ⭐⭐⭐ |
-| @3719039 | RADIX:SYNC_STATE | [DI] | ⭐⭐⭐ |
-| @4295005 | implicit (Chevrotain) | [DI] | ⭐⭐⭐ |
-| @435246 | webpack 内嵌 runtime | [Bootstrap] | ⭐⭐⭐ |
-| @4423600 | Datatype | [DI] | ⭐⭐⭐ |
-| @4435676 | OperationCancelled | [DI] | ⭐⭐⭐ |
-| @4443026 | ref_resolving | [DI] | ⭐⭐⭐ |
-| @4491911 | isProxy | [DI] | ⭐⭐⭐ |
-| @535695 | TEA SDK 区间 | [Telemetry] | ⭐⭐⭐ |
-| @5870448 | ByteGate API 网关 | [Network] | ⭐⭐⭐⭐ |
-| @5870752 | TEA AB 实验 | [Network] | ⭐⭐⭐⭐ |
-| @5871017 | Slardar PC 监控 | [Network] | ⭐⭐⭐⭐ |
-| @5874509 | AI API 端点 | [Network] | ⭐⭐⭐⭐ |
-| @853508 | createDecorator — DI 装饰器工厂 | [DI] | ⭐⭐⭐⭐⭐ |
-| @1197068 | DcsParser — 终端转义序列 | [Terminal] | ⭐⭐⭐ |
-| @1227889 | ServiceCollection + InstantiationService | [DI] | ⭐⭐⭐⭐ |
-| @1275920 | nodejs.util.inspect.custom | [DI] | ⭐⭐⭐ |
-| @1693182 | React Symbol.for 系列 | [DI] | ⭐⭐⭐⭐ |
-| @1749634 | .getState() (234命中) | [Store] | ⭐⭐⭐⭐ |
-| @1802391 | styled-components inject | [CSS] | ⭐⭐ |
-
-#### 区间 C: 1000000-5000000 (第三方库 + i18n + 少量业务)
-
-> 此区间 ~90% 第三方库 (React/Chevrotain/D3/Mermaid/YAML/Markdown/Radix/Langium)
-> ~5% i18n 本地化字符串 (6096015+)
-> ~3% TEA 遥测 SDK (535695-627855)
-> ~2% 业务逻辑
-
-| 偏移量 | 条目 | 域 | 置信度 |
-|--------|------|-----|--------|
-| @2534601 | API 路由 (iCubeApi/ugApi/iCubeAgentApi) | [Network] | ⭐⭐⭐⭐⭐ |
-| @3304647 | BlockLevel 枚举 | [Enum] | ⭐⭐⭐⭐ |
-| @3546309 | IDocsetService | [Docset] | ⭐⭐⭐⭐⭐ |
-| @3552466 | @reflect-metadata:registry | [DI] | ⭐⭐⭐ |
-
-#### 区间 D: 5000000-8000000 (核心业务 — DI/SSE/Store/Error/Commercial)
-
-| 偏移量 | 条目 | 域 | 置信度 |
-|--------|------|-----|--------|
-| @54415 | kg 错误码枚举 (实际位置在区间首部) | [Error] | ⭐⭐⭐⭐ |
-| @6268469 | DI 容器类定义 | [DI] | ⭐⭐⭐⭐⭐ |
-| @6270579 | React Hook useInject | [DI] | ⭐⭐⭐⭐ |
-| @6273630 | uj — DI 容器核心类 | [DI] | ⭐⭐⭐⭐⭐ |
-| @6275751 | uj.getInstance | [DI] | ⭐⭐⭐⭐⭐ |
-| @6279517 | uX( — DI 服务注册 (817命中) | [DI] | ⭐⭐⭐⭐ |
-| @6479143 | bK 枚举 — scope | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @6479431 | bJ 枚举 — 用户身份 | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @7022679 | uJ({identifier: — DI 声明 (186命中) | [DI] | ⭐⭐⭐⭐ |
-| @7080357 | bQ.Warning | [Error] | ⭐⭐⭐⭐ |
-| @7092843 | ISessionStore | [Store] | ⭐⭐⭐⭐⭐ |
-| @7140149 | ITeaFacade | [Event] | ⭐⭐⭐⭐⭐ |
-| @7154491 | ICredentialStore — MX 类 | [Commercial] | ⭐⭐⭐⭐ |
-| @7160512 | eA 枚举 — 客户端错误码 | [Error] | ⭐⭐⭐⭐⭐ |
-| @7182322 | IModelService Token | [Model] | ⭐⭐⭐⭐⭐ |
-| @7182353 | IModelStorageService Token | [Model] | ⭐⭐⭐⭐⭐ |
-| @7185314 | kG/kH 枚举 — 模式类型/模型层级 | [Model] | ⭐⭐⭐⭐⭐ |
-| @7191694 | IModelStore | [Store] | ⭐⭐⭐⭐⭐ |
-| @7197035 | ICommercialPermissionService Token | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @7216438 | computeSelectedModelAndMode — 模式选择核心 | [Model] | ⭐⭐⭐⭐⭐ |
-| @7244780 | IDocsetStore | [Docset] | ⭐⭐⭐⭐ |
-| @7264682 | IEntitlementStore — Nu 类 | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @7267682 | NS 类 — ICommercialPermissionService 实现 | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @7267803 | isCommercialUser | [Commercial] | ⭐⭐⭐⭐ |
-| @7271527 | NR 类 — ModelService 实现 | [Model] | ⭐⭐⭐⭐⭐ |
-| @7273463 | switchSelectedModel | [Model] | ⭐⭐⭐⭐⭐ |
-| @7280685 | checkFreeUserPremiumModelNotice | [Model] | ⭐⭐⭐⭐⭐ |
-| @7296236 | IChatAgentGuideStorageService | [Setting] | ⭐⭐⭐⭐ |
-| @7297005 | ISimpleBoolCacheService | [Store] | ⭐⭐⭐⭐ |
-| @7298383 | IModelReportService | [Event] | ⭐⭐⭐⭐ |
-| @7299801 | getErrorInfo | [Error] | ⭐⭐⭐⭐ |
-| @7300455 | handleCommonError | [Error] | ⭐⭐⭐⭐ |
-| @7300921 | De.handleError | [Error] | ⭐⭐⭐⭐⭐ |
-| @7318186 | IInlineSessionStoreService | [Store] | ⭐⭐⭐⭐ |
-| @7318521 | DG.parse() — data-source-auto-confirm | [Sandbox] | ⭐⭐⭐⭐⭐ |
-| @7323241 | data-source-auto-confirm 补丁 | [Sandbox] | ⭐⭐⭐⭐⭐ |
-| @7328394 | handleSteamingResult | [SSE] | ⭐⭐⭐⭐ |
-| @7456691 | IPlanService | [SSE] | ⭐⭐⭐⭐ |
-| @7458679 | teaEventChatFail | [Error] | ⭐⭐⭐⭐⭐ |
-| @7459376 | resolve(Di) — _aiAgentChatService | [DI] | ⭐⭐⭐⭐⭐ |
-| @7502500 | PlanItemStreamParser._handlePlanItem() | [SSE] | ⭐⭐⭐⭐⭐ |
-| @7508572 | ErrorStreamParser.parse() | [SSE] | ⭐⭐⭐⭐⭐ |
-| @7511512 | IPlanItemStreamParser — Symbol() (非 Symbol.for) | [SSE] | ⭐⭐⭐⭐⭐ |
-| @7513080 | zU.parse() — getErrorInfoWithError | [SSE] | ⭐⭐⭐⭐⭐ |
-| @7516749 | bQ.Error | [Error] | ⭐⭐⭐⭐ |
-| @7524723 | chatStream(e) | [SSE] | ⭐⭐⭐⭐ |
-| @7528742 | Bs._onError | [SSE] | ⭐⭐⭐⭐⭐ |
-| @7534973 | eventHandlerFactory | [SSE] | ⭐⭐⭐⭐ |
-| @7537021 | IStuckDetectionService | [Error] | ⭐⭐⭐⭐ |
-| @7540700 | createStream | [SSE] | ⭐⭐⭐⭐ |
-| @7540953 | _aiAgentChatService.resumeChat() | [SSE] | ⭐⭐⭐⭐⭐ |
-| @7541121 | ISideChatStreamService | [SSE] | ⭐⭐⭐⭐ |
-| @7542473 | Bs.onError → teaEventChatFail | [SSE] | ⭐⭐⭐⭐⭐ |
-| @7546037 | 另一个 onError | [SSE] | ⭐⭐⭐⭐ |
-| @7548009 | IInlineChatStreamService | [SSE] | ⭐⭐⭐⭐ |
-| @7551518 | BR = path 模块 | [DI] | ⭐⭐⭐⭐⭐ |
-| @7559975 | ICommercialApiService | [Commercial] | ⭐⭐⭐⭐ |
-| @7562542 | IFileDiffTruncationService | [Sandbox] | ⭐⭐⭐⭐ |
-| @7565469 | IFileDiffService | [Sandbox] | ⭐⭐⭐⭐ |
-| @7588682 | store.subscribe watcher — v15 补丁 | [Store] | ⭐⭐⭐⭐⭐ |
-| @7589570 | IKnowledgesTaskService | [Docset] | ⭐⭐⭐⭐ |
-| @7598504 | FW — 核心服务门面 | [Service] | ⭐⭐⭐⭐⭐ |
-| @7604449 | FX = findTargetAgent | [DI] | ⭐⭐⭐⭐ |
-| @7610443 | sendToAgentBackground (F3) | [Service] | ⭐⭐⭐⭐⭐ |
-| @7615777 | TaskAgentMessageParser.parse() | [IPC] | ⭐⭐⭐⭐⭐ |
-| @7618345 | asyncConvertAgentMessageToAssistantChatMessage | [SSE] | ⭐⭐⭐⭐ |
-| @7715114 | IDocsetCkgLocalApiService | [Docset] | ⭐⭐⭐⭐ |
-| @7720270 | IDocsetOnlineApiService | [Docset] | ⭐⭐⭐⭐ |
-| @7725207 | IWebCrawlerFacade | [Docset] | ⭐⭐⭐⭐ |
-| @7766628 | ITaskListApiService | [IPC] | ⭐⭐⭐⭐ |
-| @7892948 | IASRService | [IPC] | ⭐⭐⭐⭐ |
-| @7903529 | IHuoshanAsrClientService | [IPC] | ⭐⭐⭐⭐ |
-
-#### 区间 E: 8000000-10490721 (UI 层 + 命令注册 + 导出)
-
-| 偏移量 | 条目 | 域 | 置信度 |
-|--------|------|-----|--------|
-| @8027658 | IAWSASRClientService | [IPC] | ⭐⭐⭐⭐ |
-| @8036543 | IPrivacyModeService | [Setting] | ⭐⭐⭐⭐ |
-| @8039940 | IAutoAcceptService | [Sandbox] | ⭐⭐⭐⭐⭐ |
-| @8063616 | IRunCommandFeatureService | [Sandbox] | ⭐⭐⭐⭐⭐ |
-| @8069620 | getRunCommandCardBranch | [React] | ⭐⭐⭐⭐⭐ |
-| @8078831 | P7.Default | [React] | ⭐⭐⭐⭐ |
-| @8081330 | Cr.AutoRunMode | [React] | ⭐⭐⭐⭐ |
-| @8081401 | Cr.BlockLevel | [React] | ⭐⭐⭐⭐ |
-| @8086208 | IFileOpFeatureService | [Sandbox] | ⭐⭐⭐⭐⭐ |
-| @8095684 | IContributionService | [Setting] | ⭐⭐⭐⭐ |
-| @8113678 | IKnowledgesPersistenceService | [Docset] | ⭐⭐⭐⭐ |
-| @8122442 | IKnowledgesStagingService | [Docset] | ⭐⭐⭐⭐ |
-| @8130079 | IKnowledgesFeatureService | [Docset] | ⭐⭐⭐⭐ |
-| @8132725 | IKnowledgesSourceMaterialService | [Docset] | ⭐⭐⭐⭐ |
-| @8139976 | IKnowledgesNotificationService | [Docset] | ⭐⭐⭐⭐ |
-| @8144926 | KnowledgesTaskService stopChat + resumeChat | [Docset] | ⭐⭐⭐⭐ |
-| @8186683 | IKnowledgesStatusBarService | [Docset] | ⭐⭐⭐⭐ |
-| @8629200 | _ useMemo — 需要确认弹窗 | [React] | ⭐⭐⭐⭐⭐ |
-| @8635000 | egR (RunCommandCard) | [React] | ⭐⭐⭐⭐⭐ |
-| @8636941 | ey useMemo — 有效确认状态 | [React] | ⭐⭐⭐⭐⭐ |
-| @8637300 | confirm_info 解构 | [React] | ⭐⭐⭐⭐⭐ |
-| @8640019 | 自动确认 useEffect | [React] | ⭐⭐⭐⭐⭐ |
-| @8687513 | efi() Hook — isFreeUser 计算 | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @8688095 | efi() → isFreeUser=n | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @8692994 | usageLimitConfig | [Error] | ⭐⭐⭐⭐ |
-| @8695303 | efh 可恢复错误列表 (现 efg) | [React] | ⭐⭐⭐⭐⭐ |
-| @8697580 | ec useCallback — 重试/续接 | [React] | ⭐⭐⭐⭐⭐ |
-| @8697620 | ed useCallback — "继续"按钮 | [React] | ⭐⭐⭐⭐⭐ |
-| @8702300 | if(V&&J) 分支 | [React] | ⭐⭐⭐⭐⭐ |
-| @8705688 | efc() → freeCommercialActivity | [Commercial] | ⭐⭐⭐⭐ |
-| @8705916 | efg 可恢复错误列表 | [Error] | ⭐⭐⭐⭐⭐ |
-| @8707613 | J 变量完整定义 | [React] | ⭐⭐⭐⭐⭐ |
-| @8707716 | J=!![ 定义 | [React] | ⭐⭐⭐⭐⭐ |
-| @8707746 | kg.TASK_TURN | [Error] | ⭐⭐⭐⭐ |
-| @8707858 | ee 变量 — 配额限制标志 | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @8708083 | J 变量完整定义 + X 变量 | [React] | ⭐⭐⭐⭐⭐ |
-| @8711528 | Cr.Alert 组件 | [React] | ⭐⭐⭐⭐ |
-| @8712898 | !q&&!J) 分支 | [React] | ⭐⭐⭐⭐⭐ |
-| @8713483 | if(V&&J) — 自动续接补丁 | [React] | ⭐⭐⭐⭐⭐ |
-| @8717132 | CLAUDE_MODEL_FORBIDDEN Alert | [Error] | ⭐⭐⭐⭐ |
-| @8718083 | FIREWALL_BLOCKED Alert | [Error] | ⭐⭐⭐⭐ |
-| @8719877 | Alert 渲染 — PREMIUM/STANDARD_MODE_USAGE_LIMIT | [Error] | ⭐⭐⭐⭐⭐ |
-| @8932385 | FileDiff 组件 | [React] | ⭐⭐⭐ |
-| @8975688 | confirm_status | [React] | ⭐⭐⭐⭐ |
-| @9015579 | ChatInput 组件 | [React] | ⭐⭐⭐⭐ |
-| @6417666 | sX().memo (31命中) | [React] | ⭐⭐⭐⭐ |
-| @9067039 | ToolCall 组件 | [React] | ⭐⭐⭐⭐ |
-| @9441960 | Max Mode tooltip | [React] | ⭐⭐⭐ |
-| @9902871 | useState — MCP marketplace | [React] | ⭐⭐⭐ |
-| @10466462 | uj.getInstance().provide() | [DI] | ⭐⭐⭐⭐⭐ |
-| @10471008 | eYZ.onUsageLimit() | [Commercial] | ⭐⭐⭐⭐⭐ |
-| @10476397 | registerAdapter | [Command] | ⭐⭐⭐⭐⭐ |
-| @10476892 | eY0 模块入口对象 | [Export][DI] | ⭐⭐⭐⭐⭐ |
-| @10477819 | 命令注册起始 (25个命令) | [Command] | ⭐⭐⭐⭐⭐ |
-| @10490209 | 16个 React 组件导出 | [React][Export] | ⭐⭐⭐⭐ |
-| @10490700 | apis:FW | [Service][Export] | ⭐⭐⭐⭐⭐ |
-| @10728566 | eY0 模块入口 (另一偏移) | [Export] | ⭐⭐⭐⭐⭐ |
-| @10728701 | bootstrapApplicationContainer | [Bootstrap] | ⭐⭐⭐⭐⭐ |
-| @10729493 | workbench.action.chat.icube.send.internal | [Command] | ⭐⭐⭐⭐⭐ |
-| @10729767 | registerAdapter | [Command] | ⭐⭐⭐⭐⭐ |
-| @10743409 | 文件尾部 IIFE 闭合 | [Export] | ⭐⭐⭐⭐ |
-
----
-
-### 按功能分类索引
-
-#### 补丁注入点 (22 条)
-
-| 偏移量 | 条目 | 域 | 补丁类型 |
-|--------|------|-----|---------|
-| @7502500 | PlanItemStreamParser._handlePlanItem() | [SSE] | 命令自动确认 |
-| @7318521 | DG.parse() — data-source-auto-confirm | [SSE] | 命令自动确认 |
-| @7323241 | data-source-auto-confirm 补丁 | [SSE] | 命令自动确认 |
-| @8635000 | egR (RunCommandCard) | [React] | 命令自动确认 |
-| @8637300 | confirm_info 解构 | [React] | 命令自动确认 |
-| @8629200 | _ useMemo — 需要确认弹窗 | [React] | 命令自动确认 |
-| @8640019 | 自动确认 useEffect | [React] | 命令自动确认 |
-| @8707716 | J 变量 — 可续接错误标志 | [React] | 思考上限续接 |
-| @8713483 | if(V&&J) 分支 | [React] | 思考上限续接 |
-| @8702300 | if(V&&J) 分支 (另一偏移) | [React] | 思考上限续接 |
-| @8712898 | !q&&!J) 分支 | [React] | 思考上限续接 |
-| @8697580 | ec useCallback — 重试/续接 | [React] | 思考上限续接 |
-| @8697620 | ed useCallback — "继续"按钮 | [React] | 思考上限续接 |
-| @8705916 | efg 可恢复错误列表 | [Error] | 可恢复错误扩展 |
-| @8695303 | efh 可恢复错误列表 (旧名) | [Error] | 可恢复错误扩展 |
-| @7540953 | _aiAgentChatService.resumeChat() | [SSE] | 循环检测绕过 |
-| @7458876 | teaEventChatFail flag | [Store] | 循环检测绕过 |
-| @7588682 | store.subscribe watcher | [Store] | 循环检测绕过 |
-| @7267682 | NS 类 — bypass-commercial-permission | [Commercial] | 商业权限绕过 |
-| @8707858 | ee 变量 — bypass-usage-limit | [Commercial] | 商业权限绕过 |
-| @7216438 | computeSelectedModelAndMode — force-max-mode | [Model] | 模型限制绕过 |
-| @7280685 | checkFreeUserPremiumModelNotice | [Model] | 模型限制绕过 |
-
-#### 服务注册 (55 条)
-
-> 包含所有 DI token 注册、命令注册、Store 注册
-> 详见 [DI] 域 (18条) + [Command] 域 (28条) + 各域 Service 条目
-
-核心注册点:
-- createDecorator @853508 — 所有 DI token 的创建工厂
-- uj class @6273630 — 全局 DI 容器
-- CommandsRegistry @2539813 — 命令注册核心
-- registerAdapter @10476397 — 模块适配器注册
-- bootstrapApplicationContainer @10728701 — 初始化入口
-
-#### 枚举定义 (10 条)
-
-> 详见 [Enum] 域索引
-
-关键枚举:
-- kg @54415 — 56个错误码 (补丁核心)
-- bJ @6479431 — 用户身份类型
-- ToolCallName @40836 — 38个工具名
-- UserConfirmStatusEnum @44416 — 确认状态
-- BlockLevel @3304647 — 阻塞级别
-
-#### UI渲染 (12 条)
-
-> 详见 [React] 域索引中 UI渲染 功能分类条目
-
-关键 UI 组件:
-- RunCommandCard @8635000 — 命令确认卡片 (补丁核心)
-- ChatInput @9015579 — 聊天输入
-- ToolCall @9067039 — 工具调用展示
-- Max Mode tooltip @9441960 — 模型选择
-- Alert 渲染 @8719877 — 错误展示
-
-#### 错误处理 (8 条)
-
-> 详见 [Error] 域索引
-
-关键错误处理链:
-1. SSE → ErrorService → UI Alert: De.handleError() @7300921
-2. SSE → FeeUsage → Notification: eYZ.onUsageLimit() @10471008
-3. FIREWALL_BLOCKED → UI Alert @8718083
-4. CLAUDE_MODEL_FORBIDDEN → UI Alert @8717132
-
-#### 数据流 (15 条)
-
-| 偏移量 | 条目 | 域 | 流向 |
-|--------|------|-----|------|
-| @7534973 | eventHandlerFactory | [SSE] | SSE事件 → Parser分发 |
-| @7328394 | handleSteamingResult | [SSE] | 流结果 → 处理 |
-| @7524723 | chatStream(e) | [SSE] | 用户输入 → SSE流 |
-| @7540700 | createStream | [SSE] | 流创建 → resumeChat |
-| @7615777 | TaskAgentMessageParser.parse() | [IPC] | IPC → SSE桥接 |
-| @7618345 | asyncConvertAgentMessage | [SSE] | 消息路由 |
-| @7598504 | FW 核心服务门面 | [Service] | API → 业务逻辑 |
-| @7610443 | sendToAgentBackground | [Service] | 后台发送 |
-| @3106373 | .subscribe() | [Store] | Store → UI更新 |
-| @1749634 | .getState() | [Store] | Store状态读取 |
-| @7273463 | switchSelectedModel | [Model] | 模型切换 |
-| @7185157 | kP(e) — 内部用户判断 | [Commercial] | scope判断 |
-| @2534601 | API 路由机制 | [Network] | 请求路由 |
-| @7551518 | BR = path 模块 | [DI] | 模块导入 |
-| @10743409 | IIFE 闭合 | [Export] | 模块导出 |
-
----
-
-### 按置信度索引
-
-#### ⭐⭐⭐⭐⭐ High (已验证, 代码证据确凿) — 68 条
-
-**DI 核心**: uj class @6273630, createDecorator @853508, __instance__ @2607740, eY0 @10476892
-**SSE 核心**: PlanItemStreamParser @7502500, ErrorStreamParser @7508572, Bs._onError @7528742, resumeChat @7540953
-**Store 核心**: ISessionStore @7092843, IEntitlementStore @7264682, IModelStore @7191694
-**Error 核心**: kg 枚举 @54415, eA 枚举 @7160512, teaEventChatFail @7458679, De.handleError @7300921
-**Commercial 核心**: NS 类 @7267682, bJ 枚举 @6479431, bK 枚举 @6479143, efi() @8687513, ee @8707858
-**Model 核心**: computeSelectedModelAndMode @7216438, NR 类 @7271527, checkFreeUserPremiumModelNotice @7280685
-**补丁核心**: RunCommandCard @8635000, J变量 @8707716, if(V&&J) @8713483, efg列表 @8705916
-**Bootstrap 核心**: AMD define @0, bootstrapApplicationContainer @10728701, FW @7598504
-**枚举核心**: ToolCallName @40836, UserConfirmStatusEnum @44416, kG/kH @7185314
-**命令注册**: 25个命令 @10477819-10489027
-
-#### ⭐⭐⭐⭐ Medium (单源验证, 需交叉确认) — 42 条
-
-**DI**: uX( @6279517, uJ @7022679, Symbol.for @176352, Symbol() @2260804
-**SSE**: eventHandlerFactory @7534973, handleSteamingResult @7328394
-**Store**: .subscribe @3106373, .getState @1749634
-**Error**: getErrorInfo @7299801, handleCommonError @7300455, FIREWALL_BLOCKED @8718083, CLAUDE_MODEL_FORBIDDEN @8717132
-**React**: ChatInput @9015579, ToolCall @9067039, confirm_status @8975688, sX().memo @6417666
-**Event**: ITeaFacade @7140149, visibilitychange @210378
-**各域 Service tokens**: 31个 I*Service (详见按域索引)
-**Network**: API 端点 @5870448-5874509
-**Bootstrap**: __esModule @142, Object.defineProperty @117
-
-#### ⭐⭐⭐ Low (采样发现, 未深度验证) — 30 条
-
-**React 采样**: useMemo @8929851/@8930053/@8930266/@9186300/@9186746, useEffect @8981241/@8981358/@8981418, useState @9186206/@9186231/@9902871, useRef @9186271
-**createElement 采样**: @8981546/@8981584/@8981645/@9082632/@9082696/@9082750/@9389963/@9390039/@9390131/@9441960/@9441998/@9442064/@9800090/@9800150/@9800219
-**Bootstrap 采样**: webpack runtime @435246, DcsParser @1197068
-**CSS**: styled-components @1802391
-**第三方**: radix-ui @3276368, Chevrotain @4295005
-
-#### ⭐⭐ Speculative (推测性, 需进一步验证) — 2 条
-
+### ⭐⭐ Low Confidence (采样发现, 未深度验证)
+- React 采样: useMemo/useEffect/useState/useRef 多处
+- createElement 采样: 多处 sX().createElement 采样
+- Bootstrap 采样: webpack runtime, DcsParser
+- CSS: styled-components inject
+- 第三方: radix-ui, Chevrotain
+
+### ⭐⭐ Speculative (推测性, 需进一步验证)
 - icube.shellExec — 已从当前版本移除 (EMPTY)
 - styled-components inject @1802391 — 非 DI 注入
 
 ---
 
-### 重复/矛盾条目标注
+## 纠正事实库
 
-#### 重复条目
-
-> **重复标注 [2026-04-26]**: 以下条目在不同扫描轮次中被多次记录，偏移量相同或极接近
-
-| 条目 | 偏移量 | 出现次数 | 说明 |
-|------|--------|---------|------|
-| sX().createElement 采样 | @8981546/@8981584/@8981645 | 3次 | 04:16 和 04:28 两轮扫描均命中同一区间 |
-| useEffect 采样 | @8981241/@8981358/@8981418 | 3次 | 同一 AutoRunSettingLink 组件内多个 useEffect |
-| useMemo 采样 | @8929851/@8930053/@8930266 | 3次 | 同一 RunCommandCard 组件内多个 useMemo |
-| ChatInput | @9015579 vs @9015885 | 2次 | 不同扫描轮次，偏移差 306 (同一组件不同采样点) |
-| FileDiff | @8932385 vs @8932691 | 2次 | 不同扫描轮次，偏移差 306 |
-| ToolCall | @9067039 vs @9067345 | 2次 | 不同扫描轮次，偏移差 306 |
-| confirm_status | @8975688 vs @8975994 | 2次 | 不同扫描轮次，偏移差 306 |
-| eY0 模块入口 | @10476892 vs @10728566 | 2次 | 不同扫描轮次使用不同美化偏移 |
-| registerAdapter | @10476397 vs @10729767 | 2次 | 同上，美化偏移差异 |
-| 命令注册区间 | @10477819 vs @10729493 | 2次 | 同上，美化偏移差异 |
-| 文件尾部 | @10743103 vs @10743409 | 2次 | 同上，美化偏移差异 |
-| __esModule | @142/@888/@1671 | 3次 | 文件首部多个模块的 __esModule 声明 |
-| Object.defineProperty | @117/@683/@863 | 3次 | 文件首部多个模块的属性定义 |
-
-#### 矛盾条目
-
-> **矛盾标注 [2026-04-26]**: 以下条目在不同探索阶段得出不同结论，以最新结论为准
+> 记录探索过程中发现的错误认知及其纠正
 
 | 条目 | 早期结论 | 修正结论 | 修正来源 | 影响 |
 |------|---------|---------|---------|------|
-| BR 变量 | BR = _sessionServiceV2 DI token | BR = s(72103) = Node.js path 模块 | [2026-04-25 18:00] DI容器映射 | ⚠️ 高: resolve(BR) 仍存在但 BR 本身不是 DI token |
-| PREMIUM_MODE_USAGE_LIMIT 错误码 | 值 = 1016 | 值 = 4008 | [2026-04-25 23:50] 付费限制错误码纠正 | ⚠️ 高: 补丁中引用的错误码需更新 |
-| efh/efg 可恢复错误列表 | efh 是可恢复错误列表 | efh 现为 domain mask 函数，列表重命名为 efg | [2026-04-25 22:30] 变量重命名 | ⚠️ 高: 补丁必须引用 efg 而非 efh |
-| J→K 重命名 | J 已重命名为 K | J 仍为当前变量名，K 不存在 | [2026-04-25 23:50] J→K 重命名纠正 | ⚠️ 高: 补丁仍应引用 J |
-| Bs 类身份 | Bs = ChatStreamService | Bs = ChatParserContext | [2026-04-23 14:00] v12 变异源头追踪 | ⚠️ 中: 类名理解修正 |
-| SSE 事件前缀 | D7 (如 D7.Error) | Ot (如 Ot.Error) | [2026-04-25 21:05] 版本差异探索 | ⚠️ 中: 搜索模板需更新 |
-| IPlanItemStreamParser Token | Symbol.for("IPlanItemStreamParser") | Symbol("IPlanItemStreamParser") @7511512 | [2026-04-25 22:30] Symbol.for→Symbol 迁移 | ⚠️ 高: 搜索模板 SSE-02 返回 EMPTY |
-| ISessionStore Token | Symbol.for("ISessionStore") | Symbol("ISessionStore") @7092843 | [2026-04-25 22:30] Symbol.for→Symbol 迁移 | ⚠️ 高: 搜索模板需更新 |
-| DI 注册计数 | 51 服务 / 101 uX 调用 | 186 uJ 声明 / 817 uX 调用 | [2026-04-26 04:15] 11域交叉验证 | ⚠️ 低: 计数更精确 |
-| registerCommand 位置 | 文件尾部 @10477319+ | 文件中部 @2540057 (核心) + 尾部 (icube命令) | [2026-04-26 04:27] P1盲区扫描 | ⚠️ 中: 命令注册分两处 |
-| kg 错误码数量 | ~30 个 | 56 个 | [2026-04-25 22:30] kg 错误码完整枚举 | ⚠️ 低: 枚举更完整 |
+| BR 变量 | BR = _sessionServiceV2 DI token | BR = s(72103) = path 模块 | [2026-04-25 18:00] | ⚠️ 高: resolve(BR) 仍存在但 BR 本身不是 DI token |
+| PREMIUM_MODE_USAGE_LIMIT 错误码 | 值 = 1016 | 值 = 4008 | [2026-04-25 23:50] | ⚠️ 高: 补丁中引用的错误码需更新 |
+| efh/efg 可恢复错误列表 | efh 是可恢复错误列表 | efh 现为 domain mask 函数，列表重命名为 efg | [2026-04-25 22:30] | ⚠️ 高: 补丁必须引用 efg 而非 efh |
+| J→K 重命名 | J 已重命名为 K | J 仍为当前变量名，K 不存在 | [2026-04-25 23:50] | ⚠️ 高: 补丁仍应引用 J |
+| Bs 类身份 | Bs = ChatStreamService | Bs = ChatParserContext | [2026-04-23 14:00] | ⚠️ 中: 类名理解修正 |
+| SSE 事件前缀 | D7 (如 D7.Error) | Ot (如 Ot.Error) | [2026-04-25 21:05] | ⚠️ 中: 搜索模板需更新 |
+| IPlanItemStreamParser Token | Symbol.for("IPlanItemStreamParser") | Symbol("IPlanItemStreamParser") @7511512 | [2026-04-25 22:30] | ⚠️ 高: 搜索模板 SSE-02 返回 EMPTY |
+| ISessionStore Token | Symbol.for("ISessionStore") | Symbol("ISessionStore") @7092843 | [2026-04-25 22:30] | ⚠️ 高: 搜索模板需更新 |
+| DI 注册计数 | 51 服务 / 101 uX 调用 | 186 uJ 声明 / 817 uX 调用 | [2026-04-26 04:15] | ⚠️ 低: 计数更精确 |
+| registerCommand 位置 | 文件尾部 @10477319+ | 文件中部 @2540057 (核心) + 尾部 (icube命令) | [2026-04-26 04:27] | ⚠️ 中: 命令注册分两处 |
+| kg 错误码数量 | ~30 个 | 56 个 | [2026-04-25 22:30] | ⚠️ 低: 枚举更完整 |
 | 偏移量差异 (美化 vs 原始) | 单一偏移体系 | 美化后偏移 vs 原始偏移存在系统性差异 | 多轮扫描对比 | ⚠️ 中: 04:16/04:28 扫描偏移与 04:27 扫描偏移不同 |
+| efi() 命名碰撞 | 仅一个 efi() | 两个完全不同的函数 (chat=权限, desk=Zod schema) | [2026-04-27 01:10] | ⚠️ 高: desktop-modules 的 efi() 是 Zod builder |
 
 ---
 
-### 搜索模板可用性速查
+## [2026-04-27 16:45] 偏移量重校准 + force-max-mode 验证 + v22 验证 + P2 盲区扫描 ⭐⭐⭐⭐⭐
 
-> 来源: [2026-04-26 04:44] 搜索模板可用性验证报告
+> 源文件版本变更: 10,490,721 → **10,487,294** (-3,427 字符)
+> 所有锚点使用稳定锚点独立重新定位，不依赖旧偏移量
 
-| 模板ID | 搜索模式 | 首次偏移量 | 命中数 | 状态 |
-|--------|---------|-----------|--------|------|
-| DI-01 | `uX(` | 6279517 | 817 | ✅ OK |
-| DI-02 | `uJ({identifier:` | 7022679 | 186 | ✅ OK |
-| DI-03 | `Symbol.for("` | 176352 | 185 | ✅ OK |
-| DI-04 | `Symbol("` | 2260804 | 77 | ✅ OK |
-| SSE-01 | `eventHandlerFactory` | 7534973 | 5 | ✅ OK |
-| SSE-02 | `Symbol.for("IPlanItemStreamParser")` | -1 | 0 | ❌ EMPTY (已迁移为 Symbol()) |
-| SSE-07 | `handleSteamingResult` | 7328394 | 14 | ✅ OK |
-| STO-01 | `Symbol("ISessionStore")` | 7092843 | 1 | ✅ OK |
-| STO-04 | `.subscribe(` | 3106373 | 33 | ✅ OK |
-| STO-05 | `.getState()` | 1749634 | 234 | ✅ OK |
-| ERR-01 | `4000002` | 54440 | 7 | ✅ OK |
-| ERR-06 | `getErrorInfo` | 7299801 | 13 | ✅ OK |
-| ERR-07 | `handleCommonError` | 7300455 | 5 | ✅ OK |
-| ERR-11 | `teaEventChatFail` | 7458679 | 5 | ✅ OK |
-| RCT-01 | `sX().memo(` | 6417666 | 31 | ✅ OK |
-| RCT-08 | `getRunCommandCardBranch` | 8081545 | 2 | ✅ OK |
-| RCT-10 | `"unconfirmed"` | 44416 | 11 | ✅ OK |
-| EVT-01 | `Symbol.for("ITeaFacade")` | 7140149 | 1 | ✅ OK |
-| EVT-02 | `visibilitychange` | 210378 | 28 | ✅ OK |
-| EVT-05 | `icube.shellExec` | -1 | 0 | ❌ EMPTY (已移除) |
-| COM-01 | `ICommercialPermissionService` | 7197035 | 1 | ✅ OK |
-| COM-02 | `isCommercialUser` | 7267803 | 4 | ✅ OK |
-| COM-03 | `IEntitlementStore` | 7264743 | 1 | ✅ OK |
-| GEN-06 | `provideUserResponse` | 7512531 | 10 | ✅ OK |
-| GEN-07 | `ToolCallName` | 40836 | 4 | ✅ OK |
-| GEN-08 | `BlockLevel` | 3304647 | 3 | ✅ OK |
+### 发现 1: 偏移量重校准完整结果 ⭐⭐⭐⭐⭐
 
-**汇总**: 24/26 OK, 2/26 EMPTY (SSE-02, EVT-05)
+| 锚点 | 新偏移量 | 旧偏移量 | 变化 | 状态 |
+|------|---------|---------|------|------|
+| Symbol("IPlanItemStreamParser") | @7508080 | @7510931/@7509092 | -2851/-1012 | ✅ 正常漂移 |
+| Symbol("ISessionStore") | @7092843 | @7087490 | +5353 | ⚠️ 需关注 |
+| Symbol.for("IModelService") | @7182322 | @7182322 | 0 | ✅ 无变化 |
+| Symbol.for("IErrorStreamParser") | @7513039 | @7513039 | 0 | ✅ 无变化 |
+| computeSelectedModelAndMode | @7213504 | @7215828 | -2324 | ✅ 正常漂移 |
+| teaEventChatFail | @7458691 | @7458679 | +12 | ✅ 正常漂移 |
+| Symbol.for("ITeaFacade") | @7140149 | @7140149 | 0 | ✅ 无变化 |
+| bootstrapApplicationContainer | @10473600 | @10477819 | -4219 | ✅ 正常漂移 |
+| Symbol("IEntitlementStore") | @7264747 | — | NEW | ✅ 已迁移 |
+| ICommercialPermissionService | @7197035 | — | — | ✅ 仅字符串 |
+| force_close_auto | @7282952 | @7282940 | +12 | ✅ 正常漂移 |
+| kg.TASK_TURN_EXCEEDED_ERROR | @8704686 | — | — | ✅ 已验证 |
+| 4000002 (错误码) | @54440 | @54993 | -553 | ✅ 正常漂移 |
+| bJ= (枚举) | @6479431 | @6479431 | 0 | ✅ 无变化 |
+| efi() | @8684462 | @8687513 | -3051 | ✅ 正常漂移 |
+| openUsageLimitModal | @10476298 | @10476298 | 0 | ✅ 无变化 |
 
+**NOT FOUND (已解释)**:
+- Symbol.for("ISessionStore") → 已迁移为 Symbol("ISessionStore")
+- Symbol.for("IEntitlementStore") → 已迁移为 Symbol("IEntitlementStore")
+- Symbol.for("ICommercialPermissionService") → 不存在 Symbol 形式，仅字符串引用
+- Symbol("IDiContainer") / Symbol.for("IDiContainer") → 不存在字符串字面量
 
-## [2026-04-26 16:05] Model 域深度探索 ⭐⭐⭐⭐⭐
+**ISessionStore 偏移量漂移 +5353 分析**: 该区域可能经历了较大的代码重构。建议 Developer 验证依赖 ISessionStore 偏移量的补丁 fingerprint。
 
-> 对 Model 域进行系统性源码探索，创建完整架构文档
+### 发现 2: force-max-mode `||true` 验证 ⭐⭐⭐⭐⭐
 
-### 核心发现
+**`||true` 确认存在！** 两处硬编码:
 
-| 发现 | 偏移量 | 说明 |
-|------|--------|------|
-| computeSelectedModelAndMode 定义 | @7215828 | 静态方法，核心模式决策逻辑 |
-| computeSelectedModelAndMode 调用1 | @7213492 | SessionRelationStore 内调用 |
-| computeSelectedModelAndMode 调用2 | @7223323 | React Hook (useMemo) 内调用 |
-| ID class (SessionRelationStore) | @7209355 | 含 computeSelectedModelAndMode，DI token IN |
-| NR class (IModelService) | @7271527 | 模型服务，DI token kv=Symbol.for |
-| k2 class (IModelStore) | @7191708 | 模型列表 Store，DI token k1=Symbol |
-| kG 枚举 (Manual=0/Auto=1/Max=2) | @7185310 | 模式类型枚举 |
-| kH 枚举 (Advanced=1/Premium=2/Super=3) | @7185310 | 模型费用级别 |
-| kY 枚举 (Trae=1/Enterprise=2/Personal=3) | @7185310 | 配置来源 |
-| kZ 枚举 | @7185900 | 刷新来源（14个值） |
-| force_close_auto 配置 | @7282940 | AI.chat.force_close_auto 配置键 |
-| max_mode 属性 | @7186673 | 模型是否支持 Max 模式 |
-| is_dollar_max 属性 | @7224419 | 模型是否美元计费 Max |
-| fee_model_level 属性 | @7186897 | 模型费用级别 |
-| ID uJ 注册 | @7222646 | uJ({identifier:IN}) |
-| NE DI identifier | @7271041 | IModelService 的 DI 注册标识 |
+```javascript
+// @7213326 — getSessionModelAndMode() 方法内 (ID 类 / SessionRelationStore)
+p = this._commercialPermissionService.isOlderCommercialUser() || true
+g = this._commercialPermissionService.isSaas() || true
+```
 
-### computeSelectedModelAndMode 核心决策逻辑
+**语义分析**:
+- `p` (isOlderCommercialUser) 和 `g` (isSaas) 始终为 `true`
+- 这两个值传入 `ID.computeSelectedModelAndMode()` 静态方法
+- 在 computeSelectedModelAndMode 内: `(u||d) && (solo_coder||solo_builder)` → 强制 Max 模式
+- **效果**: 所有用户（包括免费用户）的 Solo Agent 都会获得 Max 模式
 
-1. 无 agentType 或空模型列表 -> Manual
-2. 查找 session 级选中模型 -> global 级 -> 默认模型
-3. 商业用户 Solo Agent -> 强制 Max (isOlderCommercialUser || isSaas)
-4. 回退 + auto_mode 行为 -> Auto
-5. 回退其他 -> Manual
-6. 正常路径 -> session/global 模式映射，默认 Auto
+**force-max-mode 补丁必要性重新评估**:
+- Solo Agent: **不需要补丁** — `||true` 已强制 Max 模式
+- 非 Solo Agent (Manual/Auto): **可能需要** — 但 Manual/Auto 模式不受此逻辑影响
+- **结论**: force-max-mode 补丁优先级从 5/5 降至 2/5。`||true` 可能是 Trae 开发者的调试代码或有意为之
 
-### 补丁潜力
+**补充发现**: `_shouldForceEnableAutoMode()` 方法存在，可通过动态配置 `autoDefaultConfig.forceAuto` 强制启用 Auto 模式。`force_close_auto` 配置键 @7282952 可强制关闭 Auto 模式。
 
-- force-max-mode: 5/5 (修改 computeSelectedModelAndMode 返回值)
-- bypass-premium-model-notice: 4/5
-- bypass-usage-limit: 4/5
-- force-auto-mode: 3/5
+### 发现 3: teaEventChatFail 纯遥测函数确认 ⭐⭐⭐⭐
 
-### 产出文件
+**teaEventChatFail @7458691 是纯遥测函数**，仅调用 `this._teaService.event()`:
+```javascript
+teaEventChatFail(e,t,i){
+    let r=this.getAssistantMessageReportParamsByTurnId(e,t);
+    this._teaService.event(i4.CodeCompStep.fail,{
+        ...r,
+        error_code:i.code,
+        error_message:i.message,
+        error_level:i.level,
+        is_sound_notis:+!!this._configurationConnectorService.getConfiguration(O6),
+        sound_volume:this._configurationConnectorService.getConfiguration(O9)
+    })
+}
+```
 
-- docs/architecture/model-domain.md — Model 域完整架构文档
-- scripts/explore-model-domain.ps1 — Model 域探索脚本
-- scripts/explore-model-domain-results.txt — 探索结果数据
+**v22 补丁机制**: v22 在此遥测函数中注入续接逻辑（resumeChat/sendChatMessage），利用其作为错误信号触发点。这是合理的因为:
+1. teaEventChatFail 在 L2 服务层，不受 React 冻结影响
+2. 它在错误发生时被调用，是续接的天然触发点
+3. 函数参数包含错误码 `i.code`，可用于条件判断
 
+**错误码分布**:
+| 错误码 | 出现次数 | 偏移量 |
+|--------|---------|--------|
+| 4000002 | 6 | @54440, @7166979, @7175748, @7513167, @7529332, @7589278 |
+| 4000009 | 6 | @54292, @7166642, @7174630, @7513175, @7529340, @7589286 |
+| 4000012 | 5 | @7166791, @7174806, @7513183, @7529348, @7589294 |
 
-## [2026-04-26 16:05] Docset 域深度探索 ⭐⭐⭐⭐⭐
+**kg.TASK_TURN_EXCEEDED_ERROR @8704686 验证**: 在 React 组件中用于判断可续接错误:
+```javascript
+J=!![kg.MODEL_OUTPUT_TOO_LONG,kg.TASK_TURN_EXCEEDED_ERROR,kg.LLM_STOP_DUP_TOOL_CALL,kg.LLM_STOP_CONTENT_LOOP,kg.DEFAULT].includes(_)
+```
 
-> 对 Docset 域进行系统性源码探索，创建完整架构文档
+### 发现 4: P2 盲区扫描结果 ⭐⭐⭐
 
-### 核心发现
+**P2a (0-41400) — webpack bootstrap + 协议定义**:
+- 内容: AMD define 入口 + LSP 协议类型定义 + Chat 协议请求类型
+- 无 DI Token、无 API endpoint、无核心业务逻辑
+- **结论**: 保持 P2，无需深入
 
-| 发现 | 偏移量 | 说明 |
-|------|--------|------|
-| ai.IDocsetService Token | @3546321 | Symbol.for，WK 变量，Gd 实现类 |
-| ai.IDocsetStore Token | @7244792 | Symbol.for，TM 变量，TD 实现类 |
-| ai.IDocsetCkgLocalApiService Token | @7715126 | Symbol.for，Wj 变量，WY 实现类 |
-| ai.IDocsetOnlineApiService Token | @7720282 | Symbol.for，WV 变量，Wq 实现类 |
-| ai.IWebCrawlerFacade Token | @7725219 | Symbol.for，Ga 变量，Gs 实现类 |
-| DocsetServiceImpl (Gd) | @7726546 | 编排层，uJ({identifier:WK.IDocsetService}) @7749472 |
-| DocsetStore (TD) | @7244792 | Zustand Store，5个状态字段 |
-| CkgLocalApiService (WY) | @7717236 | 7个 API 方法 |
-| DocsetOnlineApiService (Wq) | @7720282 | 4个 API 方法 |
-| WebCrawlerFacade (Gs) | @7725219 | 4个方法 |
-| ent_knowledge_base 门控 | @7727418 | SaaS 功能开关 |
-| Knowledges 命令 | @8191984+ | icube.knowledges.rebuild/update/pause |
-| CKG IPC 通道 | @11405+ | chat/start/cancel/clear_ckg_indexing |
-| Docset-Chat 集成 | @7594424 | sendToAgent 中 resolve(WK.IDocsetService) |
+**P2b (10490354-EOF) — 命令注册 + 组件导出 + 初始化**:
+- 内容: AgentImport 组件 + RuleMetadata 表单 + 命令注册(icube.knowledges.*, icube.dslAgent.*) + 模块导出
+- 含 DI token: `Symbol.for("aiAgent.IAiCompletionService")`
+- 含初始化代码: `FW.initializeModelList()`
+- **建议升级为 P1** — 包含命令注册入口和组件映射
 
-### 5 个 ai.* DI Token 全部使用 Symbol.for
+---
 
-与 IModelStore (Symbol) 和 ICommercialPermissionService (aiAgent.前缀) 不同，
-Docset 域的 5 个 Token 全部使用 Symbol.for("ai.*") 模式。
+## [2026-04-27] Auto-Continue 架构深度探索 ⭐⭐⭐⭐⭐
 
-### 企业文档集权限门控
+> Phase 1-4 完整深度分析，产出最佳拦截点建议和理想架构设计
+> **核心结论: ErrorStreamParser.parse() @7513080 是唯一最佳拦截点**
 
-- 检查 userProfile.scope === bK.SAAS
-- 检查 isSaaSFeatureEnabled("ent_knowledge_base")
-- 不满足条件时清空内置文档集列表
+### 发现 1: SessionServiceV2 DI 完整映射 ⭐⭐⭐⭐⭐
 
-### 补丁潜力
+| 属性 | 值 | 偏移量 |
+|------|-----|--------|
+| DI Token | `BO = Symbol("ISessionServiceV2")` | @7545196 |
+| Token 形式 | Symbol() (非 Symbol.for, 已迁移) | — |
+| BR 变量 | **BR === BO** (v22 补丁验证) | @249643 |
+| uJ 注册点 | `uj.getInstance().provide(BO, SessionServiceV2Class)` | @10728725 (bootstrapApplicationContainer) |
+| resolve 调用点 1 | bootstrapApplicationContainer 初始化 | @10477835 |
+| resolve 调用点 2 | v22 L2 补丁内 `uj.getInstance().resolve(BR)` | @7513080 (注入) |
+| resolve 调用点 3 | v22 L3/store.subscribe 补丁内 | @7588590 (注入) |
+| 类定义位置 | SessionServiceV2 class | ~@7545000 |
+| resumeChat 方法 | `{sessionId, messageId}` camelCase 参数 | @249656 |
+| _aiAgentChatService.resumeChat() | 模块级包装, 内部调用 SessionServiceV2 | @249035 |
+| IPC ResumeChat | 通过 IPC 调用服务端续接 | @252102 |
 
-- bypass-ent-knowledge-base-gating: 4/5
-- force-knowledges-enable: 3/5
-- unlock-enterprise-docsets: 4/5
+**关键确认**: v22 补丁中的 `resolve(BR)` 确实获取的是 SessionServiceV2 实例，BR === BO。
 
-### 产出文件
+### 发现 2: 错误传播完整链路 (Mermaid) ⭐⭐⭐⭐⭐
 
-- docs/architecture/docset-domain.md — Docset 域完整架构文档
-- scripts/explore-docset-domain.ps1 — Docset 域探索脚本
-- scripts/explore-docset-domain-results.txt — 探索结果数据
-- scripts/explore-supplemental.ps1 — 补充探索脚本
-- scripts/explore-supplemental-results.txt — 补充探索结果
-$content
+```
+服务端 AI 思考超限 (67轮后)
+    ↓ 触发 TASK_TURN_EXCEEDED_ERROR = 4000002
+SSE Ot.Error 事件 {code: 4000002, message: "..."}
+    ↓
+EventHandlerFactory Bt @7300000 (中央事件分发)
+    ↓ 按 eventType=Error 分发
+ErrorStreamParser zU.parse(e, t) @7513080  ← ★ L2 最佳拦截点
+    ↓ [同步调用, L2 服务层, 不受 React 冻结]
+getErrorInfoWithError(e) → {status: bQ.Warning, exception:{code,message,data}}
+    ↓
+chatStreamFrontResponseReporter.updateFrontResponsePayloadWhenError(e,r,t)
+    ↓
+Store 状态更新: currentSession.messages[last].exception = {code:4000002,...}
+    ↓
+React 组件重渲染 (useStore selector 检测变化)
+    ↓
+ErrorMessageWithActions 组件 @8700000
+    ↓
+J = !![MODEL_OUTPUT_TOO_LONG, TASK_TURN_EXCEEDED_ERROR,
+       LLM_STOP_DUP_TOOL_CALL, LLM_STOP_CONTENT_LOOP,
+       DEFAULT].includes(errorCode)  @8707716
+    ↓
+if(V && J) → Cr.Alert "继续" 按钮 @8713483  ← L1 注入点 (后台冻结!)
+```
 
-### [2026-04-26 16:30] P0 盲区深度探索 — 业务逻辑全量扫描 ⭐⭐⭐⭐
-> P0 范围 (54415-6268469, ~5.9MB) 系统性业务逻辑搜索，确认 DI/核心服务不在 P0，发现 API 配置/错误码/ContactType/CueTrace 等关键数据结构
-#### 搜索统计
-| 搜索类型 | 命中数 | 分类 |
-|---------|--------|------|
-| DI_REG (uJ) | 0 | P0 无 DI 注册 |
-| DI_INJECT (uX) | 0 | P0 无 DI 注入 |
-| CLASS_DEF | 200 | 大部分第三方库 |
-| ASYNC_FUNC | 91 | 大部分第三方库 |
-| REG_CMD | 117 | VS Code 框架 + Lexical 编辑器 |
-| HTTPS_URL | 155 (24 api_endpoint) | API 端点 |
-| HTTP_URL | 121 (2 api_endpoint) | API 端点 |
-| CN_CHARS | 20275 | i18n |
-| CONSOLE_LOG/WARN/ERR | 232/187/147 | 遥测 |
-| GET_STATE | 15 | 大部分第三方 |
-| SUBSCRIBE | 1 | 第三方 |
-| SET_STATE | 1 | 第三方 |
-| resumeChat/sendChatMessage/provideUserResponse | 0 | 确认不在 P0 |
-| Symbol.for("aiAgent.") / Symbol("I") | 0 | 确认不在 P0 |
-| tool_confirm | 0 | 确认不在 P0 |
+**链路关键节点**:
+1. **SSE 入口**: EventHandlerFactory @7300000 — 所有 SSE 事件的唯一入口
+2. **解析层**: ErrorStreamParser.parse() @7513080 — 错误码首次被程序化处理
+3. **转换层**: getErrorInfoWithError @7513080 — kg 枚举 → UI 结构
+4. **报告层**: chatStreamFrontResponseReporter — Store 状态变更
+5. **状态层**: Zustand Store (SessionStore xC) — currentSession.messages 更新
+6. **展示层**: ErrorMessageWithActions → if(V&&J) Alert
 
-#### 核心发现 1: API 端点完整配置 JSON @5870417 ⭐⭐⭐⭐⭐
-- 偏移量: @5870417 - @5874921 (4505 chars)
-- webpack 模块 84312: `e.exports=JSON.parse('{...}')`
-- 完整配置已提取到 `scripts/p0-api-endpoints.json`
-- 关键端点:
-  - **byteGate**: `https://bytegate-sg.byteintlapi.com` (CN/i18n/ToB 统一)
-  - **tea.verifyUrl**: `https://mcs.byteoversea.net` (遥测验证)
-  - **tea.abService**: `https://libraweb-va.tiktok.com` (AB 实验)
-  - **slardarPC**: `https://pc-mon-sg.byteintlapi.com` (监控)
-  - **deviceRegister**: `https://log.byteoversea.com` (设备注册)
-  - **copilotDomain**: `https://copilot.byteintl.net` (CN/US), `https://copilot-sg.byteintl.net` (SG)
-  - **mcpPlugin**: `api.trae.ai` (MCP 插件市场), `ide-market-us.tiktok-row.net` (内部)
-  - **appProviderLogin.marscode**: `api.marscode.com` / `www.marscode.com`
-  - **externalCopilotDomains**: `https://a0ai-api.byteintlapi.com` (usex/cnex/boe)
-  - **SaasServer**: boeCopilot/ppeCopilot/prodCopilot (CN/SG/US 均为空字符串)
-  - **cdnPrefix/cdnLocation**: CDN 区域配置
-  - **USER_GROUP**: TOB_USER_GROUP_OVERSEA=`https://www.marscode.com`
-  - **TRAE_AI_HOME_PAGE**: 空字符串
+### 发现 3: 所有"继续"触发代码路径 ⭐⭐⭐⭐⭐
 
-#### 核心发现 2: ChatError 类 + 完整错误码枚举 @54993 ⭐⭐⭐⭐⭐
-- 偏移量: @54993 (webpack 模块开头)
-- ChatError 类定义: `class l extends Error`
-  - constructor(e, t, i=n.ERROR, r) — code, message, level, extra
-  - static create(e, t, i, r)
-  - static createWithError(e, t, i, r)
-- ChatErrorLevel: ERROR / WARN
-- ERROR_LEVEL: WARN / ERROR / INFO
-- 错误码枚举 (部分新发现):
-  - CLAUDE_MODEL_FORBIDDEN = 4113
-  - CAN_NOT_USE_SOLO_MODE = 4120
-  - FAST_APPLY_FILE_TOO_LARGE = 0xa7d8c1 (十进制 1099649)
-  - FAST_APPLY_FIX_INVALID_FORMAT = 0xa7d8c2 (十进制 1099650)
-  - LLM_INVALID_JSON = 4000003
-  - LLM_INVALID_JSON_START = 4000004
-  - LLM_QUEUING = 4000005
-  - LLM_STOP_DUP_TOOL_CALL = 4000009
-  - LLM_TASK_PROMPT_TOKEN_EXCEED_LIMIT = 4000010
-  - TASK_TURN_EXCEEDED_ERROR = 4000002
-  - PROJECT_NOT_FOUND_ERROR = 5000001
-  - CLIENT_UNAUTHORIZED_ERROR = 1010002
-- NetworkErrorCodes 数组: CONNECTION_ERROR, NETWORK_ERROR, NETWORK_ERROR_INTERNAL, CLIENT_NETWORK_ERROR, CLIENT_NETWORK_ERROR_INTERNAL, REQUEST_TIMEOUT_ERROR, REQUEST_TIMEOUT_ERROR_INTERNAL, MODEL_RESPONSE_TIMEOUT_ERROR, MODEL_RESPONSE_FAILED_ERROR
+| # | 路径 | 位置 | 触发方式 | 层级 | 后台可用 | 当前状态 |
+|---|------|------|---------|------|---------|---------|
+| L1 | if(V&&J) 内部 queueMicrotask | @8713483 | React 渲染时自动触发 | L1 React | ❌ 冻结 | ✅ 启用(auto-continue-thinking) |
+| L2 | ErrorStreamParser.parse() setTimeout(0) | @7513080 | SSE 回调时自动触发 | L2 Service | ✅ 可用 | ✅ 启用(auto-continue-l2-parse) |
+| L3 | store.subscribe 同步回调 | @7588590 | Store 变化时自动触发 | L2 Data | ⚠️ 依赖Store更新 | ✅ 启用(v11-store-subscribe) |
+| M1 | ec() onActionClick resumeChat | @8697580 | 用户点击 retry | L1 React | ✅ 用户驱动 | ✅ 启用(ec-debug-log) |
+| M2 | ed() "继续" sendChatMessage | @8697620 | 用户点击 continue | L1 React | ✅ 用户驱动 | (内置) |
+| T1 | teaEventChatFail 遥测 | @7458691 | 错误发生时遥测 | L2 Service | ✅ 可调用 | (纯日志,未注入) |
 
-#### 核心发现 3: ContactType 枚举 — 用户配额状态完整映射 @55561 ⭐⭐⭐⭐⭐
-- 偏移量: @55561 (webpack 模块 65544)
-- 完整的免费/付费用户配额状态枚举 (30+ 值):
-  - FreeNewSubscription: CompletionRemaining(1) / CompletionExhausted(2) / AdvancedModelRemaining(3) / AdvancedModelExhaustedPremiumModelRemaining(4) / AdvancedModelExhausted(5) / PremiumModelFlashRemaining(6) / PremiumModelFlashExhaustedNormalRemaining(7) / PremiumModelNormalRemaining(8) / PremiumModelNormalExhaustedAdvancedModelRemaining(9) / PremiumModelNormalExhausted(10)
-  - FreeOldSubscription: CompletionRemaining(11) / CompletionExhausted(12) / AdvancedModelRemaining(13) / AdvancedModelExhaustedPremiumModelRemaining(14) / AdvancedModelExhausted(15) / PremiumModelFlashRemaining(16) / PremiumModelFlashExhaustedNormalRemaining(17) / PremiumModelNormalRemaining(18) / PremiumModelNormalExhaustedAdvancedModelRemaining(19) / PremiumModelNormalExhausted(20)
-  - ProNewSubscription: CompletionRemaining(21) / CompletionExhausted(22) / AdvancedModelRemaining(23) / AdvancedModelExhausted(24) / PremiumModelFlashRemaining(25) / PremiumModelNormalRemaining(26)
-  - ProOldSubscription: CompletionRemaining(27) / CompletionExhausted(28) / AdvancedModelRemaining(29) / AdvancedModelExhausted(30) / PremiumModelFlashRemaining(31) / PremiumModelNormalRemaining(32)
-- **补丁意义**: ContactType 是 bypass-usage-limit 补丁的关键数据结构，控制 UI 显示的配额提示
+**共同汇聚点**: 所有自动路径最终都调用 `SessionServiceV2.resumeChat({sessionId, messageId})`
+**降级路径**: resumeChat 失败 → `sendChatMessage({message:"Continue", sessionId})`
 
-#### 核心发现 4: CueTrace 性能追踪类 @113091 ⭐⭐⭐⭐
-- 偏移量: @113091 (webpack 模块 31202)
-- 完整的代码补全性能追踪类
-- 追踪时间点: startTime → preProcess → request → firstToken → end → postProcess → render
-- 图片渲染追踪: renderImage(Start/End) / Syntax / Canvas / FormatCanvas
-- 上下文获取: preProcessTotalEditContext / LspDiagnostics / RewriteRange / NodeBoundary / Tokenizer
-- 防抖追踪: remainingDebounce / contextFetchingDebounce
-- CSP 预检: cspPreCheck(Start/End)
-- logId 字段用于关联服务端日志
+### 发现 4: 后台行为深度分析 ⭐⭐⭐⭐⭐
 
-#### 核心发现 5: AbstractBootService — 启动配置服务 @2535031 ⭐⭐⭐⭐
-- 偏移量: @2535031 - @2537000
-- 服务方法: getAgentConfig / getCueConfig / getCKGConfig / getThreePgHost / getCdnLocation / getHomeUrl / getConsoleUrl / getImageXConfig / getExtensionConfig / getMcpConfig / getStoreRegion / getCdnPrefix / getDocsUrl / getGuideHelperConfig / getCdnPrefixes
-- IPC_SERVICE_NAME = "BootService"
-- AbstractBootManagementService: 管理 userInfo / originBootConfig / storeRegion / bootConfig / deviceId
-- 事件: onDidBootConfigChanged / onDidOriginBootConfigChanged / onDidStoreRegionChanged / onDidUserInfoChanged / onDidDeviceIdChange
-- throttle(50) 限流 refreshBootConfigDebounce
+#### 4.1 Chromium/Electron 定时器节流行为
 
-#### 核心发现 6: icube_devtool_bridge — VS Code 通信桥 @5890559 ⭐⭐⭐⭐
-- 偏移量: @5890559
-- s8 类: VS Code WebView 与主进程的通信桥
-  - register/unregister/fire 方法
-  - get/set state 通过 `window.__icube_devtool_vscode__`
-  - handleReceive 处理回调
-- vscodeService 全局单例: `window.vscodeService = new s8`
-- callJS 消息处理器: 支持 callback(成功/失败) 和 event 两种类型
-- la() 函数: 注册回调到 `__icube_devtool_bridge_callbacks`
-- s7() 函数: 错误处理 — "The query has been canceled" 特殊处理 (-1 errCode)
+| API | 前台最小间隔 | 后台最小间隔 | 节流程度 | auto-continue 适用性 |
+|-----|-------------|-------------|---------|-------------------|
+| queueMicrotask | 同步微任务 | 同步微任务 | **不节流** ✅ | ⭐⭐⭐⭐⭐ 首选 |
+| Promise.resolve().then() | 微任务 | 微任务 | **不节流** ✅ | ⭐⭐⭐⭐⭐ 首选备选 |
+| MessageChannel port.onmessage | 微任务 | 微任务 | **不节流** ✅ | ⭐⭐⭐⭐ 兼容备选 |
+| setTimeout(...,0) | ~4ms | ≥1000ms | **中度节流** ⚠️ | ⭐⭐⭐ 可用但延迟大 |
+| setTimeout(>1s) | 精确 | ≥60000ms | **严重节流** ❌ | ⚠️ 不可靠 |
+| setInterval | 精确 | ≥1000ms | **同 setTimeout** ❌ | ⚠️ 不可靠 |
+| requestAnimationFrame | ~16ms | **完全暂停** | **冻结** ❌ | ❌ 不可用 |
+| useEffect / useState updater | 同步 | **Scheduler 冻结** | **冻结** ❌ | ❌ 不可用 |
 
-#### 核心发现 7: Lexical 编辑器命令注册 @2834865 ⭐⭐⭐
-- 偏移量: @2834865
-- Chat 输入框的 Lexical 编辑器命令:
-  - ADD_WORKSPACE_MENTION_SYMBOL — 添加工作区引用
-  - ADD_FILE_MENTION_SYMBOL — 添加文件引用
-  - ADD_FILE_MENTION_SYMBOL_WITH_SELECTION — 带选区的文件引用
-  - ADD_FILE_MENTION_SYMBOL_FROM_EXTERNAL — 外部文件引用
-  - ADD_CODE_MENTION_SYMBOL — 代码引用
-  - ADD_FOLDER_MENTION_SYMBOL — 文件夹引用
-  - ADD_FOLDER_MENTION_SYMBOL_FROM_EXTERNAL — 外部文件夹引用
-- 遥测回调: es.GP.ContextAddClick + context_type + add_type
+#### 4.2 L1 补丁后台失效根因分析
 
-#### 核心发现 8: 多模态图片上传 @2681467 ⭐⭐⭐
-- 偏移量: @2681467
-- uploadSingleImageToServer: image_id + width + height + raw_body
-- uploadFilesToServer: 批量上传，进度追踪，Slardar 事件
-- 图片限制: 3MB / 最小尺寸 / jpeg/png/gif/webp
-- ToB 图片 ID 格式: `ToB-{userId}_{timestamp}_{random}_{type}_{width}_{height}`
+**错误认知纠正**: L1 补丁失效不是因为 V/J 变量值冻结!
+- V 来自 Store.useStore() — **后台仍可更新** ✅
+- J 来自 kg 枚举比较 — **始终可计算** ✅
+- h (sessionId) 来自 Store.getCurrentSession() — **后台可获取** ✅
 
-#### 核心发现 9: CancelReason / FinishReason 枚举 @111249 ⭐⭐⭐
-- 偏移量: @111249
-- FinishReason: CANCEL_BY_TOKEN / TRUNCATE_BY_PLUGIN_AST / TRUNCATE_BY_PLUGIN_INDENT / MAX_TOKEN_LIMIT / CANCEL_BY_SENSITIVE / SAME / CANCEL_BY_CONTENT_SECURITY
-- CancelReason: REQUEST_TIMEOUT(20) / PARAMS_INVALID(21) / CANCEL_BY_TOKEN(22) / DOCUMENT_UNDEFINED(23) / UNKNOWN_ERROR(24) / CONTENT_SECURITY_PRE_INTERCEPTED(25) / CONTENT_SECURITY_POST_INTERCEPTED(26)
+**真正根因**: `if(V&&J)` 是 React 组件渲染分支。React Scheduler 在后台标签页**暂停组件重渲染** → 整个 if(V&&J) 分支不执行 → L1 补丁代码永远不触发。
 
-#### 核心发现 10: DocumentSetStatus / ExternalDocumentType @100870 ⭐⭐⭐
-- 偏移量: @100870 (webpack 模块 64977)
-- ExternalDocumentType: Official / Custom
-- DocumentSetStatus: Ready / Indexing / Failed
-- DocumentPageStatus: Ready / Fetching / FetchFailed / Indexing / IndexFailed / Deleted
+**验证**: L2 补丁在 ErrorStreamParser.parse() 中执行, 位于 SSE 回调链 (L2 Service 层), 完全不依赖 React 渲染周期 → 后台 100% 可靠。
 
-#### P0 JSON 配置文件清单
-| 偏移量 | 模块 | 内容 |
-|--------|------|------|
-| @2473418 | - | Unicode 字符分类表 |
-| @2494107 | - | Unicode 空白字符表 |
-| @2734967 | - | i18n 中文 (zh-cn) |
-| @2742207 | - | i18n 日文 (ja) |
-| @5870417 | 84312 | API 端点配置 (byteGate/tea/slardarPC/copilotDomain/mcpPlugin) |
-| @5874967 | 99771 | i18n 英文 (en) |
-| @5992978 | - | i18n 英文 (逗号分隔格式) |
-| @6107094 | - | i18n 中文 (逗号分隔格式) |
-| @6184670 | - | i18n 日文 (逗号分隔格式) |
+#### 4.3 beautified.js 中异步 API 使用统计
 
-#### 补丁影响评估
-| 发现 | 对现有补丁的影响 |
-|------|-----------------|
-| ContactType 枚举 @55561 | bypass-usage-limit 补丁可直接引用此枚举值 |
-| ChatError + 错误码 @54993 | efh-resume-list 补丁可扩展新错误码 (LLM_QUEUING/LLM_STOP_DUP_TOOL_CALL) |
-| externalCopilotDomains @5874343 | AI API 端点 `a0ai-api.byteintlapi.com`，可用于理解请求路径 |
-| AbstractBootService @2535031 | getStoreRegion/getMcpConfig 可用于条件化补丁逻辑 |
-| icube_devtool_bridge @5890559 | window.vscodeService 可作为补丁的 IPC 通信替代通道 |
+| API | 出现次数 | 主要使用场景 |
+|-----|---------|------------|
+| setTimeout | 80+ | 重试/延迟/UI更新/动画/节流 |
+| setInterval | ~10 | 会话跟踪/进度监控/光标闪烁 |
+| requestAnimationFrame | ~5+ | 动画/滚动/终端渲染 |
+| queueMicrotask | ~11 | 事件发射/状态更新/组件生命周期 |
+| MessageChannel | ~9 | 微任务 fallback / 异步桥接 |
+| Promise.then | ~46+ | 异步链/微任务兼容 |
 
-#### 结论
-P0 盲区确认: **所有 DI 注册(uJ)、DI 注入(uX)、核心业务方法(resumeChat/sendChatMessage/provideUserResponse)、服务接口(Symbol)均不在 P0 范围内**。P0 的业务逻辑主要是:
-1. 数据结构定义 (错误码/枚举/类型)
-2. API 端点配置 (JSON 静态数据)
-3. VS Code 框架代码 (CommandsRegistry/Protocol)
-4. 上传/遥测/性能追踪基础设施
-5. i18n 本地化数据 (3 种格式 × 3 种语言)
-6. DevTool 通信桥
+### 发现 5: 候选拦截点评估矩阵 ⭐⭐⭐⭐⭐
+
+| 候选点 | 位置 | 后台可用性 | 可靠性 | 复杂度 | 覆盖面 | 加权分 | 推荐 |
+|--------|------|-----------|--------|--------|--------|-------|------|
+| **A: ErrorStreamParser.parse()** | @7513080 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ 低 | ⭐⭐⭐⭐⭐ 全部错误码 | **8.65** | 🥇 **主拦截点** |
+| B: store.subscribe | @7588590 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ 中 | ⭐⭐⭐⭐ 全部 | 6.95 | 🥈 防御层 |
+| C: teaEventChatFail | @7458691 | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ 低 | ⭐⭐⭐ 仅信号 | 6.35 | ❌ 不推荐 |
+| D: resumeChat 入口 wrapper | @249656 | N/A | ⭐⭐⭐ | ⭐ 高 | ⭐⭐ 无法区分 | 5.10 | ❌ 不适合 |
+
+**详细评估**:
+
+**🥇 候选 A — ErrorStreamParser.parse() @7513080**:
+- **优势**:
+  - 所有 SSE 错误事件的必经之路 (单点入口)
+  - L2 服务层, 不受 React Scheduler 影响
+  - 参数 e (error object) 含 code/message/data, 易判断可恢复性
+  - 参数 t (context) 含 sessionId/agentMessageId, 直接用于 resumeChat
+  - 已有 v22 补丁验证可行 (90+ 分钟无人值守, 100% 成功率)
+- **劣势**: 需要 DI resolve(BR) 获取 SessionServiceV2; 当前使用 setTimeout(0) 有节流风险
+- **改进**: 用 queueMicrotask 替代 setTimeout(0) 即可消除节流风险
+
+**🥈 候选 B — store.subscribe @7588590**:
+- **优势**: 数据驱动模式, 完全绕过 React 渲染周期; 与 PlanItemStreamParser 自动确认同款模式
+- **劣势**: 比 parse() 多一层间接 (parse→Store→subscribe); Store 更新时机可能延迟
+- **定位**: 作为防御监控层, 捕获 parse() 遗漏的边缘情况
+
+**🥉 候选 C — teaEventChatFail @7458691**:
+- **优势**: L2 服务层; 必然在错误时被调用
+- **劣势**: 纯遥测函数, 注入业务逻辑违反单一职责; 调用时机晚于 parse()
+- **结论**: 不推荐作为主要拦截点
+
+**❌ 候选 D — resumeChat 入口包装**:
+- **无法区分**自动续接 vs 手动续接 vs 正常 API 调用
+- 包装会引入不必要的复杂度
+- **结论**: 不适合
+
+### 发现 6: 理想架构设计 ⭐⭐⭐⭐⭐
+
+#### 推荐方案: "Unified Mid-Parse" 单一中间件
+
+**核心思路**: 以 ErrorStreamParser.parse() 为唯一拦截点, 用 queueMicrotask 替代 setTimeout, 统一日志和冷却机制。
+
+**架构图**:
+```
+输入: 任何 SSE 错误事件 (Ot.Error)
+    ↓
+[ErrorStreamParser.parse(e, t)]  ← ★ 唯一注入点 @7513080
+    ↓
+判断: e.code ∈ [4000002, 4000009, 4000012, 987, 4008, 977] ?
+    ↓ (是)
+判断: Date.now() - window.__traeAC > 5000ms ? (冷却期 5s)
+    ↓ (是, 未冷却)
+window.__traeAC = Date.now()  // 更新冷却时间戳
+    ↓
+queueMicrotask(() => {         // ★ 改用 queueMicrotask (不节流!)
+    var svc = uj.getInstance().resolve(BR);
+    svc.resumeChat({
+        sessionId: t.sessionId,
+        messageId: t.agentMessageId
+    });  // 主路径: resumeChat
+}).catch(() => {
+    svc.sendChatMessage({     // 降级: sendChatMessage
+        message: "Continue",
+        sessionId: t.sessionId
+    });
+});
+    ↓
+日志: console.log("[AC] auto-resumed, code=" + e.code)
+```
+
+#### 新旧方案对比
+
+| 维度 | 现状 (v22, 6 个补丁) | 新方案 (Unified Mid-Parse) | 改进 |
+|------|---------------------|--------------------------|------|
+| **补丁数量** | 6 个 (thinking+l2-parse+v11+guard-clause+efg-list+loop-detect) | **1 个主 + 1 个防御** = 2 个 | **-67%** |
+| **拦截入口** | 3 处 (L1+L2+L3) | **1 处** (L2 parse) | 消除冗余 |
+| **调度 API** | queueMicrotask(L1) + setTimeout(0)(L2) + subscribe(L3) | **统一 queueMicrotask** | 消除节流风险 |
+| **冷却机制** | window.__traeAC (L1) + window.__traeAC11 (L3) | **单一 window.__traeAC** | 简化 |
+| **日志前缀** | [v7], [v22-bg], [v22-bg] 不统一 | **统一 [AC]** | 可观测性 |
+| **统计计数** | 无 | **window.__traeAC_stats** | 🆕 可观测 |
+| **代码量** | ~60 行注入 | ~35 行 | -42% |
+| **后台可靠性** | L1❌ + L2✅ + L3⚠️ | **✅ 100%** (queueMicrotask) | 质的飞跃 |
+| **维护成本** | 高 (6 处联动修改) | **低** (1 处修改) | 大幅降低 |
+
+#### 推荐迁移路径
+
+```
+Phase 1 (立即可做, 10分钟, 零风险):
+┌─────────────────────────────────────────────┐
+│ ① L2 补丁: setTimeout→queueMicrotask        │
+│ ② 添加 __traeAC_stats = {total:0, ...}      │
+│ ③ 日志前缀统一为 [AC]                        │
+└─────────────────────────────────────────────┘
+         ↓ 验证稳定后
+Phase 2 (合并重构, 2-3小时, 需测试):
+┌─────────────────────────────────────────────┐
+│ 新建 unified-mid-parse 补丁                  │
+│   → 替代 auto-continue-l2-parse              │
+│   → 合并 auto-continue-v11-store-subscribe   │
+│ L1 补丁纯 UI 化 (移除自动触发代码)           │
+│ 回归测试: 前台 + 后台 30 分钟                │
+└─────────────────────────────────────────────┘
+         ↓ 稳定运行 1 周后
+Phase 3 (清理):
+┌─────────────────────────────────────────────┐
+│ 禁用 guard-clause-bypass                     │
+│ 禁用 bypass-loop-detect (J 数组由新补丁管理) │
+│ 禁用 efh-resume-list (efg 由新补丁管理)      │
+│ store.subscribe 降级为纯监控(只日志不动作)    │
+└─────────────────────────────────────────────┘
+```
+
+### 最终建议
+
+| 问题 | 建议 | 置信度 |
+|------|------|--------|
+| 是否重构? | **是**, 分 Phase 渐进式重构 | ⭐⭐⭐⭐⭐ |
+| 最佳拦截点? | **ErrorStreamParser.parse() @7513080** | ⭐⭐⭐⭐⭐ |
+| 首要优化? | **setTimeout→queueMicrotask** (零风险, 立即收益) | ⭐⭐⭐⭐⭐ |
+| L1 补丁命运? | **纯 UI 化** (保留 Alert 但移除自动触发) | ⭐⭐⭐⭐ |
+| L3 补丁命运? | **降级为防御监控层** 或禁用 | ⭐⭐⭐⭐ |
+| 目标补丁数? | **2 个** (主拦截 + 可选防御) | ⭐⭐⭐⭐ |

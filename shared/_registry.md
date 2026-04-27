@@ -24,11 +24,25 @@ last_reviewed: 2026-04-26
 | `handoff.md` | **P0** | 交接**路由入口**（指向 explorer/developer） | 每次启动（最先） | Explorer/Developer 各写各的 |
 | `handoff-explorer.md` | **P0 (Explorer)** | 探索家交接单（域测绘/源码发现/搜索模板） | Explorer 启动时 | Explorer 会话结束时 |
 | `handoff-developer.md` | **P0 (Developer)** | 开发者交接单（补丁状态/版本适配/待处理问题） | Developer 启动时 | Developer 会话结束时 |
+| `skills/_index.md` | **P0** | 渐进式知识索引（Layer 1 元数据 + Layer 2 路径） | 每次启动 | 新增/删除 Skill 或业务上下文时 |
 | `status.md` | P1 | 当前状态+补丁表 | 每次启动 | 每次会话结束 |
-| `discoveries.md` | P2 | **源码发现+代码定位** | 需要查代码时 | 发现关键信息时 |
-| `decisions.md` | P2 | 技术决策记录 | 需要理解决策时 | 做出重要决策时 |
+| `discoveries.md` | P1 | **源码发现+代码定位**（含渐进式索引层） | 需要查代码时 | 发现关键信息时 |
+| `failure-modes.md` | P1 | **已知失败模式库**（15 条可预防错误及应对策略） | 遇到问题时（诊断前必读） | 发现新的失败模式时 |
+| `rules.md` | P1 | 协作规则（L0-L3 四层体系） | 每次启动 | 规则变更时 |
 | `context.md` | P1 | 项目上下文+架构洞察 | 首次接触项目 | 项目重大变更时 |
-| `rules.md` | P1 | 协作规则 | 每次启动 | 修改 rules/*.yaml 后 |
+| `work-log.md` | P2 | **Agent 工作日志**（过程性内容的唯一归宿） | 审计工作过程时 | 每次操作后（只追加） |
+| `evolution-log.md` | P2 | **自我进化日志**（任务结果/失败模式/规则变更） | 回顾进化历史时 | 每次重要任务完成后 |
+| `decisions.md` | P2 | 技术决策记录 | 需要理解决策背景时 | 做出技术决策时 |
+| `diagnosis-playbook.md` | P2 | 诊断手册 | 遇到已知问题时 | 发现新的诊断模式时 |
+
+### Rules 文件（L0-L3 四层体系）
+
+| 文件 | 层级 | 激活方式 | 规则数 |
+|------|------|----------|--------|
+| rules/L0-always.yaml | L0 | Always Apply | 5 |
+| rules/L1-techstack.yaml | L1 | File-Specific | 6 |
+| rules/L2-domain.yaml | L2 | Intelligent | 8 |
+| rules/L3-sop.yaml | L3 | Manual/Smart | 4 |
 
 ## 写入格式
 
@@ -43,6 +57,28 @@ last_reviewed: 2026-04-26
 ```
 
 **⚠️ 追加而非重写** — 重写会丢失其他会话的条目。只允许更新 status.md 的结构性表格内容。
+
+### 进化日志模板
+
+追加到 `shared/evolution-log.md` 末尾，格式：
+
+```markdown
+### [日期] 任务：{任务描述}
+
+**执行结果**：成功/部分成功/失败
+**遵守的规则**：{本文档中的哪些规则起作用了}
+**违反/不足的规则**：{哪些规则没能遵守，为什么}
+**新发现的失败模式**：
+- {描述}
+**建议的规则变更**：
+- 新增：{规则内容}
+- 修改：{原规则 → 新规则}
+- 删除：{规则内容，原因}
+**效能数据**：
+- 耗时：{估计 vs 实际}
+- 错误次数：{N 次}
+- 人工介入次数：{N 次}
+```
 
 ## ⏰ 时间戳规范（强制）
 

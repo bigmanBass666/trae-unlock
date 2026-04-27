@@ -1,0 +1,91 @@
+layer: L2
+activation: intelligent
+description: "业务/领域规则 — 当识别到相关业务场景时遵守"
+
+rules:
+  - id: "L2-001"
+    name: "DI Token 迁移模式"
+    domains: ["DI", "Store", "SSE"]
+    priority: high
+    description: "Store 类和 Parser 类 Token 已迁移到 Symbol()，Facade/Service 类保留 Symbol.for()"
+    actions:
+      - "搜索 ISessionStore/IPlanItemStreamParser/IEntitlementStore 时用 Symbol(\"I...\")"
+      - "搜索 IModelService/ITeaFacade/ICommercialPermissionService 时用 Symbol.for(\"I...\")"
+      - "新补丁引用 Token 时必须确认当前形式"
+
+  - id: "L2-002"
+    name: "SSE 错误传播链路"
+    domains: ["SSE", "Error"]
+    priority: high
+    description: "错误传播路径：SSE→EventHandlerFactory→ErrorStreamParser→Store→React"
+    actions:
+      - "最佳拦截点：ErrorStreamParser.parse() @7513080（L2 服务层）"
+      - "错误码白名单：4000002/4000009/4000012/987/4008/977"
+      - "续接方法：resumeChat({sessionId,messageId}) → sendChatMessage 降级"
+      - "冷却机制：window.__traeAC 5 秒防重复"
+
+  - id: "L2-003"
+    name: "商业权限判断链"
+    domains: ["Commercial", "Model"]
+    priority: high
+    description: "ICommercialPermissionService(NS)→IEntitlementStore(Nu)→ICredentialStore(MX) 是付费限制核心"
+    actions:
+      - "NS 类没有 isFreeUser() 方法 — isFreeUser 在 efi() Hook 中计算"
+      - "bJ 枚举定义用户身份：Free=0,Pro=1,ProPlus=2,Ultra=3,Trial=4,Lite=5,Express=100"
+      - "force-max-mode 已有 ||true 硬编码，Solo Agent 已强制 Max"
+      - "服务端限制无法绕过，仅 UI 限制可绕过"
+
+  - id: "L2-004"
+    name: "错误码体系"
+    domains: ["Error"]
+    priority: high
+    description: "两套错误码体系 + 可恢复列表 + 标志变量"
+    actions:
+      - "服务端 o 枚举 + 客户端 eA 枚举 + kg 枚举(56个)"
+      - "efg 可恢复错误列表(14个) — 网络错误为主"
+      - "J 变量(5个错误码) — 可续接错误标志"
+      - "ee 变量(2个错误码) — 配额限制标志"
+      - "付费限制错误码：PREMIUM_MODE_USAGE_LIMIT=4008, STANDARD_MODE_USAGE_LIMIT=4009, FIREWALL_BLOCKED=700"
+
+  - id: "L2-005"
+    name: "Zustand Store 架构"
+    domains: ["Store"]
+    priority: medium
+    description: "8 个 Zustand Store，无 Immer，全部用展开运算符"
+    actions:
+      - "Store-React 连接：uB(token).useStore(selector) Hook"
+      - "关键 subscribe 点：@7584046(#1), @7588518(#8), @7605848(runningStatus)"
+      - "setCurrentSession 出现 25 次，.getState() 出现 234 次"
+
+  - id: "L2-006"
+    name: "命令确认双层系统"
+    domains: ["SSE", "Sandbox", "MCP"]
+    priority: high
+    description: "服务层(PlanItemStreamParser) + UI层(RunCommandCard) 完全独立"
+    actions:
+      - "两层都需补丁才能实现完全自动确认"
+      - "confirm_info 数据结构含 confirm_status/auto_confirm/hit_red_list/block_level"
+      - "BlockLevel 6 值 + AutoRunMode 5 值 + getRunCommandCardBranch 决策矩阵"
+      - "MCP 工具调用(run_mcp)与 run_command 共享确认管道"
+
+  - id: "L2-007"
+    name: "假设优先搜索法"
+    domains: ["DI", "SSE", "Error", "Commercial"]
+    priority: high
+    description: "搜索代码前必须先列假设，禁止广撒网式搜索"
+    actions:
+      - "遇到问题时，先花 2 分钟列出 2-4 个可能的根因假设"
+      - "每个假设对应一个关键验证点"
+      - "按排除成本从低到高的顺序验证假设"
+      - "一旦假设被验证为真，立即停止搜索，进入修复阶段"
+
+  - id: "L2-008"
+    name: "中间层陷阱警告"
+    domains: ["SSE", "React", "Sandbox"]
+    priority: high
+    description: "调用回调/封装函数时，不要假设它会做你认为它该做的事"
+    actions:
+      - "调用回调函数效果不符预期时，第一步查看函数内部实现"
+      - "特别注意函数内部的 if 条件判断"
+      - "如果中间层条件阻碍目标，考虑绕过直接调用底层 API"
+      - "绕过时必须有 fallback 机制"
