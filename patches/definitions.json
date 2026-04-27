@@ -80,7 +80,7 @@
       "find_original": "d!==t.currentSessionId)&&a()})}async function FP(e){let t=uj.getInstance(),i=t.resolve(k1),{currentAgent:r}=t.resolve(xC).getState()",
       "replace_with": "d!==t.currentSessionId)&&a()});try{var _v11s=n;_v11s.subscribe(function(_p,_c){var _m=_p?.currentSession?.messages||[],_o=_c?.currentSession?.messages||[];if(_m.length<=_o.length)return;var _x=_m[_m.length-1],_cd=_x?.exception?.code;if(!_cd||[4000002,4000009,4000012,987].indexOf(_cd)<0)return;var _tn=Date.now();if(window.__traeAC11&&_tn-window.__traeAC11<5000)return;window.__traeAC11=_tn;console.log(\"[v22-bg] v11-sub detected error\",_cd,\"calling resumeChat\");try{var _svc=uj.getInstance().resolve(BR);try{_svc.resumeChat({messageId:_x.agentMessageId,sessionId:_p.currentSession.sessionId});console.log(\"[v22-bg] v11-sub resumeChat OK\")}catch(_re){console.log(\"[v22-bg] v11-sub resumeChat err, fallback SCM\");try{_svc.sendChatMessage({message:\"Continue\",sessionId:_p.currentSession.sessionId});console.log(\"[v22-bg] v11-sub SCM OK\")}catch(_se){console.log(\"[v22-bg] v11-sub SCM err:\",_se.message)}}}catch(_err){console.log(\"[v22-bg] v11-sub error:\",_err)}});console.log(\"[v22-bg] v11-sub store.subscribe installed\")}catch(_e2){console.log(\"[v22-bg] v11-sub setup error:\",_e2)}}async function FP(e){let t=uj.getInstance(),i=t.resolve(k1),{currentAgent:r}=t.resolve(xC).getState()",
       "offset_hint": "~7588590",
-      "check_fingerprint": "[v22-bg] v11-sub store.subscribe installed",
+      "check_fingerprint": "_v11s.subscribe",
       "enabled": true,
       "added_at": "2026-04-23",
       "anchor_reason": "函数定义 '}async function FP(e){let t=uj.getInstance(),i=t.resolve(k1)' 唯一标识注入点位置"
