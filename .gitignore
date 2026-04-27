@@ -3,6 +3,7 @@ tmp_*
 
 unpacked/
 tools/
+backups/
 
 scripts/explore-output*.txt
 scripts/explore-*-results.txt

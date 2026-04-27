@@ -1,8 +1,0 @@
-﻿{
-    "files":  [
-                  "prompts/developer-agent-prompt.md",
-                  "prompts/explorer-agent-prompt.md"
-              ],
-    "timestamp":  "20260427-030422",
-    "created_by":  "sync-prompts.ps1"
-}
