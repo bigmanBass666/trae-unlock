@@ -29,7 +29,7 @@ function Write-ColorOutput {
 }
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RootDir = Split-Path -Parent $ScriptDir
+$RootDir = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 
 $DefaultSource = "D:\apps\Trae CN\resources\app\node_modules\@byted-icube\ai-modules-chat\dist\index.js"
 $DefaultOutputDir = Join-Path $RootDir "unpacked"

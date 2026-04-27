@@ -22,7 +22,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RootDir = Split-Path -Parent $ScriptDir
+$RootDir = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 $DefPath = Join-Path $RootDir "patches\definitions.json"
 $BackupDir = Join-Path $RootDir "backups"
 
