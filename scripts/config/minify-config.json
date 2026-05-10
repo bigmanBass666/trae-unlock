@@ -1,1 +1,1 @@
-{"compress": {"dead_code": true, "unused": true, "conditionals": true, "evaluate": true, "booleans": true, "loops": true, "hoist_funs": true, "keep_fargs": false, "hoist_vars": true, "if_return": true, "join_vars": true, "collapse_vars": true, "reduce_vars": true, "switches": true, "simplify": true, "passes": 3}, "mangle": {"toplevel": false, "properties": false, "reserved": []}, "output": {"comments": false, "beautify": false, "preamble": null, "quote_style": 0, "wrap_iife": false}}
+{"compress": false, "mangle": false, "output": {"comments": false}}

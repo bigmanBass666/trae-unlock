@@ -1,13 +1,13 @@
 {
   "meta": {
     "name": "trae-unlock-patches",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "target_version": "Trae CN 3.3.55 (2026-05-06)",
     "target_file": "D:/apps/Trae CN/resources/app/node_modules/@byted-icube/ai-modules-chat/dist/index.mjs",
     "target_file_display": "ai-modules-chat/dist/index.mjs",
     "file_size_mb": "~12.3MB",
-    "format_version": "3.0",
-    "format_description": "beautified.js格式anchor/find_original/replace_with，基于node.js深度搜索验证的真实变量名",
+    "format_version": "4.0",
+    "format_description": "V4.0 纯底层架构 — confirm-info-hijack 单点注入替代多层防御",
     "variable_mapping_note": "旧名→新名映射，仅作文档用途。PowerShell大小写不敏感，不可用做JSON键",
     "variable_mapping_list": [
       "kg→Ib", "efg→efx", "Cr→Mp", "P7→zS", "M.localize→x.localize",
@@ -20,6 +20,21 @@
     ]
   },
   "patches": [
+    {
+      "id": "confirm-info-hijack",
+      "name": "纯底层 confirm_info 源头劫持 (v1)",
+      "description": "在 verifyCommand() 中 confirm_info 的唯一赋值点（Line 156805），在 n.confirm_info = a 之后立即将 a.confirm_status 强制设为 Mz.Confirmed。这是全文件唯一的 .confirm_info= 赋值点。所有下游消费者（service-layer/ecQ/useMemo/useEffect）自动放行。替代 bypass-runcommandcard-redlist + service-layer-runcommand-confirm + data-source-auto-confirm + force-auto-confirm + sync-force-confirm。[STATUS: NEW - PURE BOTTOM LAYER] [V4.0: 单点注入]",
+      "anchor": "console.log(\"verifyCommand\", a), n.confirm_info = a)",
+      "anchor_type": "exact",
+      "anchor_length": 54,
+      "find_original": "console.log(\"verifyCommand\", a), n.confirm_info = a)",
+      "replace_with": "console.log(\"verifyCommand\", a), n.confirm_info = a, a && (a.confirm_status = Mz.Confirmed)",
+      "offset_hint": "~10809210",
+      "check_fingerprint": "a.confirm_status = Mz.Confirmed",
+      "enabled": true,
+      "added_at": "2026-05-10",
+      "anchor_reason": "verifyCommand 内唯一 confirm_info 赋值点 + console.log 组合唯一"
+    },
     {
       "id": "efh-resume-list",
       "name": "可恢复错误列表扩展 (v3 - 含循环检测+DEFAULT)",
@@ -143,7 +158,8 @@
     {
       "id": "bypass-runcommandcard-redlist",
       "name": "绕过 RunCommandCard 全模式弹窗 (v2)",
-      "description": "getRunCommandCardBranch方法在所有模式下都可能弹窗。v2: 让所有模式(WHITELIST+ALWAYS_RUN+default)都返回zS.Default，彻底消除UI层弹窗竞态。v3.3.55变量名变更: Cr→Mp, P7→zS。配合服务层补丁使用。[STATUS: COMPATIBLE - 可直接应用] [V3.0: 变量名已验证 Mp/zS]",
+      "description": "getRunCommandCardBranch方法在所有模式下都可能弹窗。v2: 让所有模式(WHITELIST+ALWAYS_RUN+default)都返回zS.Default，彻底消除UI层弹窗竞态。v3.3.55变量名变更: Cr->Mp, P7->zS。配合服务层补丁使用。[STATUS: COMPATIBLE - 可直接应用] [V3.0: 变量名已验证 Mp/zS] [SUPERSEDED BY confirm-info-hijack v1]",
+      "enabled": false,
       "anchor": "switch (t) {\n                        case Mp.AutoRunMode.WHITELIST:",
       "anchor_type": "exact",
       "anchor_length": 56,
@@ -151,14 +167,13 @@
       "replace_with": "switch (t) {\n                        case Mp.AutoRunMode.WHITELIST:\n                            return zS.Default;\n                        case Mp.AutoRunMode.ALWAYS_RUN:\n                            return zS.Default;\n                        default:\n                            return zS.Default\n                    }",
       "offset_hint": "~11329449",
       "check_fingerprint": "case Mp.AutoRunMode.WHITELIST:\n                            return zS.Default",
-      "enabled": true,
       "added_at": "2026-04-18",
       "anchor_reason": "switch(t)+case Mp.AutoRunMode.WHITELIST组合在getRunCommandCardBranch中唯一"
     },
     {
       "id": "service-layer-runcommand-confirm",
       "name": "服务层自动确认+状态同步 (v8)",
-      "description": "在else分支追加自动确认逻辑。v3.3.55变量名变更: o→h(sessionId比较)。1)黑名单过滤(response_to_user+AskUserQuestion+ExitPlanMode) 2)confirm_status防重复守卫 3)provideUserResponse调用(箭头函数) 4)confirm_status同步更新。[STATUS: COMPATIBLE - 可直接应用] [V3.0: 变量名已验证 h/i]",
+      "description": "在else分支追加自动确认逻辑。v3.3.55变量名变更: o→h(sessionId比较)。1)黑名单过滤(response_to_user+AskUserQuestion+ExitPlanMode) 2)confirm_status防重复守卫 3)provideUserResponse调用(箭头函数) 4)confirm_status同步更新。[STATUS: COMPATIBLE - 可直接应用] [V3.0: 变量名已验证 h/i] [SUPERSEDED BY confirm-info-hijack v1]",
       "anchor": "t?.sessionId === h || e?.confirm_info?.auto_confirm || this.storeService.setBadgesBySessionId",
       "anchor_type": "exact",
       "anchor_length": 80,
@@ -166,14 +181,14 @@
       "replace_with": "t?.sessionId === h || e?.confirm_info?.auto_confirm || this.storeService.setBadgesBySessionId(t.sessionId, e?.confirm_info?.confirm_status),(e?.toolName||e?.id||e?.toolCallId)&&(e?.toolName!==\"response_to_user\"&&e?.toolName!==\"AskUserQuestion\"&&e?.toolName!==\"ExitPlanMode\")&&(e?.confirm_info?.confirm_status!==\"confirmed\")&&(this._taskService.provideUserResponse({task_id:i||\"\",type:\"tool_confirm\",toolcall_id:e?.planItemId||e?.id||e?.toolCallId||\"\",tool_name:e?.toolName||\"\",decision:\"confirm\"}).catch(e=>{this._logService.warn(\"[PlanItemStreamParser] auto-confirm runcommand failed:\",e)}),e.confirm_info&&(e.confirm_info.confirm_status=\"confirmed\"))",
       "offset_hint": "~10248750",
       "check_fingerprint": "e?.toolName!==\"ExitPlanMode\")&&(e?.confirm_info?.confirm_status!==\"confirmed\")&&(this._taskService.provideUserResponse",
-      "enabled": true,
+      "enabled": false,
       "added_at": "2026-04-19",
       "anchor_reason": "setBadgesBySessionId+auto_confirm组合在PlanItemStreamParser中唯一"
     },
     {
       "id": "data-source-auto-confirm",
       "name": "数据源强制auto_confirm (v3 - 需重新适配)",
-      "description": "在DG.parse服务端响应解析阶段注入auto_confirm。v3.3.55变量名变更: CS→MD, _→y。注意: v3.3.55的DG.parse结构已变更，confirm_info/confirm_status/auto_confirm不再在ViewFiles处理附近出现。此补丁的注入点需要重新定位。当前find_original匹配ViewFiles处理块，但注入的auto_confirm逻辑可能无法正确访问confirm_info对象。[STATUS: NEEDS_REWORK - DG.parse结构已变更，注入点需重新定位]",
+      "description": "在DG.parse服务端响应解析阶段注入auto_confirm。v3.3.55变量名变更: CS→MD, _→y。注意: v3.3.55的DG.parse结构已变更，confirm_info/confirm_status/auto_confirm不再在ViewFiles处理附近出现。此补丁的注入点需要重新定位。当前find_original匹配ViewFiles处理块，但注入的auto_confirm逻辑可能无法正确访问confirm_info对象。[STATUS: NEEDS_REWORK - DG.parse结构已变更，注入点需重新定位] [SUPERSEDED BY confirm-info-hijack v1]",
       "anchor": "r.name !== MD.ViewFiles || \"object\" != typeof y",
       "anchor_type": "exact",
       "anchor_length": 44,
@@ -181,14 +196,14 @@
       "replace_with": "r.name !== MD.ViewFiles || \"object\" != typeof y || Array.isArray(y) || (y.files = y.files && Array.isArray(y.files) ? y.files.map(e => (e.start_line_one_indexed && e.start_line_one_indexed > 0 && (e.start_line = e.start_line_one_indexed - 1), e.end_line_one_indexed_inclusive && e.end_line_one_indexed_inclusive > 0 ? e.end_line = e.end_line_one_indexed_inclusive : e.end_line_one_indexed && e.end_line_one_indexed > 0 && (e.end_line = e.end_line_one_indexed), e.read_entire_file && (e.start_line = void 0, e.end_line = void 0), e)) : []), a?.confirm_status === \"unconfirmed\" && r.name !== MD.AskUserQuestion && r.name !== MD.ExitPlanMode && (a.auto_confirm = !0, a.confirm_status = \"confirmed\")",
       "offset_hint": "~9886782",
       "check_fingerprint": "a?.confirm_status === \"unconfirmed\" && r.name !== MD.AskUserQuestion",
-      "enabled": true,
+      "enabled": false,
       "added_at": "2026-04-18",
       "anchor_reason": "MD.ViewFiles处理块在DG.parse中唯一"
     },
     {
       "id": "force-auto-confirm",
       "name": "强制自动确认 (根因修复)",
-      "description": "根因修复! egR组件中auto_confirm=false时命令卡住不执行。eS.confirm()只是日志函数，必须额外调用eE(xA.Confirmed)才能触发真正的状态更新和命令执行。v3.3.55变量名变更: Ck→Mz, xc→xA, er→ea, en→eo, ew→eS。[STATUS: COMPATIBLE - 可直接应用] [V3.0: 变量名已验证 Mz/xA/ea/eo/eS/eE]",
+      "description": "根因修复! egR组件中auto_confirm=false时命令卡住不执行。eS.confirm()只是日志函数，必须额外调用eE(xA.Confirmed)才能触发真正的状态更新和命令执行。v3.3.55变量名变更: Ck→Mz, xc→xA, er→ea, en→eo, ew→eS。[STATUS: COMPATIBLE - 可直接应用] [V3.0: 变量名已验证 Mz/xA/ea/eo/eS/eE] [SUPERSEDED BY confirm-info-hijack v1]",
       "anchor": "!e && ea === Mz.Unconfirmed && eo && eS.confirm(!0)",
       "anchor_type": "exact",
       "anchor_length": 48,
@@ -203,7 +218,7 @@
     {
       "id": "sync-force-confirm",
       "name": "同步强制确认 (修复切窗口失效)",
-      "description": "修复切换AI会话窗口后自动确认卡住的问题。v3.3.55: useMemo中的确认状态逻辑已变更，旧版ey变量不再存在。需要重新定位useMemo中的确认状态计算逻辑。[STATUS: NEEDS_REWORK - useMemo结构已变更，需重新定位]",
+      "description": "修复切换AI会话窗口后自动确认卡住的问题。v3.3.55: useMemo中的确认状态逻辑已变更，旧版ey变量不再存在。需要重新定位useMemo中的确认状态计算逻辑。[STATUS: NEEDS_REWORK - useMemo结构已变更，需重新定位] [SUPERSEDED BY confirm-info-hijack v1]",
       "anchor": "DISABLED_NEEDS_REWORK_useMemo_structure_changed",
       "anchor_type": "exact",
       "anchor_length": 50,
