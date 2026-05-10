@@ -1,7 +1,18 @@
 # Trae Unlock — AI 路由引擎
 
-修改 Trae IDE 源码解锁 AI Agent 能力（命令确认/思考续接/循环绕过等）。
-目标文件 ~10MB 压缩 JS → 347,244 行可读代码。
+修改 Trae IDE 源码解锁 AI Agent 能力。
+V4.0: 纯底层 confirm-info-hijack 单点注入 (6补丁) | 22.8MB 未压缩
+
+---
+
+## 🏗️ V4.0 架构
+
+**核心**: [beautified.js:258021](unpacked/beautified.js#L258021) `verifyCommand()` 源头劫持
+- 🔴 **confirm-info-hijack**: 1行替代5个多层防御补丁
+- 🟢 错误恢复×3 + 自动续接×3 + 权限绕过×1
+- ⚫ SUPERSEDED: bypass-runcommandcard-redlist / service-layer / data-source / force-auto / sync-force
+
+**Tag**: `v4.0.0-pure-bottom-layer` | **Commit**: `63f3bae`
 
 ---
 
@@ -25,7 +36,8 @@
 |------|------|
 | `shared/handoff.md` | 路由入口 + 全局状态 → **必须先读** |
 | `skills/_index.md` | 渐进式知识索引 → **按需加载详情** |
-| `shared/status.md` | 当前状态 + 补丁表 |
+| `shared/status.md` | 当前状态 + V4.0 补丁表 |
+| `patches/definitions.json` | 补丁定义（唯一真实来源） |
 
 > 启动：① 读 handoff.md → ② 读 skills/_index.md → ③ 运行 `auto-heal.ps1 -DiagnoseOnly` → ④ 按需加载工具链
 
@@ -106,7 +118,7 @@
 ## ⚡ 绝对不能违反的规则
 
 1. **用箭头函数** — `.catch(e=>{...})` 而非 `.catch(function(e){...})`
-2. **服务层 > UI 层** — PlanItemStreamParser 不受 React 冻结影响
+2. **源头注入 > 所有层** — verifyCommand() 赋值点劫持，不受 React 冻结影响
 3. **先搜索再动手** — L0-005 诊断前检索 + L2-007 假设优先
 4. **改 definitions.json 后必须 apply + verify**
 5. **禁止编造时间戳** — 用 `$ts = Get-Date` 获取真实值
